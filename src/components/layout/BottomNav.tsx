@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { LayoutDashboard, ReceiptText, CalendarDays, PieChart, Settings } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { cn, vibrate } from "../../lib/utils";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Home", path: "/" },
@@ -17,6 +17,7 @@ export function BottomNav() {
         <NavLink
           key={item.path}
           to={item.path}
+          onClick={() => vibrate(30)}
           className={({ isActive }) =>
             cn(
               "flex flex-col items-center p-2 text-muted-foreground transition-colors",

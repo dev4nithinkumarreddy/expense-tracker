@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { X, ImagePlus, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { vibrate } from "../lib/utils";
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -51,6 +52,7 @@ export function AddExpenseModal({
 
   const handleSave = async () => {
     if (!isValid) return;
+    vibrate();
     setUploading(true);
 
     let receipt_url = expenseToEdit?.receipt_url;

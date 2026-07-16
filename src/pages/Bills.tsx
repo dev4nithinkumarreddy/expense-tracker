@@ -4,6 +4,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Plus, Trash2, CheckCircle2 } from "lucide-react";
+import { vibrate } from "../lib/utils";
 
 export default function Bills() {
   const { bills, addBill, deleteBill, updateBill, settings } = useExpenseStore();
@@ -13,6 +14,7 @@ export default function Bills() {
 
   const handleSave = () => {
     if (!newTitle || !newAmount) return;
+    vibrate();
     addBill({
       title: newTitle,
       amount: parseFloat(newAmount),

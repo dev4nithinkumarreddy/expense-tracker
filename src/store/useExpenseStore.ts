@@ -29,6 +29,7 @@ export interface Settings {
   carryForward: boolean;
   categoryBudgets: Record<string, number>;
   quickAdds: { description: string; amount: number; category: string; icon: string }[];
+  notificationsEnabled?: boolean;
 }
 
 interface ExpenseState {

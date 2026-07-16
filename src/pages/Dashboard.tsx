@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { vibrate } from "../lib/utils";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
 import { Plus } from "lucide-react";
@@ -156,6 +157,7 @@ export default function Dashboard() {
               <button 
                 key={qa.description}
                 onClick={() => {
+                  vibrate();
                   addExpense({
                     amount: qa.amount,
                     description: qa.description,

@@ -3,7 +3,7 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet } from "lucide-react";
 import { Button } from "../components/ui/button";
 
 export default function Settings() {
@@ -28,6 +28,46 @@ export default function Settings() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleCsvExport = () => {
+    if (!expenses.length) return;
+    const headers = ["Date", "Description", "Category", "Amount", "Notes"];
+    const rows = expenses.map(e => [
+      e.date.split("T")[0],
+      `"${e.description.replace(/"/g, '""')}"`,
+      `"${e.category}"`,
+      e.amount.toString(),
+      `"${(e.notes || "").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `expense-tracker-expenses-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleNotifications = async () => {
+    if (settings.notificationsEnabled) {
+      updateSettings({ notificationsEnabled: false });
+    } else {
+      if (typeof Notification === 'undefined') {
+        alert("Notifications are not supported in this browser.");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        updateSettings({ notificationsEnabled: true });
+        new Notification("Expense Tracker", { body: "Reminders enabled! You'll be notified daily to log expenses." });
+      } else {
+        alert("Notification permission denied by browser.");
+      }
+    }
   };
 
   const handleReset = () => {
@@ -98,14 +138,29 @@ export default function Settings() {
               <div className="flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-sm font-medium">Carry Forward Balance</span>
-                  <span className="text-xs text-muted-foreground">Roll remaining budget to next month</span>
+                  <span className="text-xs text-muted-foreground">Add remaining budget to next month</span>
                 </div>
-                <input 
-                  type="checkbox"
-                  checked={settings.carryForward}
-                  onChange={(e) => updateSettings({ carryForward: e.target.checked })}
-                  className="w-5 h-5 rounded accent-primary"
-                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => updateSettings({ carryForward: !settings.carryForward })}
+                >
+                  {settings.carryForward ? "On" : "Off"}
+                </Button>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">Daily Reminders</span>
+                  <span className="text-xs text-muted-foreground">Get notified to log your expenses</span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={toggleNotifications}
+                >
+                  {settings.notificationsEnabled ? "On" : "Off"}
+                </Button>
               </div>
               
               <div className="space-y-1.5">
@@ -210,9 +265,13 @@ export default function Settings() {
           <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Data Management</h3>
           <Card>
             <CardContent className="p-4 space-y-3">
+              <Button variant="outline" className="w-full justify-start gap-2" onClick={handleCsvExport}>
+                <FileSpreadsheet className="w-4 h-4" />
+                Export Expenses (CSV)
+              </Button>
               <Button variant="outline" className="w-full justify-start gap-2" onClick={handleExport}>
                 <Download className="w-4 h-4" />
-                Export Backup (JSON)
+                Export Full Backup (JSON)
               </Button>
               <Button variant="outline" className="w-full justify-start gap-2" onClick={() => supabase.auth.signOut()}>
                 Sign Out
