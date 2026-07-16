@@ -16,14 +16,14 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: '/icon.jpg',
+            src: '/icon.png',
             sizes: '192x192',
-            type: 'image/jpeg'
+            type: 'image/png'
           },
           {
-            src: '/icon.jpg',
+            src: '/icon.png',
             sizes: '512x512',
-            type: 'image/jpeg',
+            type: 'image/png',
             purpose: 'any maskable'
           }
         ]
