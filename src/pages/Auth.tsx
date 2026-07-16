@@ -36,8 +36,8 @@ export default function Auth() {
     <div className="min-h-[100dvh] flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-            <span className="text-xl">💰</span>
+          <div className="mx-auto flex items-center justify-center mb-4">
+            <img src="/icon-192.png" alt="Expense Tracker Logo" className="w-16 h-16 rounded-2xl shadow-sm object-cover" />
           </div>
           <CardTitle className="text-2xl font-bold">{isLogin ? 'Welcome back' : 'Create Account'}</CardTitle>
           <CardDescription>
