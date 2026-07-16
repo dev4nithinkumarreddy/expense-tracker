@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { BottomNav } from "./components/layout/BottomNav";
 import { useExpenseStore } from "./store/useExpenseStore";
 import { supabase } from "./lib/supabase";
+import { Analytics } from "@vercel/analytics/react";
 import Auth from "./pages/Auth";
 
 // Pages
@@ -68,6 +69,7 @@ export default function App() {
           </Routes>
         </main>
         <BottomNav />
+        <Analytics />
       </div>
     </BrowserRouter>
   );
