@@ -1,14 +1,20 @@
 import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis } from "recharts";
-import { isThisMonth, parseISO } from "date-fns";
+import { useState } from "react";
+import { format, parseISO, subMonths, addMonths } from "date-fns";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "../components/ui/button";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#f43f5e', '#64748b'];
 
 export default function Analytics() {
   const { expenses, settings } = useExpenseStore();
   
-  const currentMonthExpenses = expenses.filter(e => isThisMonth(parseISO(e.date)));
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const selectedMonthStr = currentDate.toISOString().slice(0, 7);
+  
+  const currentMonthExpenses = expenses.filter(e => e.date.startsWith(selectedMonthStr));
   const totalExpenses = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
   
   const categoryData = currentMonthExpenses.reduce((acc, expense) => {
@@ -26,8 +32,7 @@ export default function Analytics() {
   const total = pieData.reduce((sum, item) => sum + item.value, 0);
 
   // Month over Month Comparison
-  const currentMonthDate = new Date();
-  const lastMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() - 1, 1);
+  const lastMonthDate = subMonths(currentDate, 1);
   const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
   
   const lastMonthExpenses = expenses.filter(e => e.date.startsWith(lastMonthStr) && e.amount > 0);
@@ -56,9 +61,28 @@ export default function Analytics() {
 
   return (
     <div className="space-y-6 pb-24">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-muted-foreground text-sm">Where your money goes</p>
+      <header className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+          <p className="text-muted-foreground text-sm">Where your money goes</p>
+        </div>
+        <div className="flex items-center gap-2 bg-secondary/50 rounded-lg p-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-medium w-24 text-center">
+            {format(currentDate, 'MMM yyyy')}
+          </span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8" 
+            onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+            disabled={currentDate >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-4">

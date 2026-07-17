@@ -10,6 +10,7 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +20,14 @@ export default function Auth() {
     setError(null);
     
     try {
-      if (isLogin) {
+      if (isForgotPassword) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (error) throw error;
+        alert('Check your email for the password reset link!');
+        setIsForgotPassword(false);
+      } else if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
@@ -103,36 +111,39 @@ export default function Auth() {
           </div>
 
           <div className="bg-card/60 backdrop-blur-xl border border-border/50 rounded-2xl p-6 md:p-8 shadow-2xl">
-            <div className="flex p-1 bg-secondary/50 rounded-lg mb-8">
-              <button
-                type="button"
-                onClick={() => { setIsLogin(true); setError(null); }}
-                className={cn(
-                  "flex-1 py-2 text-sm font-semibold rounded-md transition-all",
-                  isLogin ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setIsLogin(false); setError(null); }}
-                className={cn(
-                  "flex-1 py-2 text-sm font-semibold rounded-md transition-all",
-                  !isLogin ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Sign Up
-              </button>
-            </div>
-
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold tracking-tight mb-2">
-                {isLogin ? 'Welcome back' : 'Create an account'}
+                {isForgotPassword ? 'Reset password' : isLogin ? 'Welcome back' : 'Create an account'}
               </h2>
-              <p className="text-sm text-muted-foreground">
-                {isLogin ? 'Enter your email and password to sign in' : 'Enter your details below to get started'}
+              <p className="text-muted-foreground text-sm mb-8">
+                {isForgotPassword ? 'Enter your email to receive a reset link' : 'Enter your email and password to securely log in'}
               </p>
+
+              <div className="flex gap-4 border-b border-border mb-8">
+                {!isForgotPassword ? (
+                  <>
+                    <button 
+                      className={cn("pb-3 text-sm font-medium transition-colors relative", isLogin ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                      onClick={() => { setIsLogin(true); setError(null); }}
+                    >
+                      Sign In
+                      {isLogin && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full"></div>}
+                    </button>
+                    <button 
+                      className={cn("pb-3 text-sm font-medium transition-colors relative", !isLogin ? "text-foreground" : "text-muted-foreground hover:text-foreground")}
+                      onClick={() => { setIsLogin(false); setError(null); }}
+                    >
+                      Create Account
+                      {!isLogin && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full"></div>}
+                    </button>
+                  </>
+                ) : (
+                  <button className="pb-3 text-sm font-medium transition-colors relative text-foreground">
+                    Reset Password
+                    <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full"></div>
+                  </button>
+                )}
+              </div>
             </div>
 
             <form onSubmit={handleAuth} className="space-y-5">
@@ -160,41 +171,68 @@ export default function Auth() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium px-1">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
-                    <Key className="w-4 h-4" />
+              {!isForgotPassword && (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-sm font-medium">Password</label>
+                      {isLogin && (
+                        <button 
+                          type="button" 
+                          onClick={() => { setIsForgotPassword(true); setError(null); }}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Forgot password?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                        <Key className="w-4 h-4" />
+                      </div>
+                      <Input 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        className="pl-10 pr-10 h-11 bg-background/50 focus:bg-background transition-colors"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
-                  <Input 
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="pl-10 pr-10 h-11 bg-background/50 focus:bg-background transition-colors"
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
 
-              {!isLogin && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
-                  <CheckCircle2 className="w-4 h-4 text-primary" />
-                  <span>Passwords must be at least 6 characters</span>
-                </div>
+                  {!isLogin && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <span>Passwords must be at least 6 characters</span>
+                    </div>
+                  )}
+                </>
               )}
 
               <Button className="w-full h-11 text-base font-medium mt-6 shadow-md" type="submit" disabled={loading}>
-                {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
+                {loading ? 'Processing...' : isForgotPassword ? 'Send Reset Link' : isLogin ? 'Sign In' : 'Create Account'}
               </Button>
+
+              {isForgotPassword && (
+                <div className="text-center mt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsForgotPassword(false)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Back to login
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet } fro
 import { Button } from "../components/ui/button";
 
 export default function Settings() {
-  const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills } = useExpenseStore();
+  const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills, session } = useExpenseStore();
   
   const [newCat, setNewCat] = useState("");
   
@@ -121,6 +121,23 @@ export default function Settings() {
       </header>
 
       <div className="space-y-4">
+        {session?.user?.email && (
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Account</h3>
+            <Card>
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
+                  {session.user.email.substring(0, 1).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-medium">{session.user.email}</p>
+                  <p className="text-xs text-muted-foreground">Logged in via Supabase</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Preferences</h3>
           <Card>

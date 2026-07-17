@@ -5,6 +5,7 @@ import { useExpenseStore } from "./store/useExpenseStore";
 import { supabase } from "./lib/supabase";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import Auth from "./pages/Auth";
+import { ReloadPrompt } from "./components/ReloadPrompt";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -68,6 +69,7 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
+        <ReloadPrompt />
         <BottomNav />
         <VercelAnalytics />
       </div>
