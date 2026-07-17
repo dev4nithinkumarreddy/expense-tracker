@@ -79,7 +79,7 @@ export default function Dashboard() {
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Bills</p>
-              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency, settings.privacyMode)}</p>
+              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency)}</p>
             </div>
           </div>
           
@@ -87,12 +87,12 @@ export default function Dashboard() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Remaining</p>
               <h2 className={cn("text-3xl font-bold tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
-                {formatCurrency(remaining, settings.currency, settings.privacyMode)}
+                {formatCurrency(remaining, settings.currency)}
               </h2>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Spent</p>
-              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency, settings.privacyMode)}</p>
+              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency)}</p>
             </div>
           </div>
 
@@ -121,13 +121,13 @@ export default function Dashboard() {
         <Card>
           <CardContent className="p-4 flex flex-col justify-center">
             <p className="text-sm text-muted-foreground mb-1">Today</p>
-            <p className="text-xl font-bold">{formatCurrency(todayExpenses, settings.currency, settings.privacyMode)}</p>
+            <p className="text-xl font-bold">{formatCurrency(todayExpenses, settings.currency)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col justify-center">
             <p className="text-sm text-muted-foreground mb-1">This Week</p>
-            <p className="text-xl font-bold">{formatCurrency(weekExpenses, settings.currency, settings.privacyMode)}</p>
+            <p className="text-xl font-bold">{formatCurrency(weekExpenses, settings.currency)}</p>
           </CardContent>
         </Card>
       </div>
@@ -165,7 +165,7 @@ export default function Dashboard() {
                     <div className="flex justify-between text-sm">
                       <span className="font-medium">{cat}</span>
                       <span className="text-muted-foreground">
-                        {formatCurrency(spent, settings.currency, settings.privacyMode)} / {formatCurrency(limit, settings.currency, settings.privacyMode)}
+                        {formatCurrency(spent, settings.currency)} / {formatCurrency(limit, settings.currency)}
                       </span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -204,7 +204,7 @@ export default function Dashboard() {
                 <span className="text-xl">{qa.icon}</span>
                 <div className="text-left">
                   <p className="text-sm font-medium leading-none">{qa.description}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(qa.amount, settings.currency, settings.privacyMode)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(qa.amount, settings.currency)}</p>
                 </div>
               </button>
             ))}
@@ -223,7 +223,7 @@ export default function Dashboard() {
               <div key={bill.id} className="bg-card border rounded-xl p-3 shrink-0 w-[140px] shadow-sm">
                 <p className="text-xs text-muted-foreground mb-1">{bill.autoDeduct ? 'Auto-deduct' : 'Manual'}</p>
                 <p className="font-medium text-sm truncate">{bill.title}</p>
-                <p className="font-semibold mt-1">{formatCurrency(bill.amount, settings.currency, settings.privacyMode)}</p>
+                <p className="font-semibold mt-1">{formatCurrency(bill.amount, settings.currency)}</p>
               </div>
             ))}
           </div>
@@ -251,7 +251,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="font-semibold">
-                  {formatCurrency(expense.amount, settings.currency, settings.privacyMode)}
+                  {formatCurrency(expense.amount, settings.currency)}
                 </div>
               </div>
             ))

@@ -92,7 +92,7 @@ export default function Analytics() {
             <CardTitle className="text-sm font-medium text-muted-foreground">This Month</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalExpenses, settings.currency, settings.privacyMode)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalExpenses, settings.currency)}</div>
             <p className={`text-xs mt-1 ${percentChange > 0 ? 'text-destructive' : percentChange < 0 ? 'text-primary' : 'text-muted-foreground'}`}>
               {percentChange > 0 ? '+' : ''}{percentChange}% from last month
             </p>
@@ -103,7 +103,7 @@ export default function Analytics() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Last Month</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalLastMonth, settings.currency, settings.privacyMode)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(totalLastMonth, settings.currency)}</div>
           </CardContent>
         </Card>
       </div>
@@ -133,7 +133,7 @@ export default function Analytics() {
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(value: any) => [formatCurrency(Number(value), settings.currency, settings.privacyMode), 'Spent']}
+                      formatter={(value: any) => [formatCurrency(Number(value), settings.currency), 'Spent']}
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     />
                   </PieChart>
@@ -152,7 +152,7 @@ export default function Analytics() {
                   <BarChart data={weeklyData}>
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
                     <Tooltip 
-                      formatter={(value: any) => [formatCurrency(Number(value), settings.currency, settings.privacyMode), 'Spent']}
+                      formatter={(value: any) => [formatCurrency(Number(value), settings.currency), 'Spent']}
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', color: 'hsl(var(--foreground))', backgroundColor: 'hsl(var(--card))' }}
                       cursor={{ fill: 'hsl(var(--secondary))' }}
                     />
@@ -175,7 +175,7 @@ export default function Analytics() {
                     <span className="font-medium text-sm">{item.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold">{formatCurrency(item.value, settings.currency, settings.privacyMode)}</span>
+                    <span className="text-sm font-semibold">{formatCurrency(item.value, settings.currency)}</span>
                     <span className="text-xs text-muted-foreground w-8 text-right">
                       {Math.round((item.value / total) * 100)}%
                     </span>

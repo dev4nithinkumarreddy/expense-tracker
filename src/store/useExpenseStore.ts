@@ -82,7 +82,7 @@ export const useExpenseStore = create<ExpenseState>()(
           { description: "Fuel", amount: 500, category: "Fuel", icon: "🚗" },
           { description: "Grocery", amount: 200, category: "Grocery", icon: "🛒" }
         ],
-        privacyMode: false
+        privacyMode: true
       },
       lastActiveMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
       session: null,

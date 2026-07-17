@@ -86,7 +86,7 @@ export default function Bills() {
                 <div className="space-y-1">
                   <p className="font-semibold">{bill.title}</p>
                   <p className="text-sm font-medium text-muted-foreground">
-                    {formatCurrency(bill.amount, settings.currency, settings.privacyMode)} / month
+                    {formatCurrency(bill.amount, settings.currency)} / month
                   </p>
                   <div className="flex items-center gap-4 mt-3">
                     <button 
