@@ -7,7 +7,7 @@ import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet } fro
 import { Button } from "../components/ui/button";
 
 export default function Settings() {
-  const { settings, updateSettings, addCategory, deleteCategory, expenses, bills } = useExpenseStore();
+  const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills } = useExpenseStore();
   
   const [newCat, setNewCat] = useState("");
   
@@ -70,8 +70,9 @@ export default function Settings() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (confirm("Are you sure you want to reset all data? This cannot be undone.")) {
+      await eraseAllData();
       localStorage.removeItem("expense-tracker-storage");
       window.location.reload();
     }

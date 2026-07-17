@@ -56,6 +56,7 @@ interface ExpenseState {
   deleteCategory: (category: string) => void;
   
   checkMonthRollover: () => void;
+  eraseAllData: () => Promise<void>;
 }
 
 const defaultCategories = [
@@ -279,7 +280,35 @@ export const useExpenseStore = create<ExpenseState>()(
           };
         }
         return state;
-      })
+      }),
+      
+      eraseAllData: async () => {
+        const { session } = get();
+        if (session) {
+          await Promise.all([
+            supabase.from('expenses').delete().eq('user_id', session.user.id),
+            supabase.from('bills').delete().eq('user_id', session.user.id),
+            supabase.from('user_settings').delete().eq('user_id', session.user.id)
+          ]);
+        }
+        set({
+          expenses: [],
+          bills: [],
+          settings: {
+            monthlyIncome: 45000,
+            currency: '₹',
+            darkMode: true,
+            categories: defaultCategories,
+            carryForward: false,
+            categoryBudgets: {},
+            quickAdds: [
+              { description: "Coffee", amount: 100, category: "Food", icon: "☕" },
+              { description: "Fuel", amount: 500, category: "Fuel", icon: "🚗" },
+              { description: "Grocery", amount: 200, category: "Grocery", icon: "🛒" }
+            ]
+          }
+        });
+      }
     }),
     {
       name: 'expense-tracker-storage',
