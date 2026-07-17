@@ -101,7 +101,7 @@ export function AddExpenseModal({
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <div className="p-4 space-y-4 overflow-y-auto pb-8">
+        <div className="p-4 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Amount</label>
             <div className="relative">
