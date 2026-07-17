@@ -120,7 +120,9 @@ export default function Dashboard() {
           <CardContent className="p-4 space-y-4">
             <h3 className="font-semibold text-sm text-muted-foreground">Category Budgets</h3>
             <div className="space-y-4">
-              {Object.entries(settings.categoryBudgets).map(([cat, limit]) => {
+              {Object.entries(settings.categoryBudgets)
+                .filter(([cat]) => settings.categories.includes(cat))
+                .map(([cat, limit]) => {
                 const spent = currentMonthExpenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
                 const percentage = Math.min((spent / limit) * 100, 100);
                 const isWarning = percentage > 85;

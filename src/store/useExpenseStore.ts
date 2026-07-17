@@ -224,13 +224,18 @@ export const useExpenseStore = create<ExpenseState>()(
         }
       },
 
-      addCategory: (category) => set((state) => ({
-        settings: { ...state.settings, categories: [...state.settings.categories, category] }
-      })),
+      addCategory: (category) => {
+        const state = get();
+        state.updateSettings({ categories: [...state.settings.categories, category] });
+      },
       
-      deleteCategory: (category) => set((state) => ({
-        settings: { ...state.settings, categories: state.settings.categories.filter(c => c !== category) }
-      })),
+      deleteCategory: (category) => {
+        const state = get();
+        const newCategories = state.settings.categories.filter(c => c !== category);
+        const newBudgets = { ...state.settings.categoryBudgets };
+        delete newBudgets[category];
+        state.updateSettings({ categories: newCategories, categoryBudgets: newBudgets });
+      },
       
       checkMonthRollover: () => set((state) => {
         const currentMonth = new Date().toISOString().slice(0, 7);
