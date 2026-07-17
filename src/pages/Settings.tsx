@@ -191,7 +191,7 @@ export default function Settings() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Monthly Income</label>
+                <label className="text-sm font-medium">Monthly Budget</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-muted-foreground">{settings.currency}</span>
                   <Input 

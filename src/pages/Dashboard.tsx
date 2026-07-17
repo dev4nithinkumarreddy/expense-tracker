@@ -74,7 +74,7 @@ export default function Dashboard() {
         <CardContent className="p-6">
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Income</p>
+              <p className="text-sm text-muted-foreground mb-1">Budget</p>
               <p className="text-lg font-semibold">{formatCurrency(settings.monthlyIncome, settings.currency, settings.privacyMode)}</p>
             </div>
             <div className="text-right">
