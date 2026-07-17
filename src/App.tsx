@@ -58,7 +58,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-background text-foreground pb-20">
+      <div className="min-h-screen bg-background text-foreground pb-20 overflow-x-hidden">
         <main className="container max-w-md mx-auto p-4 animate-in fade-in duration-300">
           <Routes>
             <Route path="/" element={<Dashboard />} />
