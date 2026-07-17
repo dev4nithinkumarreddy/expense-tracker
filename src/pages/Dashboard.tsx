@@ -1,15 +1,13 @@
-import { useState } from "react";
 import { vibrate } from "../lib/utils";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
-import { Plus } from "lucide-react";
 import { isThisMonth, isToday, isThisWeek, parseISO, format } from "date-fns";
 import { cn } from "../lib/utils";
-import { AddExpenseModal } from "../components/AddExpenseModal";
+import { formatCurrency } from "../lib/formatCurrency";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function Dashboard() {
-  const { expenses, bills, settings, addExpense } = useExpenseStore();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { expenses, bills, settings, addExpense, updateSettings } = useExpenseStore();
 
   const quickAdds = settings.quickAdds || [];
 
@@ -62,6 +60,12 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
           <p className="text-muted-foreground text-sm">Your monthly snapshot</p>
         </div>
+        <button 
+          onClick={() => updateSettings({ privacyMode: !settings.privacyMode })}
+          className="p-2 text-muted-foreground hover:text-foreground transition-colors bg-secondary/50 rounded-full"
+        >
+          {settings.privacyMode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+        </button>
       </header>
 
       {/* Main Stats Card */}
@@ -71,11 +75,11 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Income</p>
-              <p className="text-lg font-semibold">{settings.currency}{settings.monthlyIncome.toLocaleString()}</p>
+              <p className="text-lg font-semibold">{formatCurrency(settings.monthlyIncome, settings.currency, settings.privacyMode)}</p>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Bills</p>
-              <p className="text-lg font-semibold">{settings.currency}{totalBills.toLocaleString()}</p>
+              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency, settings.privacyMode)}</p>
             </div>
           </div>
           
@@ -83,12 +87,12 @@ export default function Dashboard() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Remaining</p>
               <h2 className={cn("text-3xl font-bold tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
-                {settings.currency}{remaining.toLocaleString()}
+                {formatCurrency(remaining, settings.currency, settings.privacyMode)}
               </h2>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Spent</p>
-              <p className="text-xl font-semibold">{settings.currency}{totalExpenses.toLocaleString()}</p>
+              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency, settings.privacyMode)}</p>
             </div>
           </div>
 
@@ -117,13 +121,13 @@ export default function Dashboard() {
         <Card>
           <CardContent className="p-4 flex flex-col justify-center">
             <p className="text-sm text-muted-foreground mb-1">Today</p>
-            <p className="text-xl font-bold">{settings.currency}{todayExpenses.toLocaleString()}</p>
+            <p className="text-xl font-bold">{formatCurrency(todayExpenses, settings.currency, settings.privacyMode)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col justify-center">
             <p className="text-sm text-muted-foreground mb-1">This Week</p>
-            <p className="text-xl font-bold">{settings.currency}{weekExpenses.toLocaleString()}</p>
+            <p className="text-xl font-bold">{formatCurrency(weekExpenses, settings.currency, settings.privacyMode)}</p>
           </CardContent>
         </Card>
       </div>
@@ -161,7 +165,7 @@ export default function Dashboard() {
                     <div className="flex justify-between text-sm">
                       <span className="font-medium">{cat}</span>
                       <span className="text-muted-foreground">
-                        {settings.currency}{spent.toLocaleString()} / {settings.currency}{limit.toLocaleString()}
+                        {formatCurrency(spent, settings.currency, settings.privacyMode)} / {formatCurrency(limit, settings.currency, settings.privacyMode)}
                       </span>
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -200,7 +204,7 @@ export default function Dashboard() {
                 <span className="text-xl">{qa.icon}</span>
                 <div className="text-left">
                   <p className="text-sm font-medium leading-none">{qa.description}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{settings.currency}{qa.amount}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(qa.amount, settings.currency, settings.privacyMode)}</p>
                 </div>
               </button>
             ))}
@@ -219,7 +223,7 @@ export default function Dashboard() {
               <div key={bill.id} className="bg-card border rounded-xl p-3 shrink-0 w-[140px] shadow-sm">
                 <p className="text-xs text-muted-foreground mb-1">{bill.autoDeduct ? 'Auto-deduct' : 'Manual'}</p>
                 <p className="font-medium text-sm truncate">{bill.title}</p>
-                <p className="font-semibold mt-1">{settings.currency}{bill.amount.toLocaleString()}</p>
+                <p className="font-semibold mt-1">{formatCurrency(bill.amount, settings.currency, settings.privacyMode)}</p>
               </div>
             ))}
           </div>
@@ -247,7 +251,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="font-semibold">
-                  {settings.currency}{expense.amount.toLocaleString()}
+                  {formatCurrency(expense.amount, settings.currency, settings.privacyMode)}
                 </div>
               </div>
             ))
@@ -255,15 +259,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Floating Action Button */}
-      <button 
-        onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-28 right-4 sm:right-auto sm:left-1/2 sm:ml-[160px] w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 z-40"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
-
-      <AddExpenseModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 }

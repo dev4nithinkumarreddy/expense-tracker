@@ -30,6 +30,7 @@ export interface Settings {
   categoryBudgets: Record<string, number>;
   quickAdds: { description: string; amount: number; category: string; icon: string }[];
   notificationsEnabled?: boolean;
+  privacyMode?: boolean;
 }
 
 interface ExpenseState {
@@ -80,7 +81,8 @@ export const useExpenseStore = create<ExpenseState>()(
           { description: "Coffee", amount: 100, category: "Food", icon: "☕" },
           { description: "Fuel", amount: 500, category: "Fuel", icon: "🚗" },
           { description: "Grocery", amount: 200, category: "Grocery", icon: "🛒" }
-        ]
+        ],
+        privacyMode: false
       },
       lastActiveMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
       session: null,

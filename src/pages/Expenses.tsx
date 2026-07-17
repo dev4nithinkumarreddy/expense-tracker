@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Plus, Trash2, Pencil, ImageIcon } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Search, Trash2, Pencil, ImageIcon } from "lucide-react";
+import { format, parseISO, isThisMonth, subMonths, isAfter, subDays } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { Button } from "../components/ui/button";
+import { formatCurrency } from "../lib/formatCurrency";
 
 export default function Expenses() {
   const { expenses, settings, deleteExpense } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<string>("this_month");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
 
@@ -17,7 +19,17 @@ export default function Expenses() {
     .filter(e => {
       const matchesSearch = e.description.toLowerCase().includes(searchTerm.toLowerCase()) || e.category.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory ? e.category === selectedCategory : true;
-      return matchesSearch && matchesCategory;
+      
+      let matchesDate = true;
+      const expenseDate = parseISO(e.date);
+      if (dateFilter === 'this_month') matchesDate = isThisMonth(expenseDate);
+      else if (dateFilter === 'last_month') {
+        const lastMonth = subMonths(new Date(), 1);
+        matchesDate = expenseDate.getMonth() === lastMonth.getMonth() && expenseDate.getFullYear() === lastMonth.getFullYear();
+      }
+      else if (dateFilter === 'last_7_days') matchesDate = isAfter(expenseDate, subDays(new Date(), 7));
+
+      return matchesSearch && matchesCategory && matchesDate;
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -43,14 +55,26 @@ export default function Expenses() {
     <div className="space-y-6">
       <header className="space-y-4">
         <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search expenses..." 
-            className="pl-9 bg-card"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search expenses..." 
+              className="pl-9 bg-card"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select
+            className="flex h-10 w-[120px] rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+          >
+            <option value="all">All Time</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="last_7_days">Last 7 Days</option>
+          </select>
         </div>
         
         {/* Category Filter Pills */}
@@ -114,7 +138,7 @@ export default function Expenses() {
                     </div>
                     <div className="flex items-center gap-1 sm:gap-3 pl-2">
                       <span className="font-semibold text-sm whitespace-nowrap">
-                        {settings.currency}{expense.amount.toLocaleString()}
+                        {formatCurrency(expense.amount, settings.currency, settings.privacyMode)}
                       </span>
                       <div className="flex md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <Button 
@@ -142,13 +166,6 @@ export default function Expenses() {
           ))
         )}
       </div>
-
-      <button 
-        onClick={() => setIsModalOpen(true)}
-        className="fixed bottom-28 right-4 sm:right-auto sm:left-1/2 sm:ml-[160px] w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 z-40"
-      >
-        <Plus className="w-6 h-6" />
-      </button>
 
       <AddExpenseModal isOpen={isModalOpen} onClose={handleCloseModal} expenseToEdit={expenseToEdit} />
     </div>

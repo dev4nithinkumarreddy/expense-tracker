@@ -6,6 +6,8 @@ import { supabase } from "./lib/supabase";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import Auth from "./pages/Auth";
 import { ReloadPrompt } from "./components/ReloadPrompt";
+import { Plus } from "lucide-react";
+import { AddExpenseModal } from "./components/AddExpenseModal";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -17,6 +19,7 @@ import Settings from "./pages/Settings";
 export default function App() {
   const { settings, checkMonthRollover, setSession, session, fetchCloudData } = useExpenseStore();
   const [loading, setLoading] = useState(true);
+  const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
@@ -69,6 +72,16 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
+        
+        {/* Global Floating Action Button */}
+        <button 
+          onClick={() => setIsGlobalModalOpen(true)}
+          className="fixed bottom-28 right-4 sm:right-auto sm:left-1/2 sm:ml-[160px] w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg flex items-center justify-center hover:bg-primary/90 transition-transform active:scale-95 z-40"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+        <AddExpenseModal isOpen={isGlobalModalOpen} onClose={() => setIsGlobalModalOpen(false)} />
+
         <ReloadPrompt />
         <BottomNav />
         <VercelAnalytics />

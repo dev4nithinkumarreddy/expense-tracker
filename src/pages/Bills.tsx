@@ -5,6 +5,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Plus, Trash2, CheckCircle2 } from "lucide-react";
 import { vibrate } from "../lib/utils";
+import { formatCurrency } from "../lib/formatCurrency";
 
 export default function Bills() {
   const { bills, addBill, deleteBill, updateBill, settings, addExpense } = useExpenseStore();
@@ -85,7 +86,7 @@ export default function Bills() {
                 <div className="space-y-1">
                   <p className="font-semibold">{bill.title}</p>
                   <p className="text-sm font-medium text-muted-foreground">
-                    {settings.currency}{bill.amount.toLocaleString()} / month
+                    {formatCurrency(bill.amount, settings.currency, settings.privacyMode)} / month
                   </p>
                   <div className="flex items-center gap-4 mt-3">
                     <button 
