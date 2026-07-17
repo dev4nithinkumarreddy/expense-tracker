@@ -7,7 +7,7 @@ import { Plus, Trash2, CheckCircle2 } from "lucide-react";
 import { vibrate } from "../lib/utils";
 
 export default function Bills() {
-  const { bills, addBill, deleteBill, updateBill, settings } = useExpenseStore();
+  const { bills, addBill, deleteBill, updateBill, settings, addExpense } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -24,6 +24,18 @@ export default function Bills() {
     setNewTitle("");
     setNewAmount("");
     setIsAdding(false);
+  };
+
+  const handlePayNow = (bill: any) => {
+    vibrate();
+    addExpense({
+      amount: bill.amount,
+      description: `Manual Payment: ${bill.title}`,
+      category: bill.category || "Bills",
+      date: new Date().toISOString(),
+      notes: "Manually logged from Bills page"
+    });
+    alert(`${bill.title} marked as paid!`);
   };
 
   return (
@@ -75,18 +87,28 @@ export default function Bills() {
                   <p className="text-sm font-medium text-muted-foreground">
                     {settings.currency}{bill.amount.toLocaleString()} / month
                   </p>
-                  <button 
-                    onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2 hover:text-primary transition-colors"
-                  >
-                    <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted"}`} />
-                    Auto Deduct
-                  </button>
+                  <div className="flex items-center gap-4 mt-3">
+                    <button 
+                      onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted"}`} />
+                      Auto Deduct
+                    </button>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="h-7 text-xs px-2"
+                      onClick={() => handlePayNow(bill)}
+                    >
+                      Pay Now
+                    </Button>
+                  </div>
                 </div>
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="text-destructive hover:bg-destructive/10"
+                  className="text-destructive hover:bg-destructive/10 shrink-0 ml-2"
                   onClick={() => deleteBill(bill.id)}
                 >
                   <Trash2 className="w-4 h-4" />

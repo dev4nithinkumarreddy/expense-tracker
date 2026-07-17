@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Mail, Key, Wallet, PieChart, Shield, CheckCircle2 } from 'lucide-react';
+import { Mail, Key, Wallet, PieChart, Shield, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export default function Auth() {
@@ -10,6 +10,7 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -166,14 +167,21 @@ export default function Auth() {
                     <Key className="w-4 h-4" />
                   </div>
                   <Input 
-                    type="password" 
+                    type={showPassword ? "text" : "password"} 
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
-                    className="pl-10 h-11 bg-background/50 focus:bg-background transition-colors"
+                    className="pl-10 pr-10 h-11 bg-background/50 focus:bg-background transition-colors"
                   />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 

@@ -9,14 +9,16 @@ import { Button } from "../components/ui/button";
 export default function Expenses() {
   const { expenses, settings, deleteExpense } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
 
   const filteredExpenses = expenses
-    .filter(e => 
-      e.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      e.category.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter(e => {
+      const matchesSearch = e.description.toLowerCase().includes(searchTerm.toLowerCase()) || e.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory ? e.category === selectedCategory : true;
+      return matchesSearch && matchesCategory;
+    })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // Group by date
@@ -49,6 +51,34 @@ export default function Expenses() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+        
+        {/* Category Filter Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+          <Button
+            variant={selectedCategory === null ? "default" : "secondary"}
+            size="sm"
+            className="rounded-full shrink-0"
+            onClick={() => setSelectedCategory(null)}
+          >
+            All
+          </Button>
+          {settings.categories.map(cat => {
+            // Only show category if it has expenses, or we could just show all
+            const count = expenses.filter(e => e.category === cat).length;
+            if (count === 0 && selectedCategory !== cat) return null;
+            return (
+              <Button
+                key={cat}
+                variant={selectedCategory === cat ? "default" : "secondary"}
+                size="sm"
+                className="rounded-full shrink-0"
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </Button>
+            );
+          })}
         </div>
       </header>
 

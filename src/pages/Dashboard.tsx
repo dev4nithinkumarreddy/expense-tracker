@@ -29,6 +29,32 @@ export default function Dashboard() {
   // Recent expenses (last 5)
   const recentExpenses = [...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
+  // Generate smart insight
+  let insightText = "No expenses logged this month yet.";
+  if (currentMonthExpenses.length > 0) {
+    const categoryTotals = currentMonthExpenses.reduce((acc, exp) => {
+      acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    let topCategory = "";
+    let maxSpend = 0;
+    Object.entries(categoryTotals).forEach(([cat, amount]) => {
+      if (amount > maxSpend) {
+        maxSpend = amount;
+        topCategory = cat;
+      }
+    });
+
+    if (isOverBudget) {
+      insightText = `You are over budget! You've spent the most on ${topCategory} (${settings.currency}${maxSpend.toLocaleString()}).`;
+    } else if (maxSpend > 0) {
+      insightText = `You've spent the most on ${topCategory} (${settings.currency}${maxSpend.toLocaleString()}). You have ${settings.currency}${remaining.toLocaleString()} left.`;
+    } else {
+      insightText = `You've made ${currentMonthExpenses.length} transactions this month. Keep tracking!`;
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex justify-between items-end">
@@ -102,25 +128,27 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Monthly Insights (Placeholder for now) */}
+      {/* Monthly Insights */}
       <Card className="bg-secondary/50 border-none shadow-sm">
         <CardContent className="p-4">
           <p className="text-sm font-medium">💡 Monthly Insight</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {currentMonthExpenses.length > 0 
-              ? `You've made ${currentMonthExpenses.length} transactions this month. Keep tracking!`
-              : "No expenses logged this month yet."}
+            {insightText}
           </p>
         </CardContent>
       </Card>
 
       {/* Category Budgets */}
-      {settings.categoryBudgets && Object.keys(settings.categoryBudgets).length > 0 && (
-        <Card className="shadow-sm">
-          <CardContent className="p-4 space-y-4">
-            <h3 className="font-semibold text-sm text-muted-foreground">Category Budgets</h3>
-            <div className="space-y-4">
-              {Object.entries(settings.categoryBudgets)
+      <Card className="shadow-sm">
+        <CardContent className="p-4 space-y-4">
+          <h3 className="font-semibold text-sm text-muted-foreground">Category Budgets</h3>
+          <div className="space-y-4">
+            {Object.keys(settings.categoryBudgets || {}).filter(cat => settings.categories.includes(cat)).length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-border/50 rounded-lg">
+                No budgets set. Head over to <span className="font-medium text-foreground">Settings</span> to create limits!
+              </div>
+            ) : (
+              Object.entries(settings.categoryBudgets)
                 .filter(([cat]) => settings.categories.includes(cat))
                 .map(([cat, limit]) => {
                 const spent = currentMonthExpenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
@@ -144,11 +172,11 @@ export default function Dashboard() {
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              })
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Add */}
       {quickAdds.length > 0 && (

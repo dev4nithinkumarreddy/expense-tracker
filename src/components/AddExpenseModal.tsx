@@ -126,17 +126,22 @@ export function AddExpenseModal({
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Category</label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-32 overflow-y-auto p-1 scrollbar-hide">
               {settings.categories.map((c) => (
-                <option key={c} value={c} className="bg-background">
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategory(c)}
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors border shadow-sm truncate ${
+                    category === c 
+                      ? 'bg-primary border-primary text-primary-foreground' 
+                      : 'bg-secondary/50 border-border hover:bg-secondary'
+                  }`}
+                >
                   {c}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Date</label>
