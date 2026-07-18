@@ -103,7 +103,7 @@ export default function Dashboard() {
             </div>
             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
               <div 
-                className={cn("h-full rounded-full transition-all duration-500", budgetUsedPercent >= 90 ? "bg-destructive" : budgetUsedPercent >= 75 ? "bg-orange-500" : "bg-primary")}
+                className={cn("h-full rounded-full transition-all duration-500", budgetUsedPercent >= 90 ? "bg-destructive" : budgetUsedPercent >= 75 ? "bg-warning" : "bg-primary")}
                 style={{ width: `${budgetUsedPercent}%` }}
               />
             </div>
@@ -170,7 +170,7 @@ export default function Dashboard() {
                     </div>
                     <div className="h-2 bg-secondary rounded-full overflow-hidden">
                       <div 
-                        className={`h-full rounded-full transition-all duration-500 ${isDanger ? 'bg-destructive' : isWarning ? 'bg-orange-500' : 'bg-primary'}`}
+                        className={`h-full rounded-full transition-all duration-500 ${isDanger ? 'bg-destructive' : isWarning ? 'bg-warning' : 'bg-primary'}`}
                         style={{ width: `${percentage}%` }}
                       />
                     </div>

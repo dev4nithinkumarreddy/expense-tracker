@@ -12,7 +12,7 @@ const navItems = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed bottom-0 w-full max-w-md left-1/2 -translate-x-1/2 bg-card border-t flex justify-around pt-2 px-2 z-50 pb-[env(safe-area-inset-bottom,16px)]">
+    <nav className="fixed bottom-0 w-full max-w-md left-1/2 -translate-x-1/2 bg-card/60 backdrop-blur-lg border-t border-white/10 flex justify-around pt-2 px-2 z-50 pb-[env(safe-area-inset-bottom,16px)]">
       {navItems.map((item) => (
         <NavLink
           key={item.path}

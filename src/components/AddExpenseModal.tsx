@@ -94,7 +94,7 @@ export function AddExpenseModal({
 
   return (
     <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-card text-card-foreground w-full max-w-sm rounded-t-2xl sm:rounded-2xl border shadow-lg animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 sm:zoom-in-95 max-h-[85dvh] flex flex-col">
+      <div className="glass-card text-card-foreground w-full max-w-sm rounded-t-2xl sm:rounded-2xl border shadow-lg animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 sm:zoom-in-95 max-h-[85dvh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b shrink-0">
           <h2 className="text-lg font-semibold">{expenseToEdit ? 'Edit Expense' : 'Add Expense'}</h2>
           <Button variant="ghost" size="icon" onClick={onClose}>

@@ -4,65 +4,97 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 260 25% 11%;
+    --foreground: 0 0% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card: 260 25% 14%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover: 260 25% 14%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 240 5.9% 10%;
+    --primary: 330 81% 60%;
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 260 25% 20%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted: 260 25% 20%;
+    --muted-foreground: 260 10% 70%;
 
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --accent: 260 25% 20%;
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
+    --warning: 28 90% 54%;
+    --warning-foreground: 0 0% 98%;
 
-    --radius: 0.75rem;
+    --border: 260 25% 20%;
+    --input: 260 25% 20%;
+    --ring: 330 81% 60%;
+
+    --radius: 1rem;
+
+    --sunset-start: 330 81% 60%;
+    --sunset-end: 25 95% 53%;
+
+    --chart-1: 330 81% 60%;
+    --chart-2: 25 95% 53%;
+    --chart-3: 260 80% 60%;
+    --chart-4: 190 90% 50%;
+    --chart-5: 150 70% 45%;
+    --chart-6: 280 65% 60%;
+    --chart-7: 350 80% 60%;
+    --chart-8: 45 90% 55%;
   }
 
+  /* Sunset Glass is a dark-first theme, but we can provide a lighter variation if needed. 
+     For maximum impact, we'll keep dark mode very similar or enforce dark. */
   .dark {
-    --background: 240 10% 3.9%;
+    --background: 260 25% 9%;
     --foreground: 0 0% 98%;
 
-    --card: 240 10% 3.9%;
+    --card: 260 25% 12%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 240 10% 3.9%;
+    --popover: 260 25% 12%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary: 330 81% 60%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 260 25% 18%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 260 25% 18%;
+    --muted-foreground: 260 10% 70%;
 
-    --accent: 240 3.7% 15.9%;
+    --accent: 260 25% 18%;
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --warning: 28 90% 54%;
+    --warning-foreground: 0 0% 98%;
+
+    --border: 260 25% 18%;
+    --input: 260 25% 18%;
+    --ring: 330 81% 60%;
+
+    --sunset-start: 330 81% 60%;
+    --sunset-end: 25 95% 53%;
+
+    --chart-1: 330 81% 60%;
+    --chart-2: 25 95% 53%;
+    --chart-3: 260 80% 60%;
+    --chart-4: 190 90% 50%;
+    --chart-5: 150 70% 45%;
+    --chart-6: 280 65% 60%;
+    --chart-7: 350 80% 60%;
+    --chart-8: 45 90% 55%;
   }
 }
 
@@ -72,6 +104,11 @@
   }
   html, body {
     @apply bg-background text-foreground overflow-x-hidden;
+    /* Adding a subtle background gradient for the Sunset Glass vibe */
+    background-image: 
+      radial-gradient(circle at 15% 50%, hsl(330 81% 60% / 0.15), transparent 25%),
+      radial-gradient(circle at 85% 30%, hsl(25 95% 53% / 0.15), transparent 25%);
+    background-attachment: fixed;
   }
 }
 
@@ -82,5 +119,9 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-md border border-white/10 shadow-xl;
   }
 }
