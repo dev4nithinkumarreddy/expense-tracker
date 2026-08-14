@@ -7,7 +7,7 @@ import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet } fro
 import { Button } from "../components/ui/button";
 
 export default function Settings() {
-  const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills, session } = useExpenseStore();
+  const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills, session, budgets, updateBudget } = useExpenseStore();
   
   const [newCat, setNewCat] = useState("");
   
@@ -86,13 +86,8 @@ export default function Settings() {
   };
 
   const handleBudgetChange = (category: string, amount: string) => {
-    const newBudgets = { ...(settings.categoryBudgets || {}) };
-    if (amount === "" || parseFloat(amount) <= 0) {
-      delete newBudgets[category];
-    } else {
-      newBudgets[category] = parseFloat(amount);
-    }
-    updateSettings({ categoryBudgets: newBudgets });
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    updateBudget(category, amount === "" ? 0 : parseFloat(amount), currentMonth);
   };
 
   const handleAddQa = () => {
@@ -231,7 +226,7 @@ export default function Settings() {
                         inputMode="decimal"
                         placeholder="Limit (opt)" 
                         className="h-8 text-xs pl-6 bg-background"
-                        value={(settings.categoryBudgets || {})[c] || ""}
+                        value={budgets.find(b => b.category === c && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || ""}
                         onChange={(e) => handleBudgetChange(c, e.target.value)}
                       />
                     </div>

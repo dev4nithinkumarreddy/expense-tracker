@@ -24,6 +24,7 @@ export function AddExpenseModal({
   const [notes, setNotes] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
 
   useEffect(() => {
     if (isOpen) {
@@ -34,6 +35,7 @@ export function AddExpenseModal({
         setDate(expenseToEdit.date.split("T")[0]);
         setNotes(expenseToEdit.notes || "");
         setReceiptFile(null);
+        setRecurrence(expenseToEdit.recurrence || 'none');
       } else {
         setAmount("");
         setDescription("");
@@ -41,6 +43,7 @@ export function AddExpenseModal({
         setDate(new Date().toISOString().split("T")[0]);
         setNotes("");
         setReceiptFile(null);
+        setRecurrence('none');
       }
     }
   }, [isOpen, expenseToEdit, settings.categories]);
@@ -74,13 +77,23 @@ export function AddExpenseModal({
       }
     }
     
+    const calculateNextOccurrence = (startDate: Date, rec: string) => {
+      const nextDate = new Date(startDate);
+      if (rec === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+      else if (rec === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+      else if (rec === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+      return nextDate;
+    };
+
     const expenseData = {
       amount: parsedAmount,
       description: description.trim(),
       category,
       date: new Date(date).toISOString(),
       notes: notes.trim(),
-      receipt_url
+      receipt_url,
+      recurrence,
+      next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(date), recurrence).toISOString() : null
     };
 
     if (expenseToEdit) {
@@ -97,8 +110,8 @@ export function AddExpenseModal({
       <div className="glass-card text-card-foreground w-full max-w-sm rounded-t-2xl sm:rounded-2xl border shadow-lg animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 sm:zoom-in-95 max-h-[85dvh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b shrink-0">
           <h2 className="text-lg font-semibold">{expenseToEdit ? 'Edit Expense' : 'Add Expense'}</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close modal">
+            <X className="h-5 w-5" aria-hidden="true" />
           </Button>
         </div>
         <div className="p-4 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
@@ -132,10 +145,10 @@ export function AddExpenseModal({
                   key={c}
                   type="button"
                   onClick={() => setCategory(c)}
-                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors border shadow-sm truncate ${
+                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors border shadow-sm truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     category === c 
                       ? 'bg-primary border-primary text-primary-foreground' 
-                      : 'bg-secondary/50 border-border hover:bg-secondary'
+                      : 'bg-secondary border-border hover:bg-secondary/80 text-foreground'
                   }`}
                 >
                   {c}
@@ -150,6 +163,19 @@ export function AddExpenseModal({
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Recurrence</label>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value as any)}
+            >
+              <option value="none" className="bg-background">None</option>
+              <option value="daily" className="bg-background">Daily</option>
+              <option value="weekly" className="bg-background">Weekly</option>
+              <option value="monthly" className="bg-background">Monthly</option>
+            </select>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Notes (Optional)</label>

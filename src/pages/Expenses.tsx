@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Trash2, Pencil, ImageIcon } from "lucide-react";
+import { Search, Trash2, Pencil, ImageIcon, Download } from "lucide-react";
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { Button } from "../components/ui/button";
@@ -10,15 +10,28 @@ import { formatCurrency } from "../lib/formatCurrency";
 export default function Expenses() {
   const { expenses, settings, deleteExpense } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<string>("this_month");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
 
   const filteredExpenses = expenses
     .filter(e => {
-      const matchesSearch = e.description.toLowerCase().includes(searchTerm.toLowerCase()) || e.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = e.description.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) || e.category.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
       const matchesCategory = selectedCategory ? e.category === selectedCategory : true;
+      
+      const min = parseFloat(minAmount);
+      const max = parseFloat(maxAmount);
+      const matchesMin = !isNaN(min) ? e.amount >= min : true;
+      const matchesMax = !isNaN(max) ? e.amount <= max : true;
       
       let matchesDate = true;
       const expenseDate = parseISO(e.date);
@@ -29,7 +42,7 @@ export default function Expenses() {
       }
       else if (dateFilter === 'last_7_days') matchesDate = isAfter(expenseDate, subDays(new Date(), 7));
 
-      return matchesSearch && matchesCategory && matchesDate;
+      return matchesSearch && matchesCategory && matchesDate && matchesMin && matchesMax;
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -51,10 +64,37 @@ export default function Expenses() {
     setTimeout(() => setExpenseToEdit(null), 300);
   };
 
+  const handleCsvExport = () => {
+    if (!filteredExpenses.length) return;
+    const headers = ["Date", "Description", "Category", "Amount", "Notes"];
+    const rows = filteredExpenses.map(e => [
+      e.date.split("T")[0],
+      `"${e.description.replace(/"/g, '""')}"`,
+      `"${e.category}"`,
+      e.amount.toString(),
+      `"${(e.notes || "").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `expense-tracker-filtered-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <header className="space-y-4">
-        <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
+          <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2">
+            <Download className="w-4 h-4" /> Export CSV
+          </Button>
+        </div>
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -77,6 +117,23 @@ export default function Expenses() {
           </select>
         </div>
         
+        <div className="flex gap-2">
+          <Input 
+            type="number" 
+            placeholder="Min Amount" 
+            className="h-10 text-sm bg-card" 
+            value={minAmount} 
+            onChange={(e) => setMinAmount(e.target.value)} 
+          />
+          <Input 
+            type="number" 
+            placeholder="Max Amount" 
+            className="h-10 text-sm bg-card" 
+            value={maxAmount} 
+            onChange={(e) => setMaxAmount(e.target.value)} 
+          />
+        </div>
+
         {/* Category Filter Pills */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
           <Button
@@ -108,7 +165,13 @@ export default function Expenses() {
 
       <div className="space-y-6 pb-24">
         {Object.entries(grouped).length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">No expenses found.</p>
+          <div className="text-center py-16 bg-card border rounded-xl shadow-sm flex flex-col items-center mt-4">
+            <div className="bg-primary/10 p-4 rounded-full mb-4 text-primary">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>
+            </div>
+            <p className="text-foreground text-base font-semibold">No expenses found</p>
+            <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-[250px]">Try adjusting your search or filters to find what you're looking for.</p>
+          </div>
         ) : (
           Object.entries(grouped).map(([dateStr, dayExpenses]) => (
             <div key={dateStr}>
@@ -144,18 +207,20 @@ export default function Expenses() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary focus-visible:ring-1"
                           onClick={() => handleEdit(expense)}
+                          aria-label={`Edit ${expense.description}`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 focus-visible:ring-1"
                           onClick={() => deleteExpense(expense.id)}
+                          aria-label={`Delete ${expense.description}`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </div>
                     </div>

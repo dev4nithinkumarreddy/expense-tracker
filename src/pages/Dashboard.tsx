@@ -1,13 +1,42 @@
 import { vibrate } from "../lib/utils";
 import { useExpenseStore } from "../store/useExpenseStore";
+import { useDashboardData } from "../hooks/useDashboardData";
 import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { Eye, EyeOff } from "lucide-react";
 
+const DashboardSkeleton = () => (
+  <div className="space-y-6 animate-pulse mt-4">
+    <div className="flex justify-between items-end">
+      <div className="space-y-2">
+        <div className="h-7 w-32 bg-secondary/80 rounded-md" />
+        <div className="h-4 w-24 bg-secondary/80 rounded-md" />
+      </div>
+      <div className="h-9 w-9 bg-secondary/80 rounded-full" />
+    </div>
+    <div className="h-48 w-full bg-secondary/80 rounded-xl" />
+    <div className="grid grid-cols-2 gap-4">
+      <div className="h-24 bg-secondary/80 rounded-xl" />
+      <div className="h-24 bg-secondary/80 rounded-xl" />
+    </div>
+    <div className="h-16 w-full bg-secondary/80 rounded-xl" />
+    <div className="space-y-3">
+      <div className="h-5 w-32 bg-secondary/80 rounded-md mb-2" />
+      <div className="h-16 w-full bg-secondary/80 rounded-xl" />
+      <div className="h-16 w-full bg-secondary/80 rounded-xl" />
+    </div>
+  </div>
+);
+
 export default function Dashboard() {
-  const { expenses, bills, settings, addExpense, updateSettings } = useExpenseStore();
+  const { settings, addExpense, updateSettings } = useExpenseStore();
+  const { expenses, bills, budgets, isLoading } = useDashboardData();
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   const quickAdds = settings.quickAdds || [];
 
@@ -147,14 +176,16 @@ export default function Dashboard() {
         <CardContent className="p-4 space-y-4">
           <h3 className="font-semibold text-sm text-muted-foreground">Category Budgets</h3>
           <div className="space-y-4">
-            {Object.keys(settings.categoryBudgets || {}).filter(cat => settings.categories.includes(cat)).length === 0 ? (
+            {budgets.filter(b => b.month === new Date().toISOString().slice(0, 7) && settings.categories.includes(b.category)).length === 0 ? (
               <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-border/50 rounded-lg">
-                No budgets set. Head over to <span className="font-medium text-foreground">Settings</span> to create limits!
+                No budgets set for this month. Head over to <span className="font-medium text-foreground">Settings</span> to create limits!
               </div>
             ) : (
-              Object.entries(settings.categoryBudgets)
-                .filter(([cat]) => settings.categories.includes(cat))
-                .map(([cat, limit]) => {
+              budgets
+                .filter(b => b.month === new Date().toISOString().slice(0, 7) && settings.categories.includes(b.category))
+                .map((budget) => {
+                const cat = budget.category;
+                const limit = budget.monthlyLimit;
                 const spent = currentMonthExpenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
                 const percentage = Math.min((spent / limit) * 100, 100);
                 const isWarning = percentage > 85;
@@ -237,7 +268,13 @@ export default function Dashboard() {
         </div>
         <div className="space-y-3">
           {recentExpenses.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-4">No expenses yet.</p>
+            <div className="text-center py-10 bg-card border rounded-xl shadow-sm flex flex-col items-center">
+              <div className="bg-primary/10 p-3 rounded-full mb-3 text-primary">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>
+              </div>
+              <p className="text-foreground text-sm font-medium">No expenses logged yet.</p>
+              <p className="text-xs text-muted-foreground mt-1 mb-4 max-w-[200px]">Tap the + button below to add your first expense!</p>
+            </div>
           ) : (
             recentExpenses.map((expense) => (
               <div key={expense.id} className="flex justify-between items-center p-3 bg-card border rounded-xl shadow-sm">

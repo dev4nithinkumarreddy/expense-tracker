@@ -18,6 +18,7 @@ export function BottomNav() {
           key={item.path}
           to={item.path}
           onClick={() => vibrate(30)}
+          aria-label={`Navigate to ${item.label}`}
           className={({ isActive }) =>
             cn(
               "flex flex-col items-center p-2 text-muted-foreground transition-colors",
