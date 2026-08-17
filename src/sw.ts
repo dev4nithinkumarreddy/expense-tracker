@@ -5,8 +5,7 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 
 cleanupOutdatedCaches();
 
-// @ts-expect-error: __WB_MANIFEST is injected by vite-plugin-pwa
-precacheAndRoute(self.__WB_MANIFEST || []);
+precacheAndRoute((self as any).__WB_MANIFEST || []);
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
