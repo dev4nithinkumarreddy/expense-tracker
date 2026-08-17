@@ -5,9 +5,11 @@ import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 export default function Settings() {
   const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills, session, budgets, updateBudget } = useExpenseStore();
+  const { isSupported, permission, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
   
   const [newCat, setNewCat] = useState("");
   
@@ -50,24 +52,6 @@ export default function Settings() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  const toggleNotifications = async () => {
-    if (settings.notificationsEnabled) {
-      updateSettings({ notificationsEnabled: false });
-    } else {
-      if (typeof Notification === 'undefined') {
-        alert("Notifications are not supported in this browser.");
-        return;
-      }
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        updateSettings({ notificationsEnabled: true });
-        new Notification("Expense Tracker", { body: "Reminders enabled! You'll be notified daily to log expenses." });
-      } else {
-        alert("Notification permission denied by browser.");
-      }
-    }
   };
 
   const handleReset = async () => {
@@ -161,20 +145,6 @@ export default function Settings() {
                   {settings.carryForward ? "On" : "Off"}
                 </Button>
               </div>
-
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Daily Reminders</span>
-                  <span className="text-xs text-muted-foreground">Get notified to log your expenses</span>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={toggleNotifications}
-                >
-                  {settings.notificationsEnabled ? "On" : "Off"}
-                </Button>
-              </div>
               
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Currency Symbol</label>
@@ -198,6 +168,44 @@ export default function Settings() {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Notifications</h3>
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              {!isSupported ? (
+                <p className="text-sm text-muted-foreground">Push notifications are not supported in this browser.</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Push Notifications</p>
+                      <p className="text-xs text-muted-foreground">Get reminders for bills and budgets</p>
+                    </div>
+                    <Button 
+                      variant={isSubscribed ? "destructive" : "default"}
+                      size="sm"
+                      disabled={loading}
+                      onClick={() => isSubscribed ? unsubscribe() : subscribe()}
+                    >
+                      {isSubscribed ? "Disable" : "Enable"}
+                    </Button>
+                  </div>
+                  
+                  {permission === 'denied' && (
+                    <p className="text-xs text-destructive">Notifications are blocked by your browser. Please enable them in your browser settings.</p>
+                  )}
+                  
+                  {/iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.matchMedia('(display-mode: standalone)').matches && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md text-xs text-amber-700 mt-2">
+                      <strong>iOS Note:</strong> To enable notifications, you must first tap the Share button and select <em>"Add to Home Screen"</em>.
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

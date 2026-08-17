@@ -63,13 +63,15 @@ interface ExpenseState {
   session: Session | null;
   budgets: Budget[];
   pendingMutations: PendingMutation[];
+  isModalOpen: boolean;
   
   // Actions
   addPendingMutation: (mutation: Omit<PendingMutation, 'id'>) => void;
   removePendingMutation: (id: string) => void;
   syncPendingMutations: () => Promise<void>;
-  // Actions
+  
   setSession: (session: Session | null) => void;
+  setModalOpen: (isOpen: boolean) => void;
   fetchCloudData: () => Promise<void>;
   
   addExpense: (expense: Omit<Expense, 'id'>) => void;
@@ -119,6 +121,7 @@ export const useExpenseStore = create<ExpenseState>()(
       },
       lastActiveMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
       session: null,
+      isModalOpen: false,
       
       addPendingMutation: (mutation) => {
         set((state) => ({ pendingMutations: [...state.pendingMutations, { ...mutation, id: crypto.randomUUID() }] }));
@@ -186,6 +189,7 @@ export const useExpenseStore = create<ExpenseState>()(
       },
 
       setSession: (session) => set({ session }),
+      setModalOpen: (isModalOpen) => set({ isModalOpen }),
       
       fetchCloudData: async () => {
         const { session } = get();

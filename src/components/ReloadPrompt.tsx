@@ -3,18 +3,25 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { RefreshCcw, X } from 'lucide-react';
+import { useExpenseStore } from '../store/useExpenseStore';
 
 export function ReloadPrompt() {
+  const { isModalOpen } = useExpenseStore();
+
   const {
     offlineReady: [offlineReady, setOfflineReady],
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r: any) {
-      console.log('SW Registered: ', r);
+      if (r) {
+        setInterval(() => {
+          r.update();
+        }, 60 * 60 * 1000);
+      }
     },
     onRegisterError(error: any) {
-      console.log('SW registration error', error);
+      console.error('SW registration error', error);
     },
   });
 
@@ -23,11 +30,11 @@ export function ReloadPrompt() {
     setNeedRefresh(false);
   };
 
-  if (!offlineReady && !needRefresh) return null;
+  if ((!offlineReady && !needRefresh) || isModalOpen) return null;
 
   return (
-    <div className="fixed bottom-20 left-0 right-0 z-50 flex justify-center px-4 animate-in slide-in-from-bottom-10">
-      <Card className="w-full max-w-sm border-primary/50 shadow-lg bg-card/95 backdrop-blur">
+    <div className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4 animate-in slide-in-from-top-4">
+      <Card className="w-full max-w-sm border shadow-lg bg-popover text-popover-foreground rounded-xl">
         <CardContent className="p-4 flex items-center justify-between gap-4">
           <div className="text-sm font-medium flex-1">
             {needRefresh ? (

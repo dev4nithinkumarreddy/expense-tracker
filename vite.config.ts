@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     VitePWA({ 
       registerType: 'prompt',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       manifest: {
         name: 'Expense Tracker',
         short_name: 'Expenses',

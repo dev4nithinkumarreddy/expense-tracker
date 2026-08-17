@@ -22,9 +22,8 @@ import Settings from "./pages/Settings";
 import { vibrate } from "./lib/utils";
 
 export default function App() {
-  const { settings, checkMonthRollover, setSession, session, fetchCloudData, syncPendingMutations } = useExpenseStore();
+  const { settings, checkMonthRollover, setSession, session, fetchCloudData, syncPendingMutations, isModalOpen, setModalOpen } = useExpenseStore();
   const [loading, setLoading] = useState(true);
-  const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
@@ -98,14 +97,14 @@ export default function App() {
         <button 
           onClick={() => {
             vibrate();
-            setIsGlobalModalOpen(true);
+            setModalOpen(true);
           }}
           aria-label="Add new expense"
           className="fixed bottom-24 right-4 sm:right-1/2 sm:translate-x-[180px] w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
         >
           <Plus className="w-6 h-6" aria-hidden="true" />
         </button>
-        <AddExpenseModal isOpen={isGlobalModalOpen} onClose={() => setIsGlobalModalOpen(false)} />
+        <AddExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
 
         <ReloadPrompt />
         <Toaster theme={settings.darkMode ? "dark" : "light"} position="bottom-center" />
