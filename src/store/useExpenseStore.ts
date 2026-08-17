@@ -178,6 +178,7 @@ export const useExpenseStore = create<ExpenseState>()(
               }
             } else {
               console.error("Mutation failed:", error);
+              toast.error(`Sync failed: ${error.message || 'Unknown error'}`);
               break; 
             }
           } catch (e) {
