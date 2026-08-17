@@ -29,7 +29,10 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
-      if (currentSession) fetchCloudData();
+      if (currentSession) {
+        syncPendingMutations();
+        fetchCloudData();
+      }
       setLoading(false);
     });
 
@@ -37,11 +40,14 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
-      if (newSession) fetchCloudData();
+      if (newSession) {
+        syncPendingMutations();
+        fetchCloudData();
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession, fetchCloudData]);
+  }, [setSession, fetchCloudData, syncPendingMutations]);
 
   useEffect(() => {
     if (session) {

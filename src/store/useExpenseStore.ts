@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
+import { queryClient } from '../lib/queryClient';
 import type { Session } from '@supabase/supabase-js';
 
 export interface Expense {
@@ -165,6 +166,13 @@ export const useExpenseStore = create<ExpenseState>()(
 
             if (!error) {
               removePendingMutation(mut.id);
+              if (mut.type.includes('EXPENSE')) {
+                 queryClient.invalidateQueries({ queryKey: ['expenses'] });
+              } else if (mut.type.includes('BILL')) {
+                 queryClient.invalidateQueries({ queryKey: ['bills'] });
+              } else if (mut.type.includes('BUDGET')) {
+                 queryClient.invalidateQueries({ queryKey: ['budgets'] });
+              }
             } else {
               console.error("Mutation failed:", error);
               break; 
@@ -228,6 +236,10 @@ export const useExpenseStore = create<ExpenseState>()(
         
         const { session, addPendingMutation, syncPendingMutations } = get();
         if (session) {
+          queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
+             return old ? [...old, newExpense] : [newExpense];
+          });
+          
           const payload = {
             id: newExpense.id,
             user_id: session.user.id,
@@ -254,6 +266,9 @@ export const useExpenseStore = create<ExpenseState>()(
         if (session) {
           const expense = expenses.find(e => e.id === id);
           if (expense) {
+            queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
+               return old ? old.map((e: any) => e.id === id ? { ...e, ...updatedFields } : e) : [];
+            });
             const payload = {
               id: expense.id,
               amount: expense.amount,
@@ -278,6 +293,9 @@ export const useExpenseStore = create<ExpenseState>()(
         set((state) => ({ expenses: state.expenses.filter(e => e.id !== id) }));
         
         if (session) {
+          queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
+             return old ? old.filter((e: any) => e.id !== id) : [];
+          });
           addPendingMutation({ type: 'DELETE_EXPENSE', payload: { id } });
           syncPendingMutations();
         }
@@ -289,6 +307,9 @@ export const useExpenseStore = create<ExpenseState>()(
               onClick: () => {
                 set(state => ({ expenses: [...state.expenses, expenseToDelete] }));
                 if (session) {
+                  queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
+                     return old ? [...old, expenseToDelete] : [expenseToDelete];
+                  });
                   addPendingMutation({ type: 'INSERT_EXPENSE', payload: {
                     id: expenseToDelete.id,
                     user_id: session.user.id,
@@ -316,6 +337,9 @@ export const useExpenseStore = create<ExpenseState>()(
         
         const { session, addPendingMutation, syncPendingMutations } = get();
         if (session) {
+          queryClient.setQueryData(['bills', session.user.id], (old: any) => {
+             return old ? [...old, newBill] : [newBill];
+          });
           const payload = {
             id: newBill.id,
             user_id: session.user.id,
@@ -338,6 +362,9 @@ export const useExpenseStore = create<ExpenseState>()(
         if (session) {
           const bill = bills.find(b => b.id === id);
           if (bill) {
+            queryClient.setQueryData(['bills', session.user.id], (old: any) => {
+               return old ? old.map((b: any) => b.id === id ? { ...b, ...updatedFields } : b) : [];
+            });
             const payload = {
               id: bill.id,
               title: bill.title,
@@ -355,6 +382,9 @@ export const useExpenseStore = create<ExpenseState>()(
         set((state) => ({ bills: state.bills.filter(b => b.id !== id) }));
         const { session, addPendingMutation, syncPendingMutations } = get();
         if (session) {
+          queryClient.setQueryData(['bills', session.user.id], (old: any) => {
+             return old ? old.filter((b: any) => b.id !== id) : [];
+          });
           addPendingMutation({ type: 'DELETE_BILL', payload: { id } });
           syncPendingMutations();
         }
@@ -400,6 +430,9 @@ export const useExpenseStore = create<ExpenseState>()(
         if (monthlyLimit <= 0) {
           if (existingBudget) {
             set(state => ({ budgets: state.budgets.filter(b => b.id !== existingBudget.id) }));
+            queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
+               return old ? old.filter((b: any) => b.id !== existingBudget.id) : [];
+            });
             addPendingMutation({ type: 'DELETE_BUDGET', payload: { id: existingBudget.id } });
             syncPendingMutations();
           }
@@ -410,6 +443,9 @@ export const useExpenseStore = create<ExpenseState>()(
           set(state => ({
             budgets: state.budgets.map(b => b.id === existingBudget.id ? { ...b, monthlyLimit } : b)
           }));
+          queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
+             return old ? old.map((b: any) => b.id === existingBudget.id ? { ...b, monthlyLimit } : b) : [];
+          });
           addPendingMutation({ 
             type: 'UPSERT_BUDGET', 
             payload: {
@@ -430,6 +466,9 @@ export const useExpenseStore = create<ExpenseState>()(
             userId: session.user.id
           };
           set(state => ({ budgets: [...state.budgets, newBudget] }));
+          queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
+             return old ? [...old, newBudget] : [newBudget];
+          });
           addPendingMutation({ 
             type: 'UPSERT_BUDGET', 
             payload: {
