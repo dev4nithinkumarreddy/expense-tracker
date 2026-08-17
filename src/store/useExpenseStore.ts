@@ -203,18 +203,86 @@ export const useExpenseStore = create<ExpenseState>()(
             supabase.from('budgets').select('*').eq('user_id', session.user.id)
           ]);
 
-          if (expensesRes.data) set({ expenses: expensesRes.data as Expense[] });
-          if (billsRes.data) set({ bills: billsRes.data as Bill[] });
-          if (budgetsRes.data) {
-            set({
-              budgets: budgetsRes.data.map((b: any) => ({
-                id: b.id,
-                category: b.category,
-                monthlyLimit: b.monthly_limit,
-                month: b.month,
-                userId: b.user_id
-              }))
+          if (expensesRes.data) {
+            const { pendingMutations } = get();
+            let mergedExpenses = expensesRes.data as Expense[];
+            
+            pendingMutations.forEach(mut => {
+              if (mut.type === 'INSERT_EXPENSE') {
+                mergedExpenses.push(mut.payload as Expense);
+              } else if (mut.type === 'UPDATE_EXPENSE') {
+                mergedExpenses = mergedExpenses.map(e => e.id === mut.payload.id ? { ...e, ...mut.payload } : e);
+              } else if (mut.type === 'DELETE_EXPENSE') {
+                mergedExpenses = mergedExpenses.filter(e => e.id !== mut.payload.id);
+              }
             });
+            set({ expenses: mergedExpenses });
+          }
+          if (billsRes.data) {
+            const { pendingMutations } = get();
+            let mergedBills = billsRes.data.map(b => ({
+              id: b.id,
+              title: b.title,
+              amount: b.amount,
+              autoDeduct: b.auto_deduct,
+              category: b.category
+            })) as Bill[];
+            
+            pendingMutations.forEach(mut => {
+              if (mut.type === 'INSERT_BILL') {
+                mergedBills.push({
+                  id: mut.payload.id,
+                  title: mut.payload.title,
+                  amount: mut.payload.amount,
+                  autoDeduct: mut.payload.auto_deduct,
+                  category: mut.payload.category
+                });
+              } else if (mut.type === 'UPDATE_BILL') {
+                mergedBills = mergedBills.map(b => b.id === mut.payload.id ? {
+                  ...b,
+                  title: mut.payload.title ?? b.title,
+                  amount: mut.payload.amount ?? b.amount,
+                  autoDeduct: mut.payload.auto_deduct ?? b.autoDeduct,
+                  category: mut.payload.category ?? b.category
+                } : b);
+              } else if (mut.type === 'DELETE_BILL') {
+                mergedBills = mergedBills.filter(b => b.id !== mut.payload.id);
+              }
+            });
+            set({ bills: mergedBills });
+          }
+          if (budgetsRes.data) {
+            const { pendingMutations } = get();
+            let mergedBudgets = budgetsRes.data.map((b: any) => ({
+              id: b.id,
+              category: b.category,
+              monthlyLimit: b.monthly_limit,
+              month: b.month,
+              userId: b.user_id
+            })) as Budget[];
+            
+            pendingMutations.forEach(mut => {
+              if (mut.type === 'UPSERT_BUDGET') {
+                const existing = mergedBudgets.find(b => b.id === mut.payload.id);
+                if (existing) {
+                  mergedBudgets = mergedBudgets.map(b => b.id === mut.payload.id ? {
+                    ...b,
+                    monthlyLimit: mut.payload.monthly_limit
+                  } : b);
+                } else {
+                  mergedBudgets.push({
+                    id: mut.payload.id,
+                    category: mut.payload.category,
+                    monthlyLimit: mut.payload.monthly_limit,
+                    month: mut.payload.month,
+                    userId: mut.payload.user_id
+                  });
+                }
+              } else if (mut.type === 'DELETE_BUDGET') {
+                mergedBudgets = mergedBudgets.filter(b => b.id !== mut.payload.id);
+              }
+            });
+            set({ budgets: mergedBudgets });
           }
           if (settingsRes.data) {
             const s = settingsRes.data;
