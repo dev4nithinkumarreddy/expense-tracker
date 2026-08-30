@@ -25,9 +25,19 @@ export interface Budget {
   userId: string;
 }
 
+export interface WishlistItem {
+  id: string;
+  item_name: string;
+  estimated_amount?: number;
+  category?: string;
+  is_purchased: boolean;
+  created_at: string;
+}
+
 export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE' 
   | 'INSERT_BILL' | 'UPDATE_BILL' | 'DELETE_BILL' 
-  | 'UPSERT_BUDGET' | 'DELETE_BUDGET';
+  | 'UPSERT_BUDGET' | 'DELETE_BUDGET'
+  | 'INSERT_WISHLIST_ITEM' | 'UPDATE_WISHLIST_ITEM' | 'DELETE_WISHLIST_ITEM';
 
 export interface PendingMutation {
   id: string;
@@ -62,6 +72,7 @@ interface ExpenseState {
   lastActiveMonth: string;
   session: Session | null;
   budgets: Budget[];
+  wishlistItems: WishlistItem[];
   pendingMutations: PendingMutation[];
   isModalOpen: boolean;
   
@@ -81,6 +92,10 @@ interface ExpenseState {
   addBill: (bill: Omit<Bill, 'id'>) => void;
   updateBill: (id: string, bill: Partial<Bill>) => void;
   deleteBill: (id: string) => void;
+  
+  addWishlistItem: (item: Omit<WishlistItem, 'id' | 'is_purchased' | 'created_at'>) => void;
+  updateWishlistItem: (id: string, item: Partial<WishlistItem>) => void;
+  deleteWishlistItem: (id: string) => void;
   
   updateSettings: (settings: Partial<Settings>) => void;
   addCategory: (category: string) => void;
@@ -119,6 +134,7 @@ export const useExpenseStore = create<ExpenseState>()(
         ],
         privacyMode: true
       },
+      wishlistItems: [],
       lastActiveMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
       session: null,
       isModalOpen: false,
@@ -165,6 +181,15 @@ export const useExpenseStore = create<ExpenseState>()(
             } else if (mut.type === 'DELETE_BUDGET') {
               const res = await supabase.from('budgets').delete().eq('id', mut.payload.id);
               error = res.error;
+            } else if (mut.type === 'INSERT_WISHLIST_ITEM') {
+              const res = await supabase.from('wishlist').insert(mut.payload);
+              error = res.error;
+            } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
+              const res = await supabase.from('wishlist').update(mut.payload).eq('id', mut.payload.id);
+              error = res.error;
+            } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
+              const res = await supabase.from('wishlist').delete().eq('id', mut.payload.id);
+              error = res.error;
             }
 
             if (!error) {
@@ -197,11 +222,12 @@ export const useExpenseStore = create<ExpenseState>()(
         if (!session) return;
         
         try {
-          const [expensesRes, billsRes, settingsRes, budgetsRes] = await Promise.all([
+          const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes] = await Promise.all([
             supabase.from('expenses').select('*').eq('user_id', session.user.id),
             supabase.from('bills').select('*').eq('user_id', session.user.id),
             supabase.from('user_settings').select('*').eq('user_id', session.user.id).single(),
-            supabase.from('budgets').select('*').eq('user_id', session.user.id)
+            supabase.from('budgets').select('*').eq('user_id', session.user.id),
+            supabase.from('wishlist').select('*').eq('user_id', session.user.id)
           ]);
 
           if (expensesRes.data) {
@@ -296,6 +322,21 @@ export const useExpenseStore = create<ExpenseState>()(
               categoryBudgets: s.category_budgets || {},
               quickAdds: s.quick_adds || []
             }});
+          }
+          if (wishlistRes.data) {
+            const { pendingMutations } = get();
+            let mergedWishlist = wishlistRes.data as WishlistItem[];
+            
+            pendingMutations.forEach(mut => {
+              if (mut.type === 'INSERT_WISHLIST_ITEM') {
+                mergedWishlist.push(mut.payload as WishlistItem);
+              } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
+                mergedWishlist = mergedWishlist.map(w => w.id === mut.payload.id ? { ...w, ...mut.payload } : w);
+              } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
+                mergedWishlist = mergedWishlist.filter(w => w.id !== mut.payload.id);
+              }
+            });
+            set({ wishlistItems: mergedWishlist });
           }
         } catch (error) {
           console.error("Failed to fetch cloud data:", error);
@@ -459,6 +500,53 @@ export const useExpenseStore = create<ExpenseState>()(
              return old ? old.filter((b: any) => b.id !== id) : [];
           });
           addPendingMutation({ type: 'DELETE_BILL', payload: { id } });
+          syncPendingMutations();
+        }
+      },
+      
+      addWishlistItem: (item) => {
+        const id = crypto.randomUUID();
+        const newItem: WishlistItem = { ...item, id, is_purchased: false, created_at: new Date().toISOString() };
+        set((state) => ({ wishlistItems: [...state.wishlistItems, newItem] }));
+        
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({
+            type: 'INSERT_WISHLIST_ITEM',
+            payload: {
+              id: newItem.id,
+              user_id: session.user.id,
+              item_name: newItem.item_name,
+              estimated_amount: newItem.estimated_amount,
+              category: newItem.category,
+              is_purchased: newItem.is_purchased,
+              created_at: newItem.created_at
+            }
+          });
+          syncPendingMutations();
+        }
+      },
+      
+      updateWishlistItem: (id, updates) => {
+        set((state) => ({
+          wishlistItems: state.wishlistItems.map(w => w.id === id ? { ...w, ...updates } : w)
+        }));
+        
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({
+            type: 'UPDATE_WISHLIST_ITEM',
+            payload: { id, ...updates }
+          });
+          syncPendingMutations();
+        }
+      },
+      
+      deleteWishlistItem: (id) => {
+        set((state) => ({ wishlistItems: state.wishlistItems.filter(w => w.id !== id) }));
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({ type: 'DELETE_WISHLIST_ITEM', payload: { id } });
           syncPendingMutations();
         }
       },
@@ -682,12 +770,14 @@ export const useExpenseStore = create<ExpenseState>()(
           await Promise.all([
             supabase.from('expenses').delete().eq('user_id', session.user.id),
             supabase.from('bills').delete().eq('user_id', session.user.id),
+            supabase.from('wishlist').delete().eq('user_id', session.user.id),
             supabase.from('user_settings').delete().eq('user_id', session.user.id)
           ]);
         }
         set({
           expenses: [],
           bills: [],
+          wishlistItems: [],
           settings: {
             monthlyIncome: 45000,
             currency: '₹',

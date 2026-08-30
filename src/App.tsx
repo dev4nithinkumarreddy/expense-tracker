@@ -16,7 +16,7 @@ import { Toaster } from "sonner";
 // Pages
 import Dashboard from "./pages/Dashboard";
 import Expenses from "./pages/Expenses";
-import Bills from "./pages/Bills";
+import Planned from "./pages/Planned";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import { vibrate } from "./lib/utils";
@@ -87,7 +87,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/expenses" element={<Expenses />} />
-                <Route path="/bills" element={<Bills />} />
+                <Route path="/planned" element={<Planned />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>

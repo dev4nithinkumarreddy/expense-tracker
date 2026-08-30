@@ -5,7 +5,7 @@ import { cn, vibrate } from "../../lib/utils";
 const navItems = [
   { icon: LayoutDashboard, label: "Home", path: "/" },
   { icon: ReceiptText, label: "Expenses", path: "/expenses" },
-  { icon: CalendarDays, label: "Bills", path: "/bills" },
+  { icon: CalendarDays, label: "Planned", path: "/planned" },
   { icon: PieChart, label: "Analytics", path: "/analytics" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
