@@ -9,12 +9,15 @@ const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || '';
 const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || '';
 const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com';
 
-webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
   try {
+    if (!vapidPublicKey || !vapidPrivateKey) {
+      throw new Error("Missing VAPID keys in Edge Function secrets");
+    }
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
     // This could be triggered by pg_cron or manually
     // For now, let's just fetch all bills due tomorrow and notify
 

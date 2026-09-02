@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useExpenseStore } from '../store/useExpenseStore';
 
 // Note: Replace this with your actual VAPID public key
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BJR4wSojsGJsKEjfrmsVOsO0DhBdPTrYeACQvMQXR9kl1XHfPEEzyKoN90NovrSoX-SaRHdrUQGLh63_e42Ezz4';
+const VAPID_PUBLIC_KEY = 'BNPxexKziK2MBqg0LcpmETqjJdbGkUz3E4wNsDlS5jPax4ZENnpKVxwB-_LzU0mTNDm6kd08OVge8Aev48Y8d7c';
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
