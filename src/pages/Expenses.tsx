@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
 import { Search, Trash2, Pencil, ImageIcon, Download } from "lucide-react";
-import { format, parseISO, isThisMonth, subMonths, isAfter, subDays } from "date-fns";
+import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { Button } from "../components/ui/button";
 import { formatCurrency } from "../lib/formatCurrency";
@@ -36,12 +36,13 @@ export default function Expenses() {
       
       let matchesDate = true;
       const expenseDate = parseISO(e.date);
-      if (dateFilter === 'this_month') matchesDate = isThisMonth(expenseDate);
-      else if (dateFilter === 'last_month') {
-        const lastMonth = subMonths(new Date(), 1);
-        matchesDate = expenseDate.getMonth() === lastMonth.getMonth() && expenseDate.getFullYear() === lastMonth.getFullYear();
+      if (dateFilter === 'this_month') {
+        matchesDate = isThisMonth(expenseDate);
+      } else if (dateFilter === 'last_month') {
+        matchesDate = isSameMonth(expenseDate, subMonths(new Date(), 1));
+      } else if (dateFilter === 'last_7_days') {
+        matchesDate = isAfter(expenseDate, subDays(new Date(), 7));
       }
-      else if (dateFilter === 'last_7_days') matchesDate = isAfter(expenseDate, subDays(new Date(), 7));
 
       return matchesSearch && matchesCategory && matchesDate && matchesMin && matchesMax;
     })
@@ -185,8 +186,8 @@ export default function Expenses() {
                   return (
                   <div key={expense.id} className={cn("flex justify-between items-center p-3 bg-card border rounded-xl shadow-sm group", isIncome && "border-green-500/30 bg-green-500/5")}>
                     <div className="flex items-center gap-3">
-                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-semibold text-xs shrink-0", isIncome ? "bg-green-500/20 text-green-600" : "bg-primary/10 text-primary")}>
-                        {isIncome ? "$" : expense.category.substring(0, 2).toUpperCase()}
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm shrink-0", isIncome ? "bg-green-500/20 text-green-600 font-bold" : "bg-primary/10 text-primary/70 font-semibold")}>
+                        {isIncome ? "$" : (settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase())}
                       </div>
                       <div className="overflow-hidden">
                         <div className="flex items-center gap-2">
@@ -204,7 +205,7 @@ export default function Expenses() {
                     </div>
                     <div className="flex items-center gap-1 sm:gap-3 pl-2">
                       <span className={cn("font-semibold text-sm whitespace-nowrap", isIncome ? "text-green-600" : "")}>
-                        {isIncome ? "+" : ""}{formatCurrency(expense.amount, settings.currency, settings.privacyMode)}
+                        {isIncome ? "+" : ""}{formatCurrency(expense.amount, settings.currency)}
                       </span>
                       <div className="flex md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <Button 

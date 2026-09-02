@@ -63,12 +63,21 @@ export default function App() {
   }, [syncPendingMutations]);
 
   useEffect(() => {
+    const root = document.documentElement;
     if (settings.darkMode) {
-      document.documentElement.classList.add("dark");
+      root.classList.add("dark");
     } else {
-      document.documentElement.classList.remove("dark");
+      root.classList.remove("dark");
     }
-  }, [settings.darkMode]);
+    
+    // Clear all theme classes
+    const classesToRemove = Array.from(root.classList).filter(c => c.startsWith('theme-'));
+    classesToRemove.forEach(c => root.classList.remove(c));
+    
+    if (settings.theme && settings.theme !== 'default') {
+      root.classList.add(`theme-${settings.theme}`);
+    }
+  }, [settings.darkMode, settings.theme]);
 
   if (loading) {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground animate-pulse">Loading...</div>;

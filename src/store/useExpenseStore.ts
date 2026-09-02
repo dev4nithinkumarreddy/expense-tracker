@@ -63,6 +63,8 @@ export interface Settings {
   quickAdds: { description: string; amount: number; category: string; icon: string }[];
   notificationsEnabled?: boolean;
   privacyMode?: boolean;
+  theme?: string;
+  categoryEmojis?: Record<string, string>;
 }
 
 interface ExpenseState {
@@ -132,7 +134,9 @@ export const useExpenseStore = create<ExpenseState>()(
           { description: "Fuel", amount: 500, category: "Fuel", icon: "🚗" },
           { description: "Grocery", amount: 200, category: "Grocery", icon: "🛒" }
         ],
-        privacyMode: true
+        privacyMode: true,
+        theme: 'default',
+        categoryEmojis: {}
       },
       wishlistItems: [],
       lastActiveMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
@@ -320,7 +324,11 @@ export const useExpenseStore = create<ExpenseState>()(
               categories: s.categories || defaultCategories,
               carryForward: s.carry_forward,
               categoryBudgets: s.category_budgets || {},
-              quickAdds: s.quick_adds || []
+              quickAdds: s.quick_adds || [],
+              privacyMode: s.privacy_mode ?? true,
+              theme: s.theme || 'default',
+              categoryEmojis: s.category_emojis || {},
+              notificationsEnabled: s.notifications_enabled || false
             }});
           }
           if (wishlistRes.data) {
@@ -564,6 +572,10 @@ export const useExpenseStore = create<ExpenseState>()(
             carry_forward: settings.carryForward,
             category_budgets: settings.categoryBudgets,
             quick_adds: settings.quickAdds,
+            privacy_mode: settings.privacyMode,
+            theme: settings.theme,
+            category_emojis: settings.categoryEmojis,
+            notifications_enabled: settings.notificationsEnabled,
             updated_at: new Date().toISOString()
           }).then();
         }

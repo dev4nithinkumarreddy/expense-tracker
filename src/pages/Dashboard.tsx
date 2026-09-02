@@ -146,7 +146,7 @@ export default function Dashboard() {
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Bills</p>
-              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency, settings.privacyMode)}</p>
+              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency)}</p>
             </div>
           </div>
           
@@ -154,12 +154,12 @@ export default function Dashboard() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Remaining</p>
               <h2 className={cn("text-3xl font-bold tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
-                {formatCurrency(remaining, settings.currency, settings.privacyMode)}
+                {formatCurrency(remaining, settings.currency)}
               </h2>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Spent</p>
-              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency, settings.privacyMode)}</p>
+              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency)}</p>
             </div>
           </div>
 

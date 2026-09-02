@@ -6,12 +6,14 @@ import { Input } from "../components/ui/input";
 import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
 export default function Settings() {
   const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills, session, budgets, updateBudget } = useExpenseStore();
   const { isSupported, permission, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
   
   const [newCat, setNewCat] = useState("");
+  const [editingEmojiFor, setEditingEmojiFor] = useState<string | null>(null);
   
   // Quick Add states
   const [qaName, setQaName] = useState("");
@@ -67,6 +69,16 @@ export default function Settings() {
       addCategory(newCat.trim());
       setNewCat("");
     }
+  };
+
+  const handleEmojiSelect = (category: string, emoji: string) => {
+    updateSettings({
+      categoryEmojis: {
+        ...(settings.categoryEmojis || {}),
+        [category]: emoji
+      }
+    });
+    setEditingEmojiFor(null);
   };
 
   const handleBudgetChange = (category: string, amount: string) => {
@@ -130,6 +142,20 @@ export default function Settings() {
                 >
                   {settings.darkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
                 </Button>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Color Theme</span>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={settings.theme || 'default'}
+                  onChange={(e) => updateSettings({ theme: e.target.value })}
+                >
+                  <option value="default">Ocean Blue</option>
+                  <option value="emerald">Emerald Green</option>
+                  <option value="rose">Sunset Rose</option>
+                  <option value="violet">Royal Violet</option>
+                </select>
               </div>
 
               <div className="flex justify-between items-center">
@@ -225,22 +251,43 @@ export default function Settings() {
               </div>
               <div className="flex flex-col gap-2 mt-4">
                 {settings.categories.map(c => (
-                  <div key={c} className="flex items-center gap-2 bg-secondary/50 px-3 py-2 rounded-md text-sm border shadow-sm">
-                    <span className="flex-1 font-medium">{c}</span>
-                    <div className="relative w-28">
-                      <span className="absolute left-2 top-2 text-xs text-muted-foreground">{settings.currency}</span>
-                      <Input 
-                        type="text" 
-                        inputMode="decimal"
-                        placeholder="Limit (opt)" 
-                        className="h-8 text-xs pl-6 bg-background"
-                        value={budgets.find(b => b.category === c && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || ""}
-                        onChange={(e) => handleBudgetChange(c, e.target.value)}
-                      />
+                  <div key={c} className="flex flex-col gap-2 bg-secondary/50 p-2 rounded-md border shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setEditingEmojiFor(editingEmojiFor === c ? null : c)}
+                        className="w-8 h-8 flex items-center justify-center bg-background rounded-full border shadow-sm hover:bg-muted transition-colors text-lg"
+                      >
+                        {settings.categoryEmojis?.[c] || c.substring(0, 2).toUpperCase()}
+                      </button>
+                      <span className="flex-1 font-medium">{c}</span>
+                      <div className="relative w-28">
+                        <span className="absolute left-2 top-2 text-xs text-muted-foreground">{settings.currency}</span>
+                        <Input 
+                          type="text" 
+                          inputMode="decimal"
+                          placeholder="Limit (opt)" 
+                          className="h-8 text-xs pl-6 bg-background"
+                          value={budgets.find(b => b.category === c && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || ""}
+                          onChange={(e) => handleBudgetChange(c, e.target.value)}
+                        />
+                      </div>
+                      <button onClick={() => deleteCategory(c)} className="text-muted-foreground hover:text-destructive p-1">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button onClick={() => deleteCategory(c)} className="text-muted-foreground hover:text-destructive p-1">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {editingEmojiFor === c && (
+                      <div className="grid grid-cols-6 sm:grid-cols-9 gap-1 mt-2 p-2 bg-background rounded-md border animate-in slide-in-from-top-2">
+                        {COMMON_EMOJIS.map(emoji => (
+                          <button
+                            key={emoji}
+                            onClick={() => handleEmojiSelect(c, emoji)}
+                            className="w-8 h-8 flex items-center justify-center hover:bg-secondary rounded text-lg transition-colors"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

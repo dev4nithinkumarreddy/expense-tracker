@@ -16,7 +16,7 @@ export default function Analytics() {
   const { expenses, settings } = useExpenseStore();
   
   const [currentDate, setCurrentDate] = useState(new Date());
-  const selectedMonthStr = currentDate.toISOString().slice(0, 7);
+  const selectedMonthStr = format(currentDate, 'yyyy-MM');
   
   const currentMonthExpenses = expenses.filter(e => e.date.startsWith(selectedMonthStr) && e.category !== 'Income');
   const totalExpenses = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -33,11 +33,23 @@ export default function Analytics() {
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 
+  // Extract Smart Tags
+  const tagData = currentMonthExpenses.reduce((acc, expense) => {
+    const tags = expense.description.match(/#[\w-]+/g);
+    if (tags) {
+      tags.forEach(tag => {
+        const t = tag.toLowerCase();
+        acc[t] = (acc[t] || 0) + expense.amount;
+      });
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
   const total = pieData.reduce((sum, item) => sum + item.value, 0);
 
   // Month over Month Comparison
   const lastMonthDate = subMonths(currentDate, 1);
-  const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
+  const lastMonthStr = format(lastMonthDate, 'yyyy-MM');
   
   const lastMonthExpenses = expenses.filter(e => e.date.startsWith(lastMonthStr) && e.amount > 0 && e.category !== 'Income');
   const totalLastMonth = lastMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -174,7 +186,9 @@ export default function Analytics() {
               {pieData.map((item, index) => (
                 <div key={item.name} className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm bg-secondary" style={{ borderLeft: `4px solid ${COLORS[index % COLORS.length]}` }}>
+                      {settings.categoryEmojis?.[item.name] || item.name.substring(0, 2).toUpperCase()}
+                    </div>
                     <span className="font-medium text-sm">{item.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -187,6 +201,26 @@ export default function Analytics() {
               ))}
             </CardContent>
           </Card>
+
+          {/* Smart Tags Section */}
+          {Object.keys(tagData).length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Top Tags</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {Object.entries(tagData)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 5)
+                  .map(([tag, amount]) => (
+                    <div key={tag} className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-primary bg-primary/10 px-2 py-1 rounded-md">{tag}</span>
+                      <span className="text-sm font-semibold">{formatCurrency(amount, settings.currency)}</span>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
