@@ -344,6 +344,14 @@ function IOUTab() {
           date: new Date().toISOString(),
           notes: debt.notes
         });
+      } else if (debt.type === "borrowed" && confirm("Would you like to log this payment as an Expense?")) {
+        addExpense({
+          amount: debt.amount,
+          description: `Repaid: ${debt.person_name}`,
+          category: "Other", // Or 'Debt Repayment' if it exists
+          date: new Date().toISOString(),
+          notes: debt.notes
+        });
       }
     }
   };
