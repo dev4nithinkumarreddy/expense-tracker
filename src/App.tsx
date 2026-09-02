@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { BottomNav } from "./components/layout/BottomNav";
 import { useExpenseStore } from "./store/useExpenseStore";
 import { supabase } from "./lib/supabase";
@@ -12,13 +12,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "sonner";
+import { AnimatedRoutes } from "./components/AnimatedRoutes";
 
-// Pages
-import Dashboard from "./pages/Dashboard";
-import Expenses from "./pages/Expenses";
-import Planned from "./pages/Planned";
-import Analytics from "./pages/Analytics";
-import Settings from "./pages/Settings";
 import { vibrate } from "./lib/utils";
 
 export default function App() {
@@ -93,13 +88,7 @@ export default function App() {
         <BrowserRouter>
           <div className="min-h-screen bg-background text-foreground pb-20 overflow-x-hidden">
             <main className="container max-w-md mx-auto p-4 animate-in fade-in duration-300">
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/expenses" element={<Expenses />} />
-                <Route path="/planned" element={<Planned />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/settings" element={<Settings />} />
-              </Routes>
+              <AnimatedRoutes />
             </main>
         
         {/* Global Floating Action Button */}

@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Trash2, Pencil, ImageIcon, Download } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
+import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
 import { Button } from "../components/ui/button";
-import { formatCurrency } from "../lib/formatCurrency";
-import { cn } from "../lib/utils";
 
 export default function Expenses() {
-  const { expenses, settings, deleteExpense } = useExpenseStore();
+  const { expenses, settings } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -184,51 +183,12 @@ export default function Expenses() {
                 {dayExpenses.map(expense => {
                   const isIncome = expense.category === 'Income';
                   return (
-                  <div key={expense.id} className={cn("flex justify-between items-center p-3 bg-card border rounded-xl shadow-sm group", isIncome && "border-green-500/30 bg-green-500/5")}>
-                    <div className="flex items-center gap-3">
-                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm shrink-0", isIncome ? "bg-green-500/20 text-green-600 font-bold" : "bg-primary/10 text-primary/70 font-semibold")}>
-                        {isIncome ? "$" : (settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase())}
-                      </div>
-                      <div className="overflow-hidden">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-sm leading-none truncate">{expense.description}</p>
-                          {expense.receipt_url && (
-                            <a href={expense.receipt_url} target="_blank" rel="noreferrer" className="text-primary hover:opacity-80 shrink-0">
-                              <ImageIcon className="w-4 h-4" />
-                            </a>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 truncate">
-                          {expense.category} {expense.notes && `• ${expense.notes}`}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-3 pl-2">
-                      <span className={cn("font-semibold text-sm whitespace-nowrap", isIncome ? "text-green-600" : "")}>
-                        {isIncome ? "+" : ""}{formatCurrency(expense.amount, settings.currency)}
-                      </span>
-                      <div className="flex md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-primary focus-visible:ring-1"
-                          onClick={() => handleEdit(expense)}
-                          aria-label={`Edit ${expense.description}`}
-                        >
-                          <Pencil className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10 focus-visible:ring-1"
-                          onClick={() => deleteExpense(expense.id)}
-                          aria-label={`Delete ${expense.description}`}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                    <SwipeableExpenseItem 
+                      key={expense.id} 
+                      expense={expense} 
+                      isIncome={isIncome} 
+                      onEdit={handleEdit} 
+                    />
                   );
                 })}
               </div>
