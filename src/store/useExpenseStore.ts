@@ -34,10 +34,22 @@ export interface WishlistItem {
   created_at: string;
 }
 
+export interface Debt {
+  id: string;
+  person_name: string;
+  amount: number;
+  type: 'lent' | 'borrowed';
+  status: 'pending' | 'settled';
+  date: string;
+  notes?: string;
+  created_at?: string;
+}
+
 export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE' 
   | 'INSERT_BILL' | 'UPDATE_BILL' | 'DELETE_BILL' 
   | 'UPSERT_BUDGET' | 'DELETE_BUDGET'
-  | 'INSERT_WISHLIST_ITEM' | 'UPDATE_WISHLIST_ITEM' | 'DELETE_WISHLIST_ITEM';
+  | 'INSERT_WISHLIST_ITEM' | 'UPDATE_WISHLIST_ITEM' | 'DELETE_WISHLIST_ITEM'
+  | 'INSERT_DEBT' | 'UPDATE_DEBT' | 'DELETE_DEBT';
 
 export interface PendingMutation {
   id: string;
@@ -75,18 +87,13 @@ interface ExpenseState {
   session: Session | null;
   budgets: Budget[];
   wishlistItems: WishlistItem[];
+  debts: Debt[];
   pendingMutations: PendingMutation[];
   isModalOpen: boolean;
   
   // Actions
-  addPendingMutation: (mutation: Omit<PendingMutation, 'id'>) => void;
-  removePendingMutation: (id: string) => void;
-  syncPendingMutations: () => Promise<void>;
-  
   setSession: (session: Session | null) => void;
-  setModalOpen: (isOpen: boolean) => void;
   fetchCloudData: () => Promise<void>;
-  
   addExpense: (expense: Omit<Expense, 'id'>) => void;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
@@ -99,13 +106,22 @@ interface ExpenseState {
   updateWishlistItem: (id: string, item: Partial<WishlistItem>) => void;
   deleteWishlistItem: (id: string) => void;
   
+  addDebt: (debt: Omit<Debt, 'id' | 'created_at'>) => void;
+  updateDebt: (id: string, debt: Partial<Debt>) => void;
+  deleteDebt: (id: string) => void;
+  
   updateSettings: (settings: Partial<Settings>) => void;
   addCategory: (category: string) => void;
   deleteCategory: (category: string) => void;
-  
   updateBudget: (category: string, monthlyLimit: number, month: string) => void;
+  deleteBudget: (id: string) => void;
   
+  addPendingMutation: (mutation: Omit<PendingMutation, 'id' | 'timestamp'>) => void;
+  removePendingMutation: (id: string) => void;
+  syncPendingMutations: () => Promise<void>;
   
+  clearData: () => Promise<void>;
+  setModalOpen: (isOpen: boolean) => void;
   checkMonthRollover: () => void;
   eraseAllData: () => Promise<void>;
 }
@@ -122,6 +138,7 @@ export const useExpenseStore = create<ExpenseState>()(
       bills: [],
       budgets: [],
       pendingMutations: [],
+      debts: [],
       settings: {
         monthlyIncome: 45000,
         currency: '₹',
@@ -194,6 +211,15 @@ export const useExpenseStore = create<ExpenseState>()(
             } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
               const res = await supabase.from('wishlist').delete().eq('id', mut.payload.id);
               error = res.error;
+            } else if (mut.type === 'INSERT_DEBT') {
+              const res = await supabase.from('debts').insert(mut.payload);
+              error = res.error;
+            } else if (mut.type === 'UPDATE_DEBT') {
+              const res = await supabase.from('debts').update(mut.payload).eq('id', mut.payload.id);
+              error = res.error;
+            } else if (mut.type === 'DELETE_DEBT') {
+              const res = await supabase.from('debts').delete().eq('id', mut.payload.id);
+              error = res.error;
             }
 
             if (!error) {
@@ -226,12 +252,13 @@ export const useExpenseStore = create<ExpenseState>()(
         if (!session) return;
         
         try {
-          const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes] = await Promise.all([
+          const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes] = await Promise.all([
             supabase.from('expenses').select('*').eq('user_id', session.user.id),
             supabase.from('bills').select('*').eq('user_id', session.user.id),
             supabase.from('user_settings').select('*').eq('user_id', session.user.id).single(),
             supabase.from('budgets').select('*').eq('user_id', session.user.id),
-            supabase.from('wishlist').select('*').eq('user_id', session.user.id)
+            supabase.from('wishlist').select('*').eq('user_id', session.user.id),
+            supabase.from('debts').select('*').eq('user_id', session.user.id)
           ]);
 
           if (expensesRes.data) {
@@ -345,6 +372,22 @@ export const useExpenseStore = create<ExpenseState>()(
               }
             });
             set({ wishlistItems: mergedWishlist });
+          }
+
+          if (debtsRes?.data) {
+            const { pendingMutations } = get();
+            let mergedDebts = debtsRes.data as Debt[];
+            
+            pendingMutations.forEach(mut => {
+              if (mut.type === 'INSERT_DEBT') {
+                mergedDebts.push(mut.payload as Debt);
+              } else if (mut.type === 'UPDATE_DEBT') {
+                mergedDebts = mergedDebts.map(d => d.id === mut.payload.id ? { ...d, ...mut.payload } : d);
+              } else if (mut.type === 'DELETE_DEBT') {
+                mergedDebts = mergedDebts.filter(d => d.id !== mut.payload.id);
+              }
+            });
+            set({ debts: mergedDebts });
           }
         } catch (error) {
           console.error("Failed to fetch cloud data:", error);
@@ -559,6 +602,48 @@ export const useExpenseStore = create<ExpenseState>()(
         }
       },
       
+      addDebt: (debt) => {
+        const id = crypto.randomUUID();
+        const newDebt: Debt = { ...debt, id, created_at: new Date().toISOString() };
+        set((state) => ({ debts: [...state.debts, newDebt] }));
+        
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({
+            type: 'INSERT_DEBT',
+            payload: {
+              ...newDebt,
+              user_id: session.user.id
+            }
+          });
+          syncPendingMutations();
+        }
+      },
+      
+      updateDebt: (id, updates) => {
+        set((state) => ({
+          debts: state.debts.map(d => d.id === id ? { ...d, ...updates } : d)
+        }));
+        
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({
+            type: 'UPDATE_DEBT',
+            payload: { id, ...updates }
+          });
+          syncPendingMutations();
+        }
+      },
+      
+      deleteDebt: (id) => {
+        set((state) => ({ debts: state.debts.filter(d => d.id !== id) }));
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({ type: 'DELETE_DEBT', payload: { id } });
+          syncPendingMutations();
+        }
+      },
+      
       updateSettings: (newSettings) => {
         set((state) => ({ settings: { ...state.settings, ...newSettings } }));
         const { session, settings } = get();
@@ -658,6 +743,26 @@ export const useExpenseStore = create<ExpenseState>()(
         }
       },
       
+      deleteBudget: (id) => {
+        set(state => ({ budgets: state.budgets.filter(b => b.id !== id) }));
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({ type: 'DELETE_BUDGET', payload: { id } });
+          syncPendingMutations();
+        }
+      },
+
+      clearData: async () => {
+        set({
+          expenses: [],
+          bills: [],
+          budgets: [],
+          wishlistItems: [],
+          debts: [],
+          pendingMutations: []
+        });
+      },
+
       checkMonthRollover: () => set((state) => {
         const currentMonth = new Date().toISOString().slice(0, 7);
         
@@ -785,6 +890,7 @@ export const useExpenseStore = create<ExpenseState>()(
             supabase.from('expenses').delete().eq('user_id', session.user.id),
             supabase.from('bills').delete().eq('user_id', session.user.id),
             supabase.from('wishlist').delete().eq('user_id', session.user.id),
+            supabase.from('debts').delete().eq('user_id', session.user.id),
             supabase.from('user_settings').delete().eq('user_id', session.user.id)
           ]);
         }
@@ -792,6 +898,7 @@ export const useExpenseStore = create<ExpenseState>()(
           expenses: [],
           bills: [],
           wishlistItems: [],
+          debts: [],
           settings: {
             monthlyIncome: 45000,
             currency: '₹',

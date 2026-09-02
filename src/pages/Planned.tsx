@@ -8,14 +8,14 @@ import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 
 export default function Planned() {
-  const [activeTab, setActiveTab] = useState<"bills" | "wishlist">("bills");
+  const [activeTab, setActiveTab] = useState<"bills" | "wishlist" | "iou">("bills");
 
   return (
     <div className="space-y-6 pb-24">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Planned</h1>
-          <p className="text-muted-foreground text-sm">Bills & Wishlist</p>
+          <p className="text-muted-foreground text-sm">Bills, Wishlist & IOUs</p>
         </div>
       </header>
 
@@ -24,7 +24,7 @@ export default function Planned() {
           onClick={() => { vibrate(10); setActiveTab("bills"); }}
           className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "bills" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
-          Recurring Bills
+          Bills
         </button>
         <button
           onClick={() => { vibrate(10); setActiveTab("wishlist"); }}
@@ -32,9 +32,17 @@ export default function Planned() {
         >
           Wishlist
         </button>
+        <button
+          onClick={() => { vibrate(10); setActiveTab("iou"); }}
+          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "iou" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          IOUs
+        </button>
       </div>
 
-      {activeTab === "bills" ? <BillsTab /> : <WishlistTab />}
+      {activeTab === "bills" && <BillsTab />}
+      {activeTab === "wishlist" && <WishlistTab />}
+      {activeTab === "iou" && <IOUTab />}
     </div>
   );
 }
@@ -292,6 +300,170 @@ function WishlistTab() {
               ))}
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IOUTab() {
+  const { debts, addDebt, updateDebt, deleteDebt, addExpense, settings } = useExpenseStore();
+  const [isAdding, setIsAdding] = useState(false);
+  const [personName, setPersonName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState<"lent" | "borrowed">("lent");
+  const [notes, setNotes] = useState("");
+
+  const handleSave = () => {
+    if (!personName || !amount) return;
+    vibrate();
+    addDebt({
+      person_name: personName,
+      amount: parseFloat(amount),
+      type,
+      status: "pending",
+      date: new Date().toISOString(),
+      notes
+    });
+    setPersonName("");
+    setAmount("");
+    setNotes("");
+    setIsAdding(false);
+  };
+
+  const handleSettle = (debt: any) => {
+    if (confirm(`Mark debt with ${debt.person_name} as settled?`)) {
+      vibrate();
+      updateDebt(debt.id, { status: "settled" });
+      
+      if (debt.type === "lent" && confirm("Would you like to log this returned money as Income?")) {
+        addExpense({
+          amount: debt.amount,
+          description: `Settled: ${debt.person_name}`,
+          category: "Income",
+          date: new Date().toISOString(),
+          notes: debt.notes
+        });
+      }
+    }
+  };
+
+  const pendingDebts = debts.filter(d => d.status === "pending");
+  const lentTotal = pendingDebts.filter(d => d.type === "lent").reduce((a, b) => a + b.amount, 0);
+  const borrowedTotal = pendingDebts.filter(d => d.type === "borrowed").reduce((a, b) => a + b.amount, 0);
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">IOUs</h2>
+        <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">
+          <Plus className="w-4 h-4 mr-1" /> Add IOU
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="bg-emerald-500/10 border-emerald-500/20">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-emerald-600 mb-1">To Collect</p>
+            <p className="text-xl font-bold text-emerald-600">{formatCurrency(lentTotal, settings.currency)}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-rose-500/10 border-rose-500/20">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-rose-600 mb-1">To Pay</p>
+            <p className="text-xl font-bold text-rose-600">{formatCurrency(borrowedTotal, settings.currency)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {isAdding && (
+        <Card className="border-primary animate-in fade-in">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex bg-muted p-1 rounded-md">
+              <button
+                onClick={() => setType("lent")}
+                className={`flex-1 py-1 text-xs font-medium rounded transition-colors ${type === "lent" ? "bg-background shadow text-emerald-600" : "text-muted-foreground"}`}
+              >
+                I Lent Money
+              </button>
+              <button
+                onClick={() => setType("borrowed")}
+                className={`flex-1 py-1 text-xs font-medium rounded transition-colors ${type === "borrowed" ? "bg-background shadow text-rose-600" : "text-muted-foreground"}`}
+              >
+                I Borrowed Money
+              </button>
+            </div>
+            <div className="space-y-3">
+              <Input 
+                placeholder="Person Name" 
+                value={personName}
+                onChange={(e) => setPersonName(e.target.value)}
+              />
+              <Input 
+                type="number" 
+                placeholder="Amount" 
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+              <Input 
+                placeholder="Notes (opt)" 
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancel</Button>
+                <Button size="sm" onClick={handleSave}>Save</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-3 mt-4">
+        {pendingDebts.length === 0 && !isAdding ? (
+          <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
+            <p className="text-sm">No pending IOUs</p>
+          </div>
+        ) : (
+          pendingDebts.map(debt => (
+            <Card key={debt.id} className="overflow-hidden">
+              <CardContent className="p-0 flex items-center relative">
+                <div className={`w-2 h-full absolute left-0 top-0 bottom-0 ${debt.type === 'lent' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <div className="p-4 pl-6 flex-1">
+                  <div className="flex justify-between items-start mb-1">
+                    <div>
+                      <h3 className="font-medium text-sm">
+                        {debt.type === 'lent' ? `Collect from ${debt.person_name}` : `Pay ${debt.person_name}`}
+                      </h3>
+                      {debt.notes && <p className="text-xs text-muted-foreground mt-0.5">{debt.notes}</p>}
+                    </div>
+                    <span className={`font-semibold ${debt.type === 'lent' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {formatCurrency(debt.amount, settings.currency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 mt-3">
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="h-7 text-xs px-2"
+                      onClick={() => handleSettle(debt)}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                      Mark Settled
+                    </Button>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-destructive hover:bg-destructive/10 shrink-0 mx-2"
+                  onClick={() => deleteDebt(debt.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          ))
         )}
       </div>
     </div>
