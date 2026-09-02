@@ -40,7 +40,7 @@ serve(async (req) => {
     const payload = JSON.stringify({
       title: "Expense Tracker",
       body: "This is a test notification from the Edge Function!",
-      url: "/bills"
+      url: "/planned"
     });
 
     const sendPromises = subs.map(async (sub) => {
