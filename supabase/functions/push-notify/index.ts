@@ -37,10 +37,26 @@ serve(async (req) => {
       
     if (subsError) throw subsError;
 
+    // Array of catchy/flirty lines for daily reminders
+    const catchphrases = [
+      "Did it hurt? When you spent all that money today? 💸 Log it now!",
+      "I'm thinking about you... and your wallet. Time to update your expenses! 😉",
+      "Don't ghost your budget! Tell me what you spent today. 👻",
+      "Are you a loan? Because my interest in you is growing! 📈 Log your spending!",
+      "I promise I won't judge your food deliveries... much. 🍕 Add today's expenses!",
+      "Your wallet misses you. Come give it some attention! 💳",
+      "You're a 10, but your unlogged expenses are a 2. Let's fix that! ✨",
+      "Spill the tea ☕ What did you buy today?",
+      "Treat yo' self! (But seriously, log it in the app). 🛍️"
+    ];
+
+    // Pick a random line
+    const randomBody = catchphrases[Math.floor(Math.random() * catchphrases.length)];
+
     const payload = JSON.stringify({
-      title: "Expense Tracker",
-      body: "This is a test notification from the Edge Function!",
-      url: "/planned"
+      title: "Hey there... 👋",
+      body: randomBody,
+      url: "/"
     });
 
     const sendPromises = subs.map(async (sub) => {
