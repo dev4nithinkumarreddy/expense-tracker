@@ -577,7 +577,9 @@ export const useExpenseStore = create<ExpenseState>()(
             category_emojis: settings.categoryEmojis,
             notifications_enabled: settings.notificationsEnabled,
             updated_at: new Date().toISOString()
-          }).then();
+          }).then(({ error }) => {
+            if (error) console.error('Failed to save settings:', error);
+          });
         }
       },
 
