@@ -18,7 +18,7 @@ export default function Analytics() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const selectedMonthStr = currentDate.toISOString().slice(0, 7);
   
-  const currentMonthExpenses = expenses.filter(e => e.date.startsWith(selectedMonthStr));
+  const currentMonthExpenses = expenses.filter(e => e.date.startsWith(selectedMonthStr) && e.category !== 'Income');
   const totalExpenses = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
   
   const categoryData = currentMonthExpenses.reduce((acc, expense) => {
@@ -39,7 +39,7 @@ export default function Analytics() {
   const lastMonthDate = subMonths(currentDate, 1);
   const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
   
-  const lastMonthExpenses = expenses.filter(e => e.date.startsWith(lastMonthStr) && e.amount > 0);
+  const lastMonthExpenses = expenses.filter(e => e.date.startsWith(lastMonthStr) && e.amount > 0 && e.category !== 'Income');
   const totalLastMonth = lastMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   const percentChange = totalLastMonth === 0 ? 0 : Math.round(((totalExpenses - totalLastMonth) / totalLastMonth) * 100);

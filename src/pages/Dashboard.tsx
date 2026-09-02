@@ -5,7 +5,10 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Plus } from "lucide-react";
+import { useState } from "react";
+import { Input } from "../components/ui/input";
+import { Button } from "../components/ui/button";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-4">
@@ -33,6 +36,9 @@ const DashboardSkeleton = () => (
 export default function Dashboard() {
   const { settings, addExpense, updateSettings } = useExpenseStore();
   const { expenses, bills, budgets, isLoading } = useDashboardData();
+  const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
+  const [incomeSource, setIncomeSource] = useState("");
+  const [incomeAmount, setIncomeAmount] = useState("");
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -40,13 +46,17 @@ export default function Dashboard() {
 
   const quickAdds = settings.quickAdds || [];
 
-  const currentMonthExpenses = expenses.filter(e => isThisMonth(parseISO(e.date)));
+  const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
+  const incomeRecords = currentMonthRecords.filter(e => e.category === 'Income');
+  const currentMonthExpenses = currentMonthRecords.filter(e => e.category !== 'Income');
+
+  const extraIncome = incomeRecords.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
-  
   const totalBills = bills.reduce((sum, b) => sum + b.amount, 0);
   
-  const remaining = settings.monthlyIncome - totalBills - totalExpenses;
-  const budgetUsedPercent = Math.min(100, Math.round(((totalExpenses + totalBills) / settings.monthlyIncome) * 100));
+  const totalBudget = settings.monthlyIncome + extraIncome;
+  const remaining = totalBudget - totalBills - totalExpenses;
+  const budgetUsedPercent = Math.min(100, Math.round(((totalExpenses + totalBills) / totalBudget) * 100) || 0);
 
   const todayExpenses = currentMonthExpenses.filter(e => isToday(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
   const weekExpenses = currentMonthExpenses.filter(e => isThisWeek(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
@@ -54,7 +64,21 @@ export default function Dashboard() {
   const isOverBudget = remaining < 0;
 
   // Recent expenses (last 5)
-  const recentExpenses = [...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  const recentExpenses = [...currentMonthRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+  const handleAddIncome = () => {
+    if (!incomeSource || !incomeAmount) return;
+    vibrate();
+    addExpense({
+      amount: parseFloat(incomeAmount),
+      description: incomeSource,
+      category: "Income",
+      date: new Date().toISOString()
+    });
+    setIncomeSource("");
+    setIncomeAmount("");
+    setIsIncomeModalOpen(false);
+  };
 
   // Generate smart insight
   let insightText = "No expenses logged this month yet.";
@@ -103,12 +127,26 @@ export default function Dashboard() {
         <CardContent className="p-6">
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
-              <p className="text-sm text-muted-foreground mb-1">Budget</p>
-              <p className="text-lg font-semibold">{formatCurrency(settings.monthlyIncome, settings.currency, settings.privacyMode)}</p>
+              <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
+                Budget
+                <button 
+                  onClick={() => { vibrate(); setIsIncomeModalOpen(true); }}
+                  className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground rounded-full flex items-center justify-center transition-colors"
+                  aria-label="Add Extra Income"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </p>
+              <p className="text-lg font-semibold flex items-baseline gap-1">
+                {formatCurrency(settings.monthlyIncome, settings.currency, settings.privacyMode)}
+                {!settings.privacyMode && extraIncome > 0 && (
+                  <span className="text-xs text-green-600 font-medium">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
+                )}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Bills</p>
-              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency)}</p>
+              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency, settings.privacyMode)}</p>
             </div>
           </div>
           
@@ -116,12 +154,12 @@ export default function Dashboard() {
             <div>
               <p className="text-sm text-muted-foreground mb-1">Remaining</p>
               <h2 className={cn("text-3xl font-bold tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
-                {formatCurrency(remaining, settings.currency)}
+                {formatCurrency(remaining, settings.currency, settings.privacyMode)}
               </h2>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Spent</p>
-              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency)}</p>
+              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency, settings.privacyMode)}</p>
             </div>
           </div>
 
@@ -144,6 +182,33 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Income Modal */}
+      {isIncomeModalOpen && (
+        <Card className="border-primary animate-in fade-in slide-in-from-top-4 shadow-lg border-2 border-green-500/20">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-medium text-sm text-green-600">Add Extra Income</h3>
+            <div className="space-y-3">
+              <Input 
+                placeholder="Source (e.g. Sold bike, Bonus)" 
+                value={incomeSource}
+                onChange={(e) => setIncomeSource(e.target.value)}
+                autoFocus
+              />
+              <Input 
+                type="number" 
+                placeholder="Amount" 
+                value={incomeAmount}
+                onChange={(e) => setIncomeAmount(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="ghost" size="sm" onClick={() => setIsIncomeModalOpen(false)}>Cancel</Button>
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={handleAddIncome}>Add Income</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Daily Spending */}
       <div className="grid grid-cols-2 gap-4">

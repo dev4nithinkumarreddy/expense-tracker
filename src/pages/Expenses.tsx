@@ -6,6 +6,7 @@ import { format, parseISO, isThisMonth, subMonths, isAfter, subDays } from "date
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { Button } from "../components/ui/button";
 import { formatCurrency } from "../lib/formatCurrency";
+import { cn } from "../lib/utils";
 
 export default function Expenses() {
   const { expenses, settings, deleteExpense } = useExpenseStore();
@@ -179,11 +180,13 @@ export default function Expenses() {
                 {format(parseISO(dateStr), 'EEEE, MMMM d')}
               </h3>
               <div className="space-y-3">
-                {dayExpenses.map(expense => (
-                  <div key={expense.id} className="flex justify-between items-center p-3 bg-card border rounded-xl shadow-sm group">
+                {dayExpenses.map(expense => {
+                  const isIncome = expense.category === 'Income';
+                  return (
+                  <div key={expense.id} className={cn("flex justify-between items-center p-3 bg-card border rounded-xl shadow-sm group", isIncome && "border-green-500/30 bg-green-500/5")}>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
-                        {expense.category.substring(0, 2).toUpperCase()}
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-semibold text-xs shrink-0", isIncome ? "bg-green-500/20 text-green-600" : "bg-primary/10 text-primary")}>
+                        {isIncome ? "$" : expense.category.substring(0, 2).toUpperCase()}
                       </div>
                       <div className="overflow-hidden">
                         <div className="flex items-center gap-2">
@@ -200,8 +203,8 @@ export default function Expenses() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-3 pl-2">
-                      <span className="font-semibold text-sm whitespace-nowrap">
-                        {formatCurrency(expense.amount, settings.currency, settings.privacyMode)}
+                      <span className={cn("font-semibold text-sm whitespace-nowrap", isIncome ? "text-green-600" : "")}>
+                        {isIncome ? "+" : ""}{formatCurrency(expense.amount, settings.currency, settings.privacyMode)}
                       </span>
                       <div className="flex md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <Button 
@@ -225,7 +228,8 @@ export default function Expenses() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))
