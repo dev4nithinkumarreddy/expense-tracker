@@ -1,32 +1,72 @@
-# React + TypeScript + Vite
+# Minimal Expense Tracker 💸
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A fully-featured, offline-first Personal Finance Progressive Web App (PWA) designed to be highly responsive, blazing fast, and feature-rich without relying on a heavy backend.
 
-Currently, two official plugins are available:
+## 🚀 Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+* **Offline-First Architecture**: Log expenses even when you have no internet. Uses local `Zustand` state combined with `Supabase` synchronization.
+* **AI Receipt Scanning**: Integrated `tesseract.js` for on-device, offline OCR. Take a picture of a receipt and the app automatically extracts the total amount and merchant name.
+* **Gamification & Streaks 🔥**: Build healthy financial habits. The app tracks your daily logging streaks and rewards you with visual badges.
+* **Subscription Manager**: Track your recurring monthly and yearly bills. Get visual reminders of next billing dates and log payments with one click.
+* **IOU Tracker**: Keep track of money you've lent to friends ("To Collect") and money you owe ("To Pay"). Settling debts automatically logs them into your main budget.
+* **Wishlist & Savings Goals**: Add items you want to buy and track your progress based on your current savings rate.
+* **Push Notifications**: Serverless Web Push Notifications powered by Supabase Edge Functions and pg_cron to remind you to log expenses or pay bills.
+* **Native OS Integration**: Uses the Web Share Target API. You can share text or URLs directly from other apps on your phone into the Expense Tracker to instantly log them.
+* **Customization**: Fully customizable categories with Emojis, Dark/Light modes, and multiple color themes.
 
-## React Compiler
+## 🛠 Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React 19, TypeScript, Vite
+- **Styling**: Tailwind CSS, `shadcn/ui` components, Framer Motion
+- **State Management**: Zustand (with local persistence)
+- **Database & Auth**: Supabase (PostgreSQL, Row Level Security, Edge Functions)
+- **AI / OCR**: Tesseract.js (Client-side)
+- **PWA**: `vite-plugin-pwa` (Configured for Auto-Updates)
 
-## Expanding the Oxlint configuration
+## 📦 Local Development
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/dev4nithinkumarreddy/expense-tracker.git
+   cd expense-tracker
+   ```
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+3. **Configure Environment Variables:**
+   Create a `.env` file in the root directory and add your Supabase keys:
+   ```
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+4. **Start the dev server:**
+   ```bash
+   npm run dev
+   ```
+
+## 📲 PWA Installation (Add to Home Screen)
+
+The app is built as a Progressive Web App (PWA) with the `autoUpdate` strategy. 
+When you visit the deployed URL on iOS or Android, use your browser's **"Add to Home Screen"** option. 
+- It functions exactly like a native app.
+- When new features are pushed to production, the app will **automatically update** the next time you open it from your home screen.
+
+## 🗄️ Database Schema
+
+The app relies on several Supabase tables protected by Row Level Security (RLS) to ensure users can only access their own data.
+* `expenses`: Core transaction logs
+* `budgets`: Custom user-defined category limits
+* `bills`: Simple recurring tasks
+* `subscriptions`: Advanced recurring trackers (monthly/yearly)
+* `debts`: IOU tracker
+* `wishlist`: Savings goals
+* `push_subscriptions`: Web Push API tokens for serverless notifications
+* `user_settings`: Synced themes, privacy modes, and categories
+
+## 📄 License
+
+MIT License
