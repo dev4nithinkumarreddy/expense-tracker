@@ -45,11 +45,21 @@ export interface Debt {
   created_at?: string;
 }
 
+export interface Subscription {
+  id: string;
+  name: string;
+  amount: number;
+  billing_cycle: 'monthly' | 'yearly';
+  next_billing_date: string;
+  category: string;
+}
+
 export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE' 
   | 'INSERT_BILL' | 'UPDATE_BILL' | 'DELETE_BILL' 
   | 'UPSERT_BUDGET' | 'DELETE_BUDGET'
   | 'INSERT_WISHLIST_ITEM' | 'UPDATE_WISHLIST_ITEM' | 'DELETE_WISHLIST_ITEM'
-  | 'INSERT_DEBT' | 'UPDATE_DEBT' | 'DELETE_DEBT';
+  | 'INSERT_DEBT' | 'UPDATE_DEBT' | 'DELETE_DEBT'
+  | 'INSERT_SUBSCRIPTION' | 'UPDATE_SUBSCRIPTION' | 'DELETE_SUBSCRIPTION';
 
 export interface PendingMutation {
   id: string;
@@ -77,6 +87,8 @@ export interface Settings {
   privacyMode?: boolean;
   theme?: string;
   categoryEmojis?: Record<string, string>;
+  currentStreak?: number;
+  lastLogDate?: string;
 }
 
 interface ExpenseState {
@@ -88,19 +100,26 @@ interface ExpenseState {
   budgets: Budget[];
   wishlistItems: WishlistItem[];
   debts: Debt[];
+  subscriptions: Subscription[];
   pendingMutations: PendingMutation[];
   isModalOpen: boolean;
+  sharedData: { title?: string, text?: string, url?: string } | null;
   
   // Actions
   setSession: (session: Session | null) => void;
+  setSharedData: (data: { title?: string, text?: string, url?: string } | null) => void;
   fetchCloudData: () => Promise<void>;
-  addExpense: (expense: Omit<Expense, 'id'>) => void;
+  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
   
   addBill: (bill: Omit<Bill, 'id'>) => void;
   updateBill: (id: string, bill: Partial<Bill>) => void;
   deleteBill: (id: string) => void;
+
+  addSubscription: (sub: Omit<Subscription, 'id'>) => void;
+  updateSubscription: (id: string, sub: Partial<Subscription>) => void;
+  deleteSubscription: (id: string) => void;
   
   addWishlistItem: (item: Omit<WishlistItem, 'id' | 'is_purchased' | 'created_at'>) => void;
   updateWishlistItem: (id: string, item: Partial<WishlistItem>) => void;
@@ -139,6 +158,7 @@ export const useExpenseStore = create<ExpenseState>()(
       budgets: [],
       pendingMutations: [],
       debts: [],
+      subscriptions: [],
       settings: {
         monthlyIncome: 45000,
         currency: '₹',
@@ -159,6 +179,10 @@ export const useExpenseStore = create<ExpenseState>()(
       lastActiveMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
       session: null,
       isModalOpen: false,
+      sharedData: null,
+      
+      setSession: (session) => set({ session }),
+      setSharedData: (data) => set({ sharedData: data }),
       
       addPendingMutation: (mutation) => {
         set((state) => ({ pendingMutations: [...state.pendingMutations, { ...mutation, id: crypto.randomUUID() }] }));
@@ -220,6 +244,15 @@ export const useExpenseStore = create<ExpenseState>()(
             } else if (mut.type === 'DELETE_DEBT') {
               const res = await supabase.from('debts').delete().eq('id', mut.payload.id);
               error = res.error;
+            } else if (mut.type === 'INSERT_SUBSCRIPTION') {
+              const res = await supabase.from('subscriptions').insert(mut.payload);
+              error = res.error;
+            } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
+              const res = await supabase.from('subscriptions').update(mut.payload).eq('id', mut.payload.id);
+              error = res.error;
+            } else if (mut.type === 'DELETE_SUBSCRIPTION') {
+              const res = await supabase.from('subscriptions').delete().eq('id', mut.payload.id);
+              error = res.error;
             }
 
             if (!error) {
@@ -244,7 +277,6 @@ export const useExpenseStore = create<ExpenseState>()(
         (window as any).isSyncing = false;
       },
 
-      setSession: (session) => set({ session }),
       setModalOpen: (isModalOpen) => set({ isModalOpen }),
       
       fetchCloudData: async () => {
@@ -252,14 +284,19 @@ export const useExpenseStore = create<ExpenseState>()(
         if (!session) return;
         
         try {
-          const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes] = await Promise.all([
+          const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes] = await Promise.all([
             supabase.from('expenses').select('*').eq('user_id', session.user.id),
             supabase.from('bills').select('*').eq('user_id', session.user.id),
             supabase.from('user_settings').select('*').eq('user_id', session.user.id).single(),
             supabase.from('budgets').select('*').eq('user_id', session.user.id),
             supabase.from('wishlist').select('*').eq('user_id', session.user.id),
-            supabase.from('debts').select('*').eq('user_id', session.user.id)
+            supabase.from('debts').select('*').eq('user_id', session.user.id),
+            supabase.from('subscriptions').select('*').eq('user_id', session.user.id)
           ]);
+
+          if (subsRes && subsRes.data) {
+            set({ subscriptions: subsRes.data as Subscription[] });
+          }
 
           if (expensesRes.data) {
             const { pendingMutations } = get();
@@ -397,7 +434,34 @@ export const useExpenseStore = create<ExpenseState>()(
       addExpense: async (expense) => {
         const id = crypto.randomUUID();
         const newExpense = { ...expense, id };
-        set((state) => ({ expenses: [...state.expenses, newExpense] }));
+        
+        // Gamification (Streak logic)
+        const today = new Date().toISOString().split('T')[0];
+        let newStreak = 1;
+        let lastLog = '';
+        
+        set((state) => {
+          const currentSettings = state.settings;
+          lastLog = currentSettings.lastLogDate || '';
+          newStreak = currentSettings.currentStreak || 0;
+          
+          if (lastLog !== today) {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+            
+            if (lastLog === yesterdayStr) {
+              newStreak += 1;
+            } else {
+              newStreak = 1;
+            }
+          }
+          
+          return { 
+            expenses: [...state.expenses, newExpense],
+            settings: { ...state.settings, lastLogDate: today, currentStreak: newStreak }
+          };
+        });
         
         const { session, addPendingMutation, syncPendingMutations } = get();
         if (session) {
@@ -640,6 +704,48 @@ export const useExpenseStore = create<ExpenseState>()(
         const { session, addPendingMutation, syncPendingMutations } = get();
         if (session) {
           addPendingMutation({ type: 'DELETE_DEBT', payload: { id } });
+          syncPendingMutations();
+        }
+      },
+
+      addSubscription: (sub) => {
+        const id = crypto.randomUUID();
+        const newSub: Subscription = { ...sub, id };
+        set((state) => ({ subscriptions: [...state.subscriptions, newSub] }));
+        
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({
+            type: 'INSERT_SUBSCRIPTION',
+            payload: {
+              ...newSub,
+              user_id: session.user.id
+            }
+          });
+          syncPendingMutations();
+        }
+      },
+
+      updateSubscription: (id, updates) => {
+        set((state) => ({
+          subscriptions: state.subscriptions.map(s => s.id === id ? { ...s, ...updates } : s)
+        }));
+        
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({
+            type: 'UPDATE_SUBSCRIPTION',
+            payload: { id, ...updates }
+          });
+          syncPendingMutations();
+        }
+      },
+
+      deleteSubscription: (id) => {
+        set((state) => ({ subscriptions: state.subscriptions.filter(s => s.id !== id) }));
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session) {
+          addPendingMutation({ type: 'DELETE_SUBSCRIPTION', payload: { id } });
           syncPendingMutations();
         }
       },

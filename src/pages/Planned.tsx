@@ -8,95 +8,106 @@ import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 
 export default function Planned() {
-  const [activeTab, setActiveTab] = useState<"bills" | "wishlist" | "iou">("bills");
+  const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
 
   return (
     <div className="space-y-6 pb-24">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Planned</h1>
-          <p className="text-muted-foreground text-sm">Bills, Wishlist & IOUs</p>
+          <p className="text-muted-foreground text-sm">Bills, Subscriptions, Wishlist & IOUs</p>
         </div>
       </header>
 
-      <div className="flex bg-muted p-1 rounded-lg">
+      <div className="flex bg-muted p-1 rounded-lg overflow-x-auto scrollbar-hide">
         <button
           onClick={() => { vibrate(10); setActiveTab("bills"); }}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "bills" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "bills" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
           Bills
         </button>
         <button
+          onClick={() => { vibrate(10); setActiveTab("subs"); }}
+          className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "subs" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Subs
+        </button>
+        <button
           onClick={() => { vibrate(10); setActiveTab("wishlist"); }}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "wishlist" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "wishlist" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
           Wishlist
         </button>
         <button
           onClick={() => { vibrate(10); setActiveTab("iou"); }}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "iou" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "iou" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
           IOUs
         </button>
       </div>
 
       {activeTab === "bills" && <BillsTab />}
+      {activeTab === "subs" && <SubscriptionsTab />}
       {activeTab === "wishlist" && <WishlistTab />}
       {activeTab === "iou" && <IOUTab />}
     </div>
   );
 }
 
-function BillsTab() {
-  const { bills, addBill, deleteBill, updateBill, settings, addExpense } = useExpenseStore();
+function SubscriptionsTab() {
+  const { subscriptions, addSubscription, deleteSubscription, settings, addExpense } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
+  const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [nextDate, setNextDate] = useState("");
 
   const handleSave = () => {
-    if (!newTitle || !newAmount) return;
+    if (!newName || !newAmount || !nextDate) return;
     vibrate();
-    addBill({
-      title: newTitle,
+    addSubscription({
+      name: newName,
       amount: parseFloat(newAmount),
-      autoDeduct: true,
+      billing_cycle: billingCycle,
+      next_billing_date: nextDate,
       category: "Bills"
     });
-    setNewTitle("");
+    setNewName("");
     setNewAmount("");
+    setNextDate("");
     setIsAdding(false);
   };
 
-  const handlePayNow = (bill: any) => {
+  const handleLogPayment = (sub: any) => {
     vibrate();
     addExpense({
-      amount: bill.amount,
-      description: `Manual Payment: ${bill.title}`,
-      category: bill.category || "Bills",
+      amount: sub.amount,
+      description: `${sub.name} Subscription`,
+      category: sub.category || "Bills",
       date: new Date().toISOString(),
-      notes: "Manually logged from Bills page"
+      notes: "Manually logged from Subscriptions page"
     });
-    alert(`${bill.title} marked as paid!`);
+    alert(`${sub.name} payment logged!`);
   };
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">Monthly Bills</h2>
+        <h2 className="text-lg font-semibold">Subscriptions</h2>
         <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">
-          <Plus className="w-4 h-4 mr-1" /> Add Bill
+          <Plus className="w-4 h-4 mr-1" /> Add Sub
         </Button>
       </div>
 
       {isAdding && (
         <Card className="border-primary animate-in fade-in">
           <CardContent className="p-4 space-y-4">
-            <h3 className="font-medium text-sm">Add New Bill</h3>
+            <h3 className="font-medium text-sm">Add New Subscription</h3>
             <div className="space-y-3">
               <Input 
-                placeholder="Bill Name (e.g. Internet)" 
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Name (e.g. Netflix, Rent)" 
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
               />
               <Input 
                 type="number" 
@@ -104,6 +115,22 @@ function BillsTab() {
                 value={newAmount}
                 onChange={(e) => setNewAmount(e.target.value)}
               />
+              <div className="grid grid-cols-2 gap-2">
+                <select 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  value={billingCycle}
+                  onChange={(e) => setBillingCycle(e.target.value as any)}
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+                <Input 
+                  type="date"
+                  placeholder="Next Billing Date"
+                  value={nextDate}
+                  onChange={(e) => setNextDate(e.target.value)}
+                />
+              </div>
               <div className="flex gap-2 justify-end pt-2">
                 <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancel</Button>
                 <Button size="sm" onClick={handleSave}>Save</Button>
@@ -114,43 +141,43 @@ function BillsTab() {
       )}
 
       <div className="space-y-3">
-        {bills.length === 0 && !isAdding ? (
-          <p className="text-center text-muted-foreground py-8">No bills added yet.</p>
+        {subscriptions.length === 0 && !isAdding ? (
+          <p className="text-center text-muted-foreground py-8">No subscriptions tracked yet.</p>
         ) : (
-          bills.map(bill => (
-            <Card key={bill.id} className="overflow-hidden">
-              <CardContent className="p-4 flex justify-between items-center">
+          subscriptions.map(sub => (
+            <Card key={sub.id} className="overflow-hidden relative group">
+              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+              <CardContent className="p-4 flex justify-between items-center pl-5">
                 <div className="space-y-1">
-                  <p className="font-semibold">{bill.title}</p>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {formatCurrency(bill.amount, settings.currency)} / month
+                  <p className="font-semibold">{sub.name}</p>
+                  <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    {formatCurrency(sub.amount, settings.currency)} 
+                    <span className="text-[10px] uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                      {sub.billing_cycle}
+                    </span>
                   </p>
-                  <div className="flex items-center gap-4 mt-3">
-                    <button 
-                      onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted"}`} />
-                      Auto Deduct
-                    </button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Next bill: {new Date(sub.next_billing_date).toLocaleDateString()}
+                  </p>
+                  <div className="flex items-center gap-2 mt-3">
                     <Button 
                       variant="secondary" 
                       size="sm" 
                       className="h-7 text-xs px-2"
-                      onClick={() => handlePayNow(bill)}
+                      onClick={() => handleLogPayment(sub)}
                     >
-                      Pay Now
+                      Log Payment
                     </Button>
                   </div>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-destructive hover:bg-destructive/10 shrink-0 ml-2"
-                  onClick={() => deleteBill(bill.id)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-start h-full self-start">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
+                    vibrate();
+                    if(confirm("Delete this subscription?")) deleteSubscription(sub.id);
+                  }}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))
@@ -469,6 +496,118 @@ function IOUTab() {
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+function BillsTab() {
+  const { bills, addBill, deleteBill, updateBill, settings, addExpense } = useExpenseStore();
+  const [isAdding, setIsAdding] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+
+  const handleSave = () => {
+    if (!newTitle || !newAmount) return;
+    vibrate();
+    addBill({
+      title: newTitle,
+      amount: parseFloat(newAmount),
+      autoDeduct: true,
+      category: "Bills"
+    });
+    setNewTitle("");
+    setNewAmount("");
+    setIsAdding(false);
+  };
+
+  const handlePayNow = (bill: any) => {
+    vibrate();
+    addExpense({
+      amount: bill.amount,
+      description: `Manual Payment: ${bill.title}`,
+      category: bill.category || "Bills",
+      date: new Date().toISOString(),
+      notes: "Manually logged from Bills page"
+    });
+    alert(`${bill.title} marked as paid!`);
+  };
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">Monthly Bills</h2>
+        <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">
+          <Plus className="w-4 h-4 mr-1" /> Add Bill
+        </Button>
+      </div>
+
+      {isAdding && (
+        <Card className="border-primary animate-in fade-in">
+          <CardContent className="p-4 space-y-4">
+            <h3 className="font-medium text-sm">Add New Bill</h3>
+            <div className="space-y-3">
+              <Input 
+                placeholder="Bill Name (e.g. Internet)" 
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+              />
+              <Input 
+                type="number" 
+                placeholder="Amount" 
+                value={newAmount}
+                onChange={(e) => setNewAmount(e.target.value)}
+              />
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancel</Button>
+                <Button size="sm" onClick={handleSave}>Save</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-3">
+        {bills.length === 0 && !isAdding ? (
+          <p className="text-center text-muted-foreground py-8">No bills added yet.</p>
+        ) : (
+          bills.map(bill => (
+            <Card key={bill.id} className="overflow-hidden">
+              <CardContent className="p-4 flex justify-between items-center">
+                <div className="space-y-1">
+                  <p className="font-semibold">{bill.title}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {formatCurrency(bill.amount, settings.currency)} / month
+                  </p>
+                  <div className="flex items-center gap-4 mt-3">
+                    <button 
+                      onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted"}`} />
+                      Auto Deduct
+                    </button>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      className="h-7 text-xs px-2"
+                      onClick={() => handlePayNow(bill)}
+                    >
+                      Pay Now
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-start h-full">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
+                    vibrate();
+                    if(confirm("Delete this bill?")) deleteBill(bill.id);
+                  }}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))

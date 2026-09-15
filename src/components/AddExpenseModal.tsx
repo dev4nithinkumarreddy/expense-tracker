@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { X, ImagePlus, Loader2 } from "lucide-react";
+import { X, Loader2, ScanLine } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { vibrate } from "../lib/utils";
+import Tesseract from 'tesseract.js';
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -24,6 +25,7 @@ export function AddExpenseModal({
   const [notes, setNotes] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
 
   useEffect(() => {
@@ -38,7 +40,17 @@ export function AddExpenseModal({
         setRecurrence(expenseToEdit.recurrence || 'none');
       } else {
         setAmount("");
-        setDescription("");
+        
+        // Auto-fill from share target API
+        const shared = useExpenseStore.getState().sharedData;
+        if (shared) {
+          const parts = [shared.title, shared.text, shared.url].filter(Boolean);
+          setDescription(parts.join(' - '));
+          useExpenseStore.getState().setSharedData(null); // Clear it
+        } else {
+          setDescription("");
+        }
+
         setCategory(settings.categories[0] || "Other");
         setDate(new Date().toISOString().split("T")[0]);
         setNotes("");
@@ -49,6 +61,38 @@ export function AddExpenseModal({
   }, [isOpen, expenseToEdit, settings.categories]);
 
   if (!isOpen) return null;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setReceiptFile(file);
+      setIsScanning(true);
+      
+      try {
+        const result = await Tesseract.recognize(file, 'eng');
+        const text = result.data.text;
+        
+        // Extract amounts (naive approach, looking for numbers with decimals)
+        const amounts = text.match(/\b\d+\.\d{2}\b/g);
+        if (amounts && amounts.length > 0) {
+          const maxAmount = Math.max(...amounts.map(Number));
+          if (maxAmount > 0 && !amount) { // Only set if amount is currently empty
+            setAmount(String(maxAmount));
+          }
+        }
+        
+        // Try to get merchant name from the first non-empty line
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+        if (lines.length > 0 && !description) {
+          setDescription(lines[0]);
+        }
+      } catch (err) {
+        console.error("OCR Failed", err);
+      } finally {
+        setIsScanning(false);
+      }
+    }
+  };
 
   const parsedAmount = parseFloat(amount);
   const isValid = !isNaN(parsedAmount) && parsedAmount > 0 && description.trim().length > 0;
@@ -192,13 +236,20 @@ export function AddExpenseModal({
                 <img src={expenseToEdit.receipt_url} alt="Receipt" className="w-12 h-12 object-cover rounded-md border" />
               )}
               <label className="flex items-center justify-center gap-2 px-4 py-2 border rounded-md cursor-pointer hover:bg-secondary/50 text-sm font-medium transition-colors w-full">
-                <ImagePlus className="w-4 h-4" />
-                {receiptFile ? receiptFile.name : 'Attach Image'}
+                {isScanning ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Scanning receipt...</>
+                ) : (
+                  <>
+                    <ScanLine className="w-4 h-4" />
+                    {receiptFile ? receiptFile.name : 'Scan Receipt'}
+                  </>
+                )}
                 <input 
                   type="file" 
                   accept="image/*" 
+                  capture="environment"
                   className="hidden" 
-                  onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                  onChange={handleFileChange}
                 />
               </label>
             </div>

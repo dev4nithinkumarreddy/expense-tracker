@@ -57,6 +57,29 @@ export default function App() {
     return () => window.removeEventListener('online', handleOnline);
   }, [syncPendingMutations]);
 
+  // Intercept Web Share Target API
+  useEffect(() => {
+    if (session) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedTitle = urlParams.get('title');
+      const sharedText = urlParams.get('text');
+      const sharedUrl = urlParams.get('url');
+      
+      if (sharedTitle || sharedText || sharedUrl) {
+        // Clean URL to prevent re-triggering on refresh
+        window.history.replaceState({}, document.title, '/');
+        
+        // Open modal with pre-filled data
+        useExpenseStore.getState().setSharedData({
+          title: sharedTitle || undefined,
+          text: sharedText || undefined,
+          url: sharedUrl || undefined
+        });
+        setModalOpen(true);
+      }
+    }
+  }, [session, setModalOpen]);
+
   useEffect(() => {
     const root = document.documentElement;
     if (settings.darkMode) {
@@ -87,7 +110,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <div className="min-h-screen bg-background text-foreground pb-20 overflow-x-hidden">
-            <main className="container max-w-md mx-auto p-4 animate-in fade-in duration-300">
+            <main className="container max-w-md md:max-w-xl lg:max-w-2xl mx-auto p-4 animate-in fade-in duration-300">
               <AnimatedRoutes />
             </main>
         

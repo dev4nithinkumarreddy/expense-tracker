@@ -107,12 +107,24 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex justify-between items-end">
+    <div className="space-y-6 pb-20">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
-          <p className="text-muted-foreground text-sm">Your monthly snapshot</p>
+          <p className="text-muted-foreground text-sm">
+            {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </p>
         </div>
+        
+        {settings.currentStreak && settings.currentStreak > 0 ? (
+          <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full font-medium text-sm border border-orange-500/20 shadow-sm animate-in fade-in zoom-in">
+            <span>🔥</span>
+            <span>{settings.currentStreak} Day Streak</span>
+          </div>
+        ) : null}
+      </div>
+
+      <header className="flex justify-end items-center">
         <button 
           onClick={() => updateSettings({ privacyMode: !settings.privacyMode })}
           className="p-2 text-muted-foreground hover:text-foreground transition-colors bg-secondary/50 rounded-full"
