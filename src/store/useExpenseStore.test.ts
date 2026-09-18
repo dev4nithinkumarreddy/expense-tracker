@@ -88,4 +88,87 @@ describe('useExpenseStore', () => {
     const original = newState.expenses.find(e => e.description === 'Subscription');
     expect(new Date(original!.next_occurrence!).getTime()).toBeGreaterThan(new Date('2023-02-01').getTime());
   });
+
+  it('should update streak when adding expenses across consecutive days', async () => {
+    const store = useExpenseStore.getState();
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    // Add expense for yesterday
+    await store.addExpense({
+      amount: 50,
+      description: 'Lunch',
+      category: 'Food',
+      date: yesterday.toISOString()
+    });
+
+    expect(useExpenseStore.getState().settings.currentStreak).toBe(1);
+
+    // Add expense for today
+    await store.addExpense({
+      amount: 100,
+      description: 'Dinner',
+      category: 'Food',
+      date: today.toISOString()
+    });
+
+    // Streak should now be 2
+    expect(useExpenseStore.getState().settings.currentStreak).toBe(2);
+
+    // Adding another expense today shouldn't increase streak past 2
+    await store.addExpense({
+      amount: 30,
+      description: 'Snack',
+      category: 'Food',
+      date: today.toISOString()
+    });
+
+    expect(useExpenseStore.getState().settings.currentStreak).toBe(2);
+  });
+
+  it('should recalculate streak when an expense is deleted', async () => {
+    const store = useExpenseStore.getState();
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    await store.addExpense({
+      amount: 50,
+      description: 'Lunch',
+      category: 'Food',
+      date: yesterday.toISOString()
+    });
+
+    await store.addExpense({
+      amount: 100,
+      description: 'Dinner',
+      category: 'Food',
+      date: today.toISOString()
+    });
+
+    expect(useExpenseStore.getState().settings.currentStreak).toBe(2);
+
+    const todayExpense = useExpenseStore.getState().expenses.find(e => e.description === 'Dinner');
+    store.deleteExpense(todayExpense!.id);
+
+    // Since today's expense was deleted, streak falls back to yesterday's active streak (1)
+    expect(useExpenseStore.getState().settings.currentStreak).toBe(1);
+  });
+
+  it('should reorder categories properly', () => {
+    const store = useExpenseStore.getState();
+    const initialCategories = ['Food', 'Grocery', 'Fuel', 'Shopping'];
+    useExpenseStore.setState({
+      settings: {
+        ...useExpenseStore.getState().settings,
+        categories: initialCategories
+      }
+    });
+
+    const newOrder = ['Shopping', 'Fuel', 'Grocery', 'Food'];
+    store.reorderCategories(newOrder);
+
+    expect(useExpenseStore.getState().settings.categories).toEqual(newOrder);
+  });
 });

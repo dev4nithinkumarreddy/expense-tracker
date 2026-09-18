@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { queryClient } from '../lib/queryClient';
 import type { Session } from '@supabase/supabase-js';
+import { format } from 'date-fns';
+import { calculateStreak } from '../lib/streak';
 
 export interface Expense {
   id: string;
@@ -132,6 +134,7 @@ interface ExpenseState {
   updateSettings: (settings: Partial<Settings>) => void;
   addCategory: (category: string) => void;
   deleteCategory: (category: string) => void;
+  reorderCategories: (categories: string[]) => void;
   updateBudget: (category: string, monthlyLimit: number, month: string) => void;
   deleteBudget: (id: string) => void;
   
@@ -311,7 +314,13 @@ export const useExpenseStore = create<ExpenseState>()(
                 mergedExpenses = mergedExpenses.filter(e => e.id !== mut.payload.id);
               }
             });
-            set({ expenses: mergedExpenses });
+            set((state) => ({
+              expenses: mergedExpenses,
+              settings: {
+                ...state.settings,
+                currentStreak: calculateStreak(mergedExpenses)
+              }
+            }));
           }
           if (billsRes.data) {
             const { pendingMutations } = get();
@@ -381,19 +390,23 @@ export const useExpenseStore = create<ExpenseState>()(
           }
           if (settingsRes.data) {
             const s = settingsRes.data;
-            set({ settings: {
-              monthlyIncome: s.monthly_income,
-              currency: s.currency,
-              darkMode: s.dark_mode,
-              categories: s.categories || defaultCategories,
-              carryForward: s.carry_forward,
-              categoryBudgets: s.category_budgets || {},
-              quickAdds: s.quick_adds || [],
-              privacyMode: s.privacy_mode ?? true,
-              theme: s.theme || 'default',
-              categoryEmojis: s.category_emojis || {},
-              notificationsEnabled: s.notifications_enabled || false
-            }});
+            set((state) => ({
+              settings: {
+                ...state.settings,
+                monthlyIncome: s.monthly_income,
+                currency: s.currency,
+                darkMode: s.dark_mode,
+                categories: s.categories || defaultCategories,
+                carryForward: s.carry_forward,
+                categoryBudgets: s.category_budgets || {},
+                quickAdds: s.quick_adds || [],
+                privacyMode: s.privacy_mode ?? true,
+                theme: s.theme || 'default',
+                categoryEmojis: s.category_emojis || {},
+                notificationsEnabled: s.notifications_enabled || false,
+                currentStreak: calculateStreak(state.expenses)
+              }
+            }));
           }
           if (wishlistRes.data) {
             const { pendingMutations } = get();
@@ -436,29 +449,13 @@ export const useExpenseStore = create<ExpenseState>()(
         const newExpense = { ...expense, id };
         
         // Gamification (Streak logic)
-        const today = new Date().toISOString().split('T')[0];
-        let newStreak = 1;
-        let lastLog = '';
+        const today = format(new Date(), 'yyyy-MM-dd');
         
         set((state) => {
-          const currentSettings = state.settings;
-          lastLog = currentSettings.lastLogDate || '';
-          newStreak = currentSettings.currentStreak || 0;
-          
-          if (lastLog !== today) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toISOString().split('T')[0];
-            
-            if (lastLog === yesterdayStr) {
-              newStreak += 1;
-            } else {
-              newStreak = 1;
-            }
-          }
-          
+          const updatedExpenses = [...state.expenses, newExpense];
+          const newStreak = calculateStreak(updatedExpenses);
           return { 
-            expenses: [...state.expenses, newExpense],
+            expenses: updatedExpenses,
             settings: { ...state.settings, lastLogDate: today, currentStreak: newStreak }
           };
         });
@@ -487,9 +484,13 @@ export const useExpenseStore = create<ExpenseState>()(
       },
       
       updateExpense: (id, updatedFields) => {
-        set((state) => ({
-          expenses: state.expenses.map(e => e.id === id ? { ...e, ...updatedFields } : e)
-        }));
+        set((state) => {
+          const updatedExpenses = state.expenses.map(e => e.id === id ? { ...e, ...updatedFields } : e);
+          return {
+            expenses: updatedExpenses,
+            settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
+          };
+        });
         
         const { session, expenses, addPendingMutation, syncPendingMutations } = get();
         if (session) {
@@ -519,7 +520,13 @@ export const useExpenseStore = create<ExpenseState>()(
         const { session, expenses, addPendingMutation, syncPendingMutations } = get();
         const expenseToDelete = expenses.find(e => e.id === id);
 
-        set((state) => ({ expenses: state.expenses.filter(e => e.id !== id) }));
+        set((state) => {
+          const updatedExpenses = state.expenses.filter(e => e.id !== id);
+          return {
+            expenses: updatedExpenses,
+            settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
+          };
+        });
         
         if (session) {
           queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
@@ -534,7 +541,13 @@ export const useExpenseStore = create<ExpenseState>()(
             action: {
               label: 'Undo',
               onClick: () => {
-                set(state => ({ expenses: [...state.expenses, expenseToDelete] }));
+                set(state => {
+                  const updatedExpenses = [...state.expenses, expenseToDelete];
+                  return {
+                    expenses: updatedExpenses,
+                    settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
+                  };
+                });
                 if (session) {
                   queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
                      return old ? [...old, expenseToDelete] : [expenseToDelete];
@@ -785,6 +798,11 @@ export const useExpenseStore = create<ExpenseState>()(
         const newBudgets = { ...state.settings.categoryBudgets };
         delete newBudgets[category];
         state.updateSettings({ categories: newCategories, categoryBudgets: newBudgets });
+      },
+
+      reorderCategories: (categories) => {
+        const state = get();
+        state.updateSettings({ categories });
       },
 
       updateBudget: async (category, monthlyLimit, month) => {

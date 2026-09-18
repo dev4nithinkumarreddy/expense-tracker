@@ -6,6 +6,7 @@ import { X, Loader2, ScanLine } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { vibrate } from "../lib/utils";
 import Tesseract from 'tesseract.js';
+import { format } from "date-fns";
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -52,7 +53,7 @@ export function AddExpenseModal({
         }
 
         setCategory(settings.categories[0] || "Other");
-        setDate(new Date().toISOString().split("T")[0]);
+        setDate(format(new Date(), 'yyyy-MM-dd'));
         setNotes("");
         setReceiptFile(null);
         setRecurrence('none');
@@ -129,15 +130,18 @@ export function AddExpenseModal({
       return nextDate;
     };
 
+    const isToday = date === format(new Date(), 'yyyy-MM-dd');
+    const isoDate = isToday ? new Date().toISOString() : new Date(`${date}T12:00:00`).toISOString();
+
     const expenseData = {
       amount: parsedAmount,
       description: description.trim(),
       category,
-      date: new Date(date).toISOString(),
+      date: isoDate,
       notes: notes.trim(),
       receipt_url,
       recurrence,
-      next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(date), recurrence).toISOString() : null
+      next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null
     };
 
     if (expenseToEdit) {

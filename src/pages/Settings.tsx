@@ -3,13 +3,95 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import { Reorder, useDragControls } from "framer-motion";
+import { vibrate } from "../lib/utils";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
+interface CategoryRowItemProps {
+  category: string;
+  currency: string;
+  emoji?: string;
+  monthlyLimit: number | "";
+  editingEmoji: boolean;
+  onToggleEmoji: () => void;
+  onBudgetChange: (val: string) => void;
+  onDelete: () => void;
+  onEmojiSelect: (emoji: string) => void;
+}
+
+function CategoryRowItem({
+  category,
+  currency,
+  emoji,
+  monthlyLimit,
+  editingEmoji,
+  onToggleEmoji,
+  onBudgetChange,
+  onDelete,
+  onEmojiSelect
+}: CategoryRowItemProps) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={category}
+      dragListener={false}
+      dragControls={dragControls}
+      whileDrag={{ scale: 1.02, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", zIndex: 50 }}
+      className="flex flex-col gap-2 bg-secondary/50 p-2 rounded-md border shadow-sm select-none"
+    >
+      <div className="flex items-center gap-2">
+        <div
+          onPointerDown={(e) => dragControls.start(e)}
+          className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-muted-foreground hover:text-foreground touch-none rounded transition-colors"
+          title="Drag to reorder"
+        >
+          <GripVertical className="w-4 h-4" />
+        </div>
+        <button 
+          onClick={onToggleEmoji}
+          className="w-8 h-8 flex items-center justify-center bg-background rounded-full border shadow-sm hover:bg-muted transition-colors text-lg"
+        >
+          {emoji || category.substring(0, 2).toUpperCase()}
+        </button>
+        <span className="flex-1 font-medium">{category}</span>
+        <div className="relative w-28">
+          <span className="absolute left-2 top-2 text-xs text-muted-foreground">{currency}</span>
+          <Input 
+            type="text" 
+            inputMode="decimal"
+            placeholder="Limit (opt)" 
+            className="h-8 text-xs pl-6 bg-background"
+            value={monthlyLimit}
+            onChange={(e) => onBudgetChange(e.target.value)}
+          />
+        </div>
+        <button onClick={onDelete} className="text-muted-foreground hover:text-destructive p-1">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      {editingEmoji && (
+        <div className="grid grid-cols-6 sm:grid-cols-9 gap-1 mt-2 p-2 bg-background rounded-md border animate-in slide-in-from-top-2">
+          {COMMON_EMOJIS.map(itemEmoji => (
+            <button
+              key={itemEmoji}
+              onClick={() => onEmojiSelect(itemEmoji)}
+              className="w-8 h-8 flex items-center justify-center hover:bg-secondary rounded text-lg transition-colors"
+            >
+              {itemEmoji}
+            </button>
+          ))}
+        </div>
+      )}
+    </Reorder.Item>
+  );
+}
+
 export default function Settings() {
-  const { settings, updateSettings, addCategory, deleteCategory, eraseAllData, expenses, bills, session, budgets, updateBudget } = useExpenseStore();
+  const { settings, updateSettings, addCategory, deleteCategory, reorderCategories, eraseAllData, expenses, bills, session, budgets, updateBudget } = useExpenseStore();
   const { isSupported, permission, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
   
   const [newCat, setNewCat] = useState("");
@@ -249,48 +331,30 @@ export default function Settings() {
                 />
                 <Button onClick={handleAddCat} size="icon"><Plus className="w-4 h-4" /></Button>
               </div>
-              <div className="flex flex-col gap-2 mt-4">
-                {settings.categories.map(c => (
-                  <div key={c} className="flex flex-col gap-2 bg-secondary/50 p-2 rounded-md border shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setEditingEmojiFor(editingEmojiFor === c ? null : c)}
-                        className="w-8 h-8 flex items-center justify-center bg-background rounded-full border shadow-sm hover:bg-muted transition-colors text-lg"
-                      >
-                        {settings.categoryEmojis?.[c] || c.substring(0, 2).toUpperCase()}
-                      </button>
-                      <span className="flex-1 font-medium">{c}</span>
-                      <div className="relative w-28">
-                        <span className="absolute left-2 top-2 text-xs text-muted-foreground">{settings.currency}</span>
-                        <Input 
-                          type="text" 
-                          inputMode="decimal"
-                          placeholder="Limit (opt)" 
-                          className="h-8 text-xs pl-6 bg-background"
-                          value={budgets.find(b => b.category === c && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || ""}
-                          onChange={(e) => handleBudgetChange(c, e.target.value)}
-                        />
-                      </div>
-                      <button onClick={() => deleteCategory(c)} className="text-muted-foreground hover:text-destructive p-1">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {editingEmojiFor === c && (
-                      <div className="grid grid-cols-6 sm:grid-cols-9 gap-1 mt-2 p-2 bg-background rounded-md border animate-in slide-in-from-top-2">
-                        {COMMON_EMOJIS.map(emoji => (
-                          <button
-                            key={emoji}
-                            onClick={() => handleEmojiSelect(c, emoji)}
-                            className="w-8 h-8 flex items-center justify-center hover:bg-secondary rounded text-lg transition-colors"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              <Reorder.Group
+                axis="y"
+                values={settings.categories}
+                onReorder={(newCategories) => {
+                  vibrate(10);
+                  reorderCategories(newCategories);
+                }}
+                className="flex flex-col gap-2 mt-4"
+              >
+                {settings.categories.map((c) => (
+                  <CategoryRowItem
+                    key={c}
+                    category={c}
+                    currency={settings.currency}
+                    emoji={settings.categoryEmojis?.[c]}
+                    monthlyLimit={budgets.find(b => b.category === c && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || ""}
+                    editingEmoji={editingEmojiFor === c}
+                    onToggleEmoji={() => setEditingEmojiFor(editingEmojiFor === c ? null : c)}
+                    onBudgetChange={(val) => handleBudgetChange(c, val)}
+                    onDelete={() => deleteCategory(c)}
+                    onEmojiSelect={(emoji) => handleEmojiSelect(c, emoji)}
+                  />
                 ))}
-              </div>
+              </Reorder.Group>
             </CardContent>
           </Card>
         </div>

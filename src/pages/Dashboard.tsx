@@ -6,9 +6,10 @@ import { isThisMonth, isToday, isThisWeek, parseISO, format } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { Eye, EyeOff, Plus } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
+import { calculateStreak } from "../lib/streak";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-4">
@@ -45,6 +46,7 @@ export default function Dashboard() {
   }
 
   const quickAdds = settings.quickAdds || [];
+  const currentStreak = useMemo(() => calculateStreak(expenses) || settings.currentStreak || 0, [expenses, settings.currentStreak]);
 
   const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
   const incomeRecords = currentMonthRecords.filter(e => e.category === 'Income');
@@ -116,10 +118,10 @@ export default function Dashboard() {
           </p>
         </div>
         
-        {settings.currentStreak && settings.currentStreak > 0 ? (
+        {currentStreak > 0 ? (
           <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full font-medium text-sm border border-orange-500/20 shadow-sm animate-in fade-in zoom-in">
             <span>🔥</span>
-            <span>{settings.currentStreak} Day Streak</span>
+            <span>{currentStreak} Day Streak</span>
           </div>
         ) : null}
       </div>
