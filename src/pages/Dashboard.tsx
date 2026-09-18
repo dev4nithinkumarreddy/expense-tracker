@@ -65,8 +65,11 @@ export default function Dashboard() {
 
   const isOverBudget = remaining < 0;
 
-  // Recent expenses (last 5)
-  const recentExpenses = [...currentMonthRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  // Recent expenses (last 5, showing latest non-income transactions across month boundaries)
+  const recentExpenses = [...expenses]
+    .filter(e => e.category !== 'Income')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 5);
 
   const handleAddIncome = () => {
     if (!incomeSource || !incomeAmount) return;

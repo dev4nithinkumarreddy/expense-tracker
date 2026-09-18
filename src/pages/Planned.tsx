@@ -6,6 +6,7 @@ import { Input } from "../components/ui/input";
 import { Plus, Trash2, CheckCircle2, ShoppingBag } from "lucide-react";
 import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
+import { toast } from "sonner";
 
 export default function Planned() {
   const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
@@ -87,7 +88,7 @@ function SubscriptionsTab() {
       date: new Date().toISOString(),
       notes: "Manually logged from Subscriptions page"
     });
-    alert(`${sub.name} payment logged!`);
+    toast.success(`${sub.name} payment logged!`);
   };
 
   return (
@@ -533,7 +534,7 @@ function BillsTab() {
       date: new Date().toISOString(),
       notes: "Manually logged from Bills page"
     });
-    alert(`${bill.title} marked as paid!`);
+    toast.success(`${bill.title} marked as paid!`);
   };
 
   return (

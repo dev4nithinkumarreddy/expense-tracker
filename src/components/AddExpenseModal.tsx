@@ -6,7 +6,7 @@ import { X, Loader2, ScanLine } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { vibrate } from "../lib/utils";
 import Tesseract from 'tesseract.js';
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -131,7 +131,12 @@ export function AddExpenseModal({
     };
 
     const isToday = date === format(new Date(), 'yyyy-MM-dd');
-    const isoDate = isToday ? new Date().toISOString() : new Date(`${date}T12:00:00`).toISOString();
+    let isoDate: string;
+    if (expenseToEdit && format(parseISO(expenseToEdit.date), 'yyyy-MM-dd') === date) {
+      isoDate = expenseToEdit.date;
+    } else {
+      isoDate = isToday ? new Date().toISOString() : new Date(`${date}T12:00:00`).toISOString();
+    }
 
     const expenseData = {
       amount: parsedAmount,

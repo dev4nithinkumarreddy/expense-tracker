@@ -807,18 +807,19 @@ export const useExpenseStore = create<ExpenseState>()(
 
       updateBudget: async (category, monthlyLimit, month) => {
         const { session, budgets, addPendingMutation, syncPendingMutations } = get();
-        if (!session) return;
 
         const existingBudget = budgets.find(b => b.category === category && b.month === month);
 
         if (monthlyLimit <= 0) {
           if (existingBudget) {
             set(state => ({ budgets: state.budgets.filter(b => b.id !== existingBudget.id) }));
-            queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
-               return old ? old.filter((b: any) => b.id !== existingBudget.id) : [];
-            });
-            addPendingMutation({ type: 'DELETE_BUDGET', payload: { id: existingBudget.id } });
-            syncPendingMutations();
+            if (session) {
+              queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
+                return old ? old.filter((b: any) => b.id !== existingBudget.id) : [];
+              });
+              addPendingMutation({ type: 'DELETE_BUDGET', payload: { id: existingBudget.id } });
+              syncPendingMutations();
+            }
           }
           return;
         }
@@ -827,43 +828,47 @@ export const useExpenseStore = create<ExpenseState>()(
           set(state => ({
             budgets: state.budgets.map(b => b.id === existingBudget.id ? { ...b, monthlyLimit } : b)
           }));
-          queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
-             return old ? old.map((b: any) => b.id === existingBudget.id ? { ...b, monthlyLimit } : b) : [];
-          });
-          addPendingMutation({ 
-            type: 'UPSERT_BUDGET', 
-            payload: {
-              id: existingBudget.id,
-              user_id: session.user.id,
-              category,
-              monthly_limit: monthlyLimit,
-              month
-            } 
-          });
-          syncPendingMutations();
+          if (session) {
+            queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
+              return old ? old.map((b: any) => b.id === existingBudget.id ? { ...b, monthlyLimit } : b) : [];
+            });
+            addPendingMutation({ 
+              type: 'UPSERT_BUDGET', 
+              payload: {
+                id: existingBudget.id,
+                user_id: session.user.id,
+                category,
+                monthly_limit: monthlyLimit,
+                month
+              } 
+            });
+            syncPendingMutations();
+          }
         } else {
-          const newBudget = {
+          const newBudget: Budget = {
             id: crypto.randomUUID(),
             category,
             monthlyLimit,
             month,
-            userId: session.user.id
+            userId: session ? session.user.id : 'guest'
           };
           set(state => ({ budgets: [...state.budgets, newBudget] }));
-          queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
-             return old ? [...old, newBudget] : [newBudget];
-          });
-          addPendingMutation({ 
-            type: 'UPSERT_BUDGET', 
-            payload: {
-              id: newBudget.id,
-              user_id: newBudget.userId,
-              category: newBudget.category,
-              monthly_limit: newBudget.monthlyLimit,
-              month: newBudget.month
-            } 
-          });
-          syncPendingMutations();
+          if (session) {
+            queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
+              return old ? [...old, newBudget] : [newBudget];
+            });
+            addPendingMutation({ 
+              type: 'UPSERT_BUDGET', 
+              payload: {
+                id: newBudget.id,
+                user_id: newBudget.userId,
+                category: newBudget.category,
+                monthly_limit: newBudget.monthlyLimit,
+                month: newBudget.month
+              } 
+            });
+            syncPendingMutations();
+          }
         }
       },
       
@@ -947,7 +952,8 @@ export const useExpenseStore = create<ExpenseState>()(
                 ...expense,
                 id: crypto.randomUUID(),
                 date: nextOccurDate.toISOString(),
-                // Keep the original description or append info? Just keep it.
+                recurrence: 'none',
+                next_occurrence: null,
               };
               generatedExpenses.push(clone);
 
@@ -981,8 +987,8 @@ export const useExpenseStore = create<ExpenseState>()(
                 date: e.date,
                 notes: e.notes,
                 receipt_url: e.receipt_url,
-                recurrence: e.recurrence,
-                next_occurrence: e.next_occurrence
+                recurrence: 'none',
+                next_occurrence: null
              }))).then();
           }
 
@@ -1013,16 +1019,22 @@ export const useExpenseStore = create<ExpenseState>()(
           await Promise.all([
             supabase.from('expenses').delete().eq('user_id', session.user.id),
             supabase.from('bills').delete().eq('user_id', session.user.id),
+            supabase.from('subscriptions').delete().eq('user_id', session.user.id),
+            supabase.from('budgets').delete().eq('user_id', session.user.id),
             supabase.from('wishlist').delete().eq('user_id', session.user.id),
             supabase.from('debts').delete().eq('user_id', session.user.id),
             supabase.from('user_settings').delete().eq('user_id', session.user.id)
           ]);
+          queryClient.removeQueries();
         }
         set({
           expenses: [],
           bills: [],
+          subscriptions: [],
+          budgets: [],
           wishlistItems: [],
           debts: [],
+          pendingMutations: [],
           settings: {
             monthlyIncome: 45000,
             currency: '₹',

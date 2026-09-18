@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Mail, Key, Wallet, PieChart, Shield, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -25,7 +26,7 @@ export default function Auth() {
           redirectTo: window.location.origin,
         });
         if (error) throw error;
-        alert('Check your email for the password reset link!');
+        toast.success('Check your email for the password reset link!');
         setIsForgotPassword(false);
       } else if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -33,7 +34,7 @@ export default function Auth() {
       } else {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-        alert('Check your email for the confirmation link!');
+        toast.success('Check your email for the confirmation link!');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred during authentication.');
