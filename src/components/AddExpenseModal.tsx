@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { X, Loader2, ScanLine } from "lucide-react";
+import { X, Loader2, ScanLine, Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { vibrate } from "../lib/utils";
+import { cn, vibrate } from "../lib/utils";
 import Tesseract from 'tesseract.js';
 import { format, parseISO } from "date-fns";
+import { playSuccessSound } from "../lib/sound";
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -18,7 +19,7 @@ export function AddExpenseModal({
   onClose: () => void;
   expenseToEdit?: Expense | null;
 }) {
-  const { settings, addExpense, updateExpense } = useExpenseStore();
+  const { settings, addExpense, updateExpense, expenses } = useExpenseStore();
   
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -29,6 +30,16 @@ export function AddExpenseModal({
   const [uploading, setUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+
+  // Top 4 frequently used categories
+  const quickCategories = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (expenses || []).forEach((e) => {
+      counts[e.category] = (counts[e.category] || 0) + 1;
+    });
+    const sorted = [...settings.categories].sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
+    return sorted.slice(0, 4);
+  }, [expenses, settings.categories]);
 
   useEffect(() => {
     if (isOpen) {
@@ -155,6 +166,9 @@ export function AddExpenseModal({
     } else {
       addExpense(expenseData);
     }
+    if (settings.soundEnabled) {
+      playSuccessSound();
+    }
     setUploading(false);
     onClose();
   };
@@ -225,18 +239,58 @@ export function AddExpenseModal({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Category</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-muted-foreground">Category</label>
+              {quickCategories.length > 0 && (
+                <span className="text-[11px] font-medium text-muted-foreground/70 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-primary" /> Quick picks
+                </span>
+              )}
+            </div>
+
+            {/* Quick Suggestion Chips */}
+            {quickCategories.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
+                {quickCategories.map((c) => {
+                  const isSelected = category === c;
+                  return (
+                    <button
+                      key={`quick-${c}`}
+                      type="button"
+                      onClick={() => {
+                        vibrate(10);
+                        setCategory(c);
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-all border",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20 scale-[1.03]"
+                          : "bg-secondary/70 hover:bg-secondary text-foreground/80 border-border/70"
+                      )}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Category Grid */}
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-32 overflow-y-auto p-1 scrollbar-hide">
               {settings.categories.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  onClick={() => setCategory(c)}
-                  className={`px-2 py-1.5 rounded-md text-xs font-medium transition-colors border shadow-sm truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  onClick={() => {
+                    vibrate(8);
+                    setCategory(c);
+                  }}
+                  className={cn(
+                    "px-2 py-1.5 rounded-md text-xs font-medium transition-colors border shadow-sm truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     category === c 
-                      ? 'bg-primary border-primary text-primary-foreground' 
-                      : 'bg-secondary border-border hover:bg-secondary/80 text-foreground'
-                  }`}
+                      ? "bg-primary border-primary text-primary-foreground" 
+                      : "bg-secondary border-border hover:bg-secondary/80 text-foreground"
+                  )}
                 >
                   {c}
                 </button>
@@ -278,13 +332,23 @@ export function AddExpenseModal({
               {expenseToEdit?.receipt_url && !receiptFile && (
                 <img src={expenseToEdit.receipt_url} alt="Receipt" className="w-12 h-12 object-cover rounded-md border" />
               )}
-              <label className="flex items-center justify-center gap-2 px-4 py-2 border rounded-md cursor-pointer hover:bg-secondary/50 text-sm font-medium transition-colors w-full">
+              <label className="relative overflow-hidden flex items-center justify-center gap-2 px-4 py-2.5 border border-border/80 rounded-xl cursor-pointer hover:bg-secondary/50 text-sm font-medium transition-all w-full bg-secondary/20">
                 {isScanning ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Scanning receipt...</>
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+                    <span className="text-primary font-medium text-xs sm:text-sm">Scanning receipt...</span>
+                    {/* Animated sweeping laser line */}
+                    <motion.div
+                      initial={{ x: "-100%" }}
+                      animate={{ x: "200%" }}
+                      transition={{ repeat: Infinity, duration: 1.3, ease: "easeInOut" }}
+                      className="absolute inset-y-0 w-20 bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none"
+                    />
+                  </>
                 ) : (
                   <>
-                    <ScanLine className="w-4 h-4" />
-                    {receiptFile ? receiptFile.name : 'Scan Receipt'}
+                    <ScanLine className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="truncate text-xs sm:text-sm">{receiptFile ? receiptFile.name : 'Scan Receipt'}</span>
                   </>
                 )}
                 <input 

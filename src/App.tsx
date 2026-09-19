@@ -6,16 +6,13 @@ import { supabase } from "./lib/supabase";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import Auth from "./pages/Auth";
 import { ReloadPrompt } from "./components/ReloadPrompt";
-import { Plus } from "lucide-react";
 import { AddExpenseModal } from "./components/AddExpenseModal";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "sonner";
 import { AnimatedRoutes } from "./components/AnimatedRoutes";
-import { motion } from "framer-motion";
-
-import { vibrate } from "./lib/utils";
+import { AmbientBackground } from "./components/ui/AmbientBackground";
 
 export default function App() {
   const { settings, checkMonthRollover, setSession, session, fetchCloudData, syncPendingMutations, isModalOpen, setModalOpen } = useExpenseStore();
@@ -110,30 +107,16 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <div className="min-h-screen bg-background text-foreground pb-20 overflow-x-hidden">
+          <div className="min-h-screen bg-background text-foreground pb-24 overflow-x-hidden relative">
+            <AmbientBackground />
             <main className="container max-w-md md:max-w-xl lg:max-w-2xl mx-auto p-4 animate-in fade-in duration-300">
               <AnimatedRoutes />
             </main>
         
-        {/* Global Floating Action Button */}
-        <motion.button 
-          whileTap={{ scale: 0.92 }}
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 450, damping: 20 }}
-          onClick={() => {
-            vibrate(20);
-            setModalOpen(true);
-          }}
-          aria-label="Add new expense"
-          className="fixed bottom-24 right-4 sm:right-1/2 sm:translate-x-[180px] w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-xl flex items-center justify-center z-50 border border-white/20 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none select-none"
-        >
-          <Plus className="w-6 h-6" aria-hidden="true" />
-        </motion.button>
-        <AddExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
-
-        <ReloadPrompt />
-        <Toaster theme={settings.darkMode ? "dark" : "light"} position="bottom-center" />
-        <BottomNav />
+            <AddExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
+            <ReloadPrompt />
+            <Toaster theme={settings.darkMode ? "dark" : "light"} position="bottom-center" />
+            <BottomNav />
             <VercelAnalytics />
           </div>
         </BrowserRouter>

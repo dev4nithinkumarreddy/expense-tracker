@@ -1,46 +1,118 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, ReceiptText, CalendarDays, PieChart, Settings } from "lucide-react";
+import { LayoutDashboard, ReceiptText, CalendarDays, PieChart, Plus } from "lucide-react";
 import { cn, vibrate } from "../../lib/utils";
+import { useExpenseStore } from "../../store/useExpenseStore";
 
-const navItems = [
+const leftNavItems = [
   { icon: LayoutDashboard, label: "Home", path: "/" },
   { icon: ReceiptText, label: "Expenses", path: "/expenses" },
+];
+
+const rightNavItems = [
   { icon: CalendarDays, label: "Planned", path: "/planned" },
   { icon: PieChart, label: "Analytics", path: "/analytics" },
-  { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
 export function BottomNav() {
+  const { setModalOpen } = useExpenseStore();
+
   return (
-    <nav className="fixed bottom-0 w-full max-w-md md:max-w-xl lg:max-w-2xl left-1/2 -translate-x-1/2 glass-toolbar border-t flex justify-around pt-2 px-2 z-50 pb-[env(safe-area-inset-bottom,16px)] shadow-lg">
-      {navItems.map((item) => (
-        <NavLink
-          key={item.path}
-          to={item.path}
-          onClick={() => vibrate(15)}
-          aria-label={`Navigate to ${item.label}`}
-          className={({ isActive }) =>
-            cn(
-              "flex flex-col items-center p-2 text-muted-foreground transition-colors select-none",
-              isActive && "text-primary"
-            )
-          }
-        >
-          {({ isActive }) => (
-            <motion.div
-              whileTap={{ scale: 0.88 }}
-              transition={{ type: "spring", stiffness: 450, damping: 20 }}
-              className="flex flex-col items-center"
+    <nav className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] max-w-sm sm:max-w-md">
+      <div className="bg-card/85 dark:bg-card/80 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)] rounded-full p-1.5 px-2 flex items-center justify-between select-none">
+        
+        {/* Left tabs */}
+        <div className="flex items-center gap-1 flex-1 justify-around">
+          {leftNavItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={() => vibrate(12)}
+              aria-label={`Navigate to ${item.label}`}
+              className={({ isActive }) =>
+                cn(
+                  "relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1",
+                  isActive ? "text-primary font-semibold" : "hover:text-foreground"
+                )
+              }
             >
-              <item.icon className={cn("h-5 w-5 mb-1 transition-all", isActive ? "stroke-[2.2px] text-primary" : "stroke-[1.8px]")} />
-              <span className={cn("text-[10px] tracking-tight font-medium", isActive && "font-semibold text-primary")}>
-                {item.label}
-              </span>
-            </motion.div>
-          )}
-        </NavLink>
-      ))}
+              {({ isActive }) => (
+                <motion.div
+                  whileTap={{ scale: 0.88 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 22 }}
+                  className="flex flex-col items-center relative"
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="dock-active-pill"
+                      transition={{ type: "spring", stiffness: 480, damping: 32 }}
+                      className="absolute -inset-x-3 -inset-y-1.5 bg-primary/10 dark:bg-primary/20 rounded-full z-[-1] border border-primary/20 shadow-2xs"
+                    />
+                  )}
+                  <item.icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "stroke-[2.2px] scale-105")} />
+                  <span className="text-[10px] tracking-tight mt-0.5 font-medium">
+                    {item.label}
+                  </span>
+                </motion.div>
+              )}
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Center Quick Add Button */}
+        <motion.button
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.90 }}
+          transition={{ type: "spring", stiffness: 480, damping: 22 }}
+          onClick={() => {
+            vibrate(20);
+            setModalOpen(true);
+          }}
+          aria-label="Add new expense"
+          className="mx-1.5 w-11 h-11 rounded-full bg-gradient-to-tr from-primary to-cyan-500 text-primary-foreground shadow-md shadow-primary/30 flex items-center justify-center shrink-0 border border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <Plus className="w-5 h-5 stroke-[2.4px]" aria-hidden="true" />
+        </motion.button>
+
+        {/* Right tabs */}
+        <div className="flex items-center gap-1 flex-1 justify-around">
+          {rightNavItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={() => vibrate(12)}
+              aria-label={`Navigate to ${item.label}`}
+              className={({ isActive }) =>
+                cn(
+                  "relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1",
+                  isActive ? "text-primary font-semibold" : "hover:text-foreground"
+                )
+              }
+            >
+              {({ isActive }) => (
+                <motion.div
+                  whileTap={{ scale: 0.88 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 22 }}
+                  className="flex flex-col items-center relative"
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="dock-active-pill"
+                      transition={{ type: "spring", stiffness: 480, damping: 32 }}
+                      className="absolute -inset-x-3 -inset-y-1.5 bg-primary/10 dark:bg-primary/20 rounded-full z-[-1] border border-primary/20 shadow-2xs"
+                    />
+                  )}
+                  <item.icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "stroke-[2.2px] scale-105")} />
+                  <span className="text-[10px] tracking-tight mt-0.5 font-medium">
+                    {item.label}
+                  </span>
+                </motion.div>
+              )}
+            </NavLink>
+          ))}
+        </div>
+
+      </div>
     </nav>
   );
 }

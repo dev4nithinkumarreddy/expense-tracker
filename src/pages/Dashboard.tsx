@@ -1,11 +1,12 @@
+import { Link } from "react-router-dom";
 import { vibrate } from "../lib/utils";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { Card, CardContent } from "../components/ui/card";
-import { isThisMonth, isToday, isThisWeek, parseISO, format } from "date-fns";
+import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -104,6 +105,40 @@ export default function Dashboard() {
   const todayExpenses = currentMonthExpenses.filter(e => isToday(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
   const weekExpenses = currentMonthExpenses.filter(e => isThisWeek(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
 
+  const yesterday = subDays(new Date(), 1);
+  const yesterdayExpenses = currentMonthExpenses
+    .filter(e => isSameDay(parseISO(e.date), yesterday))
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const diffYesterday = todayExpenses - yesterdayExpenses;
+  const pctYesterday = Math.round((Math.abs(diffYesterday) / (yesterdayExpenses || 1)) * 100);
+  let todayComparison = { text: "Equal to yesterday", color: "muted" };
+  if (todayExpenses === 0 && yesterdayExpenses === 0) {
+    todayComparison = { text: "No spend today", color: "emerald" };
+  } else if (yesterdayExpenses === 0 && todayExpenses > 0) {
+    todayComparison = { text: "First spend today", color: "muted" };
+  } else if (diffYesterday < 0) {
+    todayComparison = { text: `↓ ${pctYesterday}% vs yesterday`, color: "emerald" };
+  } else if (diffYesterday > 0) {
+    todayComparison = { text: `↑ ${pctYesterday}% vs yesterday`, color: "amber" };
+  }
+
+  const now = new Date();
+  const currentDayIdx = (now.getDay() + 6) % 7;
+  const daysElapsed = currentDayIdx + 1;
+  const dailyAvg = Math.round(weekExpenses / daysElapsed);
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekPips = Array.from({ length: 7 }, (_, i) => {
+    const pipDate = addDays(weekStart, i);
+    return {
+      label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i],
+      isCurrentDay: i === currentDayIdx,
+      isPast: i < currentDayIdx,
+      hasSpend: currentMonthExpenses.some(e => isSameDay(parseISO(e.date), pipDate))
+    };
+  });
+  const weekIntelligence = { dailyAvg, pips: weekPips };
+
   const isOverBudget = remaining < 0;
 
   // Recent expenses (last 5, showing latest non-income transactions across month boundaries)
@@ -161,6 +196,15 @@ export default function Dashboard() {
             >
               {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
+
+            <Link
+              to="/settings"
+              onClick={() => vibrate(15)}
+              aria-label="Settings"
+              className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none"
+            >
+              <SettingsIcon className="w-4 h-4" />
+            </Link>
           </div>
         </div>
 
@@ -320,18 +364,70 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Daily Spending */}
+      {/* Daily Spending & Contextual Intelligence */}
       <div className="grid grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-4 flex flex-col justify-center">
-            <p className="text-sm text-muted-foreground mb-1">Today</p>
-            <p className="text-xl font-bold">{formatCurrency(todayExpenses, settings.currency)}</p>
+        {/* Today Card */}
+        <Card className="border-border/60 shadow-xs relative overflow-hidden">
+          <CardContent className="p-4 flex flex-col justify-between h-full space-y-2">
+            <div>
+              <div className="flex items-center justify-between gap-1 flex-wrap">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Today</p>
+                <span className={cn(
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1",
+                  todayComparison.color === "emerald" 
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" 
+                    : todayComparison.color === "amber" 
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" 
+                    : "bg-muted text-muted-foreground"
+                )}>
+                  {todayComparison.text}
+                </span>
+              </div>
+              <p className="text-2xl font-bold display-number tracking-tight mt-1 text-foreground">
+                <AnimatedNumber value={todayExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
+              </p>
+            </div>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {yesterdayExpenses > 0 ? `Yesterday: ${formatCurrency(yesterdayExpenses, settings.currency)}` : "Tracking daily spending"}
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4 flex flex-col justify-center">
-            <p className="text-sm text-muted-foreground mb-1">This Week</p>
-            <p className="text-xl font-bold">{formatCurrency(weekExpenses, settings.currency)}</p>
+
+        {/* This Week Card */}
+        <Card className="border-border/60 shadow-xs relative overflow-hidden">
+          <CardContent className="p-4 flex flex-col justify-between h-full space-y-2">
+            <div>
+              <div className="flex items-center justify-between gap-1 flex-wrap">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">This Week</p>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                  Avg {formatCurrency(weekIntelligence.dailyAvg, settings.currency)}/d
+                </span>
+              </div>
+              <p className="text-2xl font-bold display-number tracking-tight mt-1 text-foreground">
+                <AnimatedNumber value={weekExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
+              </p>
+            </div>
+
+            {/* 7-Day Mini Pips */}
+            <div className="flex items-center justify-between pt-1">
+              {weekIntelligence.pips.map((pip, idx) => (
+                <div key={idx} className="flex flex-col items-center gap-1">
+                  <span className="text-[9px] font-medium text-muted-foreground/70">{pip.label}</span>
+                  <div
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-all",
+                      pip.isCurrentDay
+                        ? "bg-primary ring-2 ring-primary/30 scale-110"
+                        : pip.hasSpend
+                        ? "bg-primary/70"
+                        : pip.isPast
+                        ? "bg-muted-foreground/25"
+                        : "bg-muted/40"
+                    )}
+                  />
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
