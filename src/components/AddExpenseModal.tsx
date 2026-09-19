@@ -220,20 +220,21 @@ export function AddExpenseModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
             onClick={onClose}
             className="fixed inset-0 bg-background/60 backdrop-blur-md"
           />
 
           {/* Centered Floating Glass Modal (No popping from bottom) */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            initial={{ opacity: 0, scale: 0.94, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{
               type: "spring",
-              damping: 26,
-              stiffness: 360,
+              damping: 28,
+              stiffness: 340,
+              mass: 0.85
             }}
             className="bg-card/95 dark:bg-card/90 text-card-foreground w-full max-w-md rounded-[32px] border border-white/20 dark:border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.22)] dark:shadow-[0_24px_70px_rgba(0,0,0,0.6)] max-h-[88dvh] flex flex-col z-10 relative overflow-hidden backdrop-blur-2xl"
           >
