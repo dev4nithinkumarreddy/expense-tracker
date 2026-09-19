@@ -31,7 +31,7 @@ export function BottomNav() {
               aria-label={`Navigate to ${item.label}`}
               className={({ isActive }) =>
                 cn(
-                  "relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1 h-12",
+                  "relative flex flex-col items-center justify-center py-1.5 px-2 rounded-full text-muted-foreground transition-colors duration-200 flex-1 h-12",
                   isActive ? "text-primary font-semibold" : "hover:text-foreground"
                 )
               }
@@ -42,7 +42,7 @@ export function BottomNav() {
                     <motion.div
                       layoutId="dock-active-pill"
                       transition={{ type: "spring", stiffness: 420, damping: 30 }}
-                      className="absolute inset-y-0.5 inset-x-1 bg-primary/12 dark:bg-primary/20 rounded-2xl border border-primary/20 shadow-2xs"
+                      className="absolute inset-y-0.5 inset-x-1 bg-primary/12 dark:bg-primary/20 rounded-full border border-primary/20 shadow-2xs"
                     />
                   )}
                   <motion.div
@@ -86,7 +86,7 @@ export function BottomNav() {
               aria-label={`Navigate to ${item.label}`}
               className={({ isActive }) =>
                 cn(
-                  "relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1 h-12",
+                  "relative flex flex-col items-center justify-center py-1.5 px-2 rounded-full text-muted-foreground transition-colors duration-200 flex-1 h-12",
                   isActive ? "text-primary font-semibold" : "hover:text-foreground"
                 )
               }
@@ -97,7 +97,7 @@ export function BottomNav() {
                     <motion.div
                       layoutId="dock-active-pill"
                       transition={{ type: "spring", stiffness: 420, damping: 30 }}
-                      className="absolute inset-y-0.5 inset-x-1 bg-primary/12 dark:bg-primary/20 rounded-2xl border border-primary/20 shadow-2xs"
+                      className="absolute inset-y-0.5 inset-x-1 bg-primary/12 dark:bg-primary/20 rounded-full border border-primary/20 shadow-2xs"
                     />
                   )}
                   <motion.div
