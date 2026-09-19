@@ -50,8 +50,8 @@ export function AddExpenseModal({
   
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-  const [date, setDate] = useState("");
+  const [category, setCategory] = useState(() => settings.categories[0] || "Other");
+  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -204,6 +204,21 @@ export function AddExpenseModal({
 
   const isTodayDate = date === format(new Date(), 'yyyy-MM-dd');
   const isYesterdayDate = date === format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
+  const formattedDateLabel = useMemo(() => {
+    if (!date) return 'Today';
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+      if (date === todayStr) return 'Today';
+      if (date === yesterdayStr) return 'Yesterday';
+      const parsed = parseISO(date);
+      if (isNaN(parsed.getTime())) return 'Today';
+      return format(parsed, 'MMM d, yyyy');
+    } catch {
+      return 'Today';
+    }
+  }, [date]);
 
   return (
     <AnimatePresence>
@@ -401,7 +416,7 @@ export function AddExpenseModal({
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Date</p>
                       <p className="text-xs font-semibold text-foreground">
-                        {isTodayDate ? 'Today' : isYesterdayDate ? 'Yesterday' : format(parseISO(date), 'MMM d, yyyy')}
+                        {formattedDateLabel}
                       </p>
                     </div>
                   </div>
