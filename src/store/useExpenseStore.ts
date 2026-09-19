@@ -113,7 +113,7 @@ interface ExpenseState {
   setSession: (session: Session | null) => void;
   setSharedData: (data: { title?: string, text?: string, url?: string } | null) => void;
   fetchCloudData: () => Promise<void>;
-  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
+  addExpense: (expense: Omit<Expense, 'id'>) => Promise<string>;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
   
@@ -485,6 +485,7 @@ export const useExpenseStore = create<ExpenseState>()(
           addPendingMutation({ type: 'INSERT_EXPENSE', payload });
           syncPendingMutations();
         }
+        return id;
       },
       
       updateExpense: (id, updatedFields) => {

@@ -6,7 +6,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -42,7 +42,7 @@ const DashboardSkeleton = () => (
 );
 
 export default function Dashboard() {
-  const { settings, addExpense, updateSettings, session, subscriptions, fetchCloudData } = useExpenseStore();
+  const { settings, addExpense, deleteExpense, updateSettings, session, subscriptions, fetchCloudData } = useExpenseStore();
   const { expenses, bills, budgets, isLoading } = useDashboardData();
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [incomeSource, setIncomeSource] = useState("");
@@ -127,17 +127,42 @@ export default function Dashboard() {
   const currentDayIdx = (now.getDay() + 6) % 7;
   const daysElapsed = currentDayIdx + 1;
   const dailyAvg = Math.round(weekExpenses / daysElapsed);
+
+  // Daily Allowance Calculation for Today
+  const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeftInMonth = Math.max(1, daysInCurrentMonth - now.getDate() + 1);
+  const dailyBudgetAllowance = Math.max(0, Math.round(remaining / daysLeftInMonth));
+  const todayRemainingAllowance = dailyBudgetAllowance - todayExpenses;
+
+  // 7-Day Micro Sparkline Data
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-  const weekPips = Array.from({ length: 7 }, (_, i) => {
+  const weekDailySpends = Array.from({ length: 7 }, (_, i) => {
     const pipDate = addDays(weekStart, i);
+    const daySpend = currentMonthExpenses
+      .filter(e => isSameDay(parseISO(e.date), pipDate))
+      .reduce((sum, e) => sum + e.amount, 0);
     return {
       label: ['M', 'T', 'W', 'T', 'F', 'S', 'S'][i],
+      name: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+      amount: daySpend,
       isCurrentDay: i === currentDayIdx,
       isPast: i < currentDayIdx,
-      hasSpend: currentMonthExpenses.some(e => isSameDay(parseISO(e.date), pipDate))
+      isFuture: i > currentDayIdx,
     };
   });
-  const weekIntelligence = { dailyAvg, pips: weekPips };
+  const maxDaySpend = Math.max(...weekDailySpends.map(d => d.amount), 1);
+
+  // Weekly Pacing Status
+  let paceStatus = { text: "On Track", color: "emerald" };
+  if (remaining <= 0) {
+    paceStatus = { text: "Over Budget", color: "destructive" };
+  } else if (dailyBudgetAllowance > 0 && dailyAvg > dailyBudgetAllowance * 1.25) {
+    paceStatus = { text: "High Pace", color: "amber" };
+  } else if (dailyAvg <= dailyBudgetAllowance) {
+    paceStatus = { text: "On Track", color: "emerald" };
+  }
+
+  const weekIntelligence = { dailyAvg, dailySpends: weekDailySpends, maxDaySpend, paceStatus };
 
   const isOverBudget = remaining < 0;
 
@@ -367,7 +392,7 @@ export default function Dashboard() {
       {/* Daily Spending & Contextual Intelligence */}
       <div className="grid grid-cols-2 gap-4">
         {/* Today Card */}
-        <Card className="border-border/60 shadow-xs relative overflow-hidden">
+        <Card className="border-border/60 shadow-xs relative overflow-hidden bg-card/60 backdrop-blur-sm">
           <CardContent className="p-4 flex flex-col justify-between h-full space-y-2">
             <div>
               <div className="flex items-center justify-between gap-1 flex-wrap">
@@ -387,46 +412,103 @@ export default function Dashboard() {
                 <AnimatedNumber value={todayExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
               </p>
             </div>
-            <p className="text-[11px] text-muted-foreground truncate">
-              {yesterdayExpenses > 0 ? `Yesterday: ${formatCurrency(yesterdayExpenses, settings.currency)}` : "Tracking daily spending"}
-            </p>
+
+            {/* Daily Allowance Context */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Daily allowance</span>
+                <span className={cn(
+                  "font-semibold display-number text-[11px]",
+                  todayRemainingAllowance < 0 ? "text-amber-500" : "text-foreground"
+                )}>
+                  {formatCurrency(Math.max(0, todayRemainingAllowance), settings.currency)} left
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-secondary/80 rounded-full overflow-hidden">
+                <div 
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    dailyBudgetAllowance === 0 
+                      ? "bg-muted-foreground/30 w-0" 
+                      : todayExpenses > dailyBudgetAllowance 
+                      ? "bg-amber-500" 
+                      : "bg-primary"
+                  )}
+                  style={{
+                    width: dailyBudgetAllowance > 0 
+                      ? `${Math.min(100, Math.round((todayExpenses / dailyBudgetAllowance) * 100))}%` 
+                      : '0%'
+                  }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         {/* This Week Card */}
-        <Card className="border-border/60 shadow-xs relative overflow-hidden">
+        <Card className="border-border/60 shadow-xs relative overflow-hidden bg-card/60 backdrop-blur-sm">
           <CardContent className="p-4 flex flex-col justify-between h-full space-y-2">
             <div>
               <div className="flex items-center justify-between gap-1 flex-wrap">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">This Week</p>
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                <span className={cn(
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1",
+                  weekIntelligence.paceStatus.color === "emerald"
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    : weekIntelligence.paceStatus.color === "amber"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                    : "bg-destructive/15 text-destructive"
+                )}>
+                  {weekIntelligence.paceStatus.text}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between mt-1">
+                <p className="text-2xl font-bold display-number tracking-tight text-foreground">
+                  <AnimatedNumber value={weekExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
+                </p>
+                <span className="text-[11px] font-medium text-muted-foreground">
                   Avg {formatCurrency(weekIntelligence.dailyAvg, settings.currency)}/d
                 </span>
               </div>
-              <p className="text-2xl font-bold display-number tracking-tight mt-1 text-foreground">
-                <AnimatedNumber value={weekExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
-              </p>
             </div>
 
-            {/* 7-Day Mini Pips */}
-            <div className="flex items-center justify-between pt-1">
-              {weekIntelligence.pips.map((pip, idx) => (
-                <div key={idx} className="flex flex-col items-center gap-1">
-                  <span className="text-[9px] font-medium text-muted-foreground/70">{pip.label}</span>
+            {/* 7-Day Apple Micro-Sparkline */}
+            <div className="flex items-end justify-between gap-1 pt-1 h-9">
+              {weekIntelligence.dailySpends.map((day, idx) => {
+                const barPercent = weekIntelligence.maxDaySpend > 0 && day.amount > 0
+                  ? Math.max(25, Math.round((day.amount / weekIntelligence.maxDaySpend) * 100))
+                  : 14;
+
+                return (
                   <div
-                    className={cn(
-                      "w-2 h-2 rounded-full transition-all",
-                      pip.isCurrentDay
-                        ? "bg-primary ring-2 ring-primary/30 scale-110"
-                        : pip.hasSpend
-                        ? "bg-primary/70"
-                        : pip.isPast
-                        ? "bg-muted-foreground/25"
-                        : "bg-muted/40"
-                    )}
-                  />
-                </div>
-              ))}
+                    key={idx}
+                    className="flex-1 flex flex-col items-center gap-1 group relative cursor-pointer"
+                    title={`${day.name}: ${formatCurrency(day.amount, settings.currency)}`}
+                  >
+                    <div className="w-full flex items-end justify-center h-5">
+                      <div
+                        style={{ height: `${barPercent}%` }}
+                        className={cn(
+                          "w-2 rounded-full transition-all duration-300",
+                          day.isCurrentDay
+                            ? "bg-primary shadow-[0_0_8px_rgba(0,122,255,0.4)]"
+                            : day.amount > 0
+                            ? "bg-primary/65 group-hover:bg-primary/90"
+                            : day.isPast
+                            ? "bg-muted-foreground/20"
+                            : "bg-muted/40"
+                        )}
+                      />
+                    </div>
+                    <span className={cn(
+                      "text-[9px] font-medium transition-colors",
+                      day.isCurrentDay ? "text-primary font-bold" : "text-muted-foreground/70"
+                    )}>
+                      {day.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -538,18 +620,49 @@ export default function Dashboard() {
             </div>
           ) : (
             recentExpenses.map((expense) => (
-              <div key={expense.id} className="flex justify-between items-center p-3 bg-card border rounded-xl shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
-                    {expense.category.substring(0, 2).toUpperCase()}
+              <div key={expense.id} className="flex justify-between items-center p-3 bg-card border rounded-2xl shadow-xs hover:border-primary/30 transition-colors">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0 shadow-xs">
+                    {settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="font-medium text-sm leading-none">{expense.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{format(parseISO(expense.date), 'MMM d')}</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm leading-tight truncate">{expense.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{format(parseISO(expense.date), 'MMM d')} • {expense.category}</p>
                   </div>
                 </div>
-                <div className="font-semibold">
-                  {formatCurrency(expense.amount, settings.currency)}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="font-semibold text-sm display-number">
+                    {formatCurrency(expense.amount, settings.currency)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      vibrate(20);
+                      if (settings.soundEnabled) playSuccessSound();
+                      const newId = await addExpense({
+                        amount: expense.amount,
+                        description: expense.description,
+                        category: expense.category,
+                        date: new Date().toISOString(),
+                        notes: expense.notes
+                      });
+                      toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
+                        action: {
+                          label: "Undo",
+                          onClick: () => {
+                            vibrate(15);
+                            deleteExpense(newId);
+                            toast.info(`Undone: ${expense.description} removed`);
+                          }
+                        }
+                      });
+                    }}
+                    className="p-1.5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-90 transition-all select-none"
+                    title="Log again for today"
+                    aria-label={`Log ${expense.description} again for today`}
+                  >
+                    <CopyPlus className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             ))

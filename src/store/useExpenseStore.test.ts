@@ -237,4 +237,28 @@ describe('useExpenseStore', () => {
     expect(state.budgets).toEqual([]);
     expect(state.pendingMutations).toEqual([]);
   });
+
+  it('should return the generated ID on addExpense to support 1-tap duplicate with instant undo', async () => {
+    const store = useExpenseStore.getState();
+    const newId = await store.addExpense({
+      amount: 150,
+      description: 'Morning Coffee',
+      category: 'Food',
+      date: new Date().toISOString()
+    });
+
+    expect(typeof newId).toBe('string');
+    expect(newId.length).toBeGreaterThan(0);
+    
+    // Check expense is stored with this ID
+    let state = useExpenseStore.getState();
+    const added = state.expenses.find(e => e.id === newId);
+    expect(added).toBeDefined();
+    expect(added?.description).toBe('Morning Coffee');
+
+    // Simulate undo
+    store.deleteExpense(newId);
+    state = useExpenseStore.getState();
+    expect(state.expenses.find(e => e.id === newId)).toBeUndefined();
+  });
 });

@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
 import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
-import { Pencil, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Pencil, Trash2, Image as ImageIcon, CopyPlus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { cn, vibrate } from '../lib/utils';
 import { formatCurrency } from '../lib/formatCurrency';
 import { useExpenseStore, type Expense } from '../store/useExpenseStore';
-import { playDeleteSound } from '../lib/sound';
+import { playDeleteSound, playSuccessSound } from '../lib/sound';
+import { toast } from 'sonner';
 
 interface SwipeableExpenseItemProps {
   expense: Expense;
@@ -20,9 +21,34 @@ function projectVelocity(velocity: number, decelerationRate = 0.998) {
 }
 
 export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt }: SwipeableExpenseItemProps) {
-  const { settings, deleteExpense } = useExpenseStore();
+  const { settings, addExpense, deleteExpense } = useExpenseStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const hasHapticFired = useRef(false);
+
+  const handleLogAgain = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    vibrate(20);
+    if (settings.soundEnabled) playSuccessSound();
+
+    const newId = await addExpense({
+      amount: expense.amount,
+      description: expense.description,
+      category: expense.category,
+      date: new Date().toISOString(),
+      notes: expense.notes
+    });
+
+    toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          vibrate(15);
+          deleteExpense(newId);
+          toast.info(`Undone: ${expense.description} removed`);
+        }
+      }
+    });
+  };
 
   const x = useMotionValue(0);
 
@@ -153,7 +179,19 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
           </div>
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-3 pl-2">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 pl-2 shrink-0">
+          {!isIncome && (
+            <button
+              type="button"
+              onClick={handleLogAgain}
+              className="p-1.5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-90 transition-all select-none"
+              title="Log again for today"
+              aria-label={`Log ${expense.description} again for today`}
+            >
+              <CopyPlus className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           <span className={cn(
             "font-semibold text-sm whitespace-nowrap display-number", 
             isIncome ? "text-green-600" : ""

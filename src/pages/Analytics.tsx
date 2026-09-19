@@ -1,4 +1,4 @@
-import { useExpenseStore } from "../store/useExpenseStore";
+import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { 
   PieChart, 
@@ -41,6 +41,8 @@ import { getExpenseLocalDate } from "../lib/streak";
 import { CategoryDetailModal } from "../components/CategoryDetailModal";
 import { vibrate } from "../lib/utils";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
+import { playSuccessSound } from "../lib/sound";
+import { toast } from "sonner";
 
 const COLORS = [
   'hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 
@@ -48,7 +50,7 @@ const COLORS = [
 ];
 
 export default function Analytics() {
-  const { expenses, settings, budgets } = useExpenseStore();
+  const { expenses, settings, budgets, addExpense, deleteExpense } = useExpenseStore();
   
   const [viewMode, setViewMode] = useState<'monthly' | 'trends'>('monthly');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -109,6 +111,48 @@ export default function Analytics() {
       e.amount > 0
     );
   }, [expenses, selectedMonthStr, selectedCategoryForDrilldown]);
+
+  // Previous month spend for the selected category (for MoM comparison)
+  const previousMonthStr = format(subMonths(currentDate, 1), 'yyyy-MM');
+  const previousMonthCategorySpend = useMemo(() => {
+    if (!selectedCategoryForDrilldown) return 0;
+    return expenses
+      .filter(e => 
+        getExpenseLocalDate(e.date).startsWith(previousMonthStr) && 
+        e.category === selectedCategoryForDrilldown && 
+        e.amount > 0
+      )
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [expenses, previousMonthStr, selectedCategoryForDrilldown]);
+
+  // Category budget for drill-down
+  const selectedCategoryBudget = useMemo(() => {
+    if (!selectedCategoryForDrilldown) return undefined;
+    const catBudget = budgets.find(b => b.month === selectedMonthStr && b.category === selectedCategoryForDrilldown);
+    return catBudget?.monthlyLimit || settings.categoryBudgets?.[selectedCategoryForDrilldown];
+  }, [budgets, selectedMonthStr, selectedCategoryForDrilldown, settings.categoryBudgets]);
+
+  const handleDrilldownLogAgain = async (expense: Expense) => {
+    vibrate(20);
+    if (settings.soundEnabled) playSuccessSound();
+    const newId = await addExpense({
+      amount: expense.amount,
+      description: expense.description,
+      category: expense.category,
+      date: new Date().toISOString(),
+      notes: expense.notes
+    });
+    toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          vibrate(15);
+          deleteExpense(newId);
+          toast.info(`Undone: ${expense.description} removed`);
+        }
+      }
+    });
+  };
 
   // Active slice in Donut Chart
   const activeCategory = activeCategoryIndex !== null ? categoryData[activeCategoryIndex] : null;
@@ -629,6 +673,10 @@ export default function Analytics() {
           monthLabel={monthDisplayLabel}
           currency={settings.currency}
           expenses={drilldownExpenses}
+          previousMonthSpend={previousMonthCategorySpend}
+          totalMonthExpenses={kpis.totalExpenses}
+          categoryBudget={selectedCategoryBudget}
+          onLogAgain={handleDrilldownLogAgain}
         />
       )}
     </div>
