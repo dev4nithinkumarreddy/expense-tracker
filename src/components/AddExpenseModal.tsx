@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase";
 import { cn, vibrate } from "../lib/utils";
 import Tesseract from 'tesseract.js';
 import { format, parseISO, subDays } from "date-fns";
-import { playSuccessSound } from "../lib/sound";
+import { playSuccessSound, playTapSound } from "../lib/sound";
 
 const DEFAULT_CATEGORY_EMOJIS: Record<string, string> = {
   Food: '🍔',
@@ -297,6 +297,7 @@ export function AddExpenseModal({
                       type="button"
                       onClick={() => {
                         vibrate(8);
+                        playTapSound();
                         const current = parseFloat(amount) || 0;
                         setAmount(String(current + preset));
                       }}
@@ -364,6 +365,7 @@ export function AddExpenseModal({
                           type="button"
                           onClick={() => {
                             vibrate(8);
+                            playTapSound();
                             setCategory(c);
                           }}
                           className={cn(
@@ -405,6 +407,7 @@ export function AddExpenseModal({
                       type="button"
                       onClick={() => {
                         vibrate(8);
+                        playTapSound();
                         setDate(format(new Date(), 'yyyy-MM-dd'));
                       }}
                       className={cn(
@@ -420,6 +423,7 @@ export function AddExpenseModal({
                       type="button"
                       onClick={() => {
                         vibrate(8);
+                        playTapSound();
                         setDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
                       }}
                       className={cn(
@@ -436,7 +440,10 @@ export function AddExpenseModal({
                       <input
                         type="date"
                         value={date}
-                        onChange={(e) => setDate(e.target.value)}
+                        onChange={(e) => {
+                          playTapSound();
+                          setDate(e.target.value);
+                        }}
                         className="absolute inset-0 opacity-0 cursor-pointer"
                       />
                     </label>
@@ -461,6 +468,7 @@ export function AddExpenseModal({
                         type="button"
                         onClick={() => {
                           vibrate(8);
+                          playTapSound();
                           setRecurrence(r);
                         }}
                         className={cn(

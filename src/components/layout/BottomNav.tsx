@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LayoutDashboard, ReceiptText, CalendarDays, PieChart, Plus } from "lucide-react";
 import { cn, vibrate } from "../../lib/utils";
+import { playTapSound } from "../../lib/sound";
 import { useExpenseStore } from "../../store/useExpenseStore";
 
 const leftNavItems = [
@@ -27,7 +28,10 @@ export function BottomNav() {
             <NavLink
               key={item.path}
               to={item.path}
-              onClick={() => vibrate(12)}
+              onClick={() => {
+                vibrate(12);
+                playTapSound();
+              }}
               aria-label={`Navigate to ${item.label}`}
               className={({ isActive }) =>
                 cn(
@@ -84,6 +88,7 @@ export function BottomNav() {
           transition={{ type: "spring", stiffness: 480, damping: 22 }}
           onClick={() => {
             vibrate(20);
+            playTapSound();
             setModalOpen(true);
           }}
           aria-label="Add new expense"
@@ -98,7 +103,10 @@ export function BottomNav() {
             <NavLink
               key={item.path}
               to={item.path}
-              onClick={() => vibrate(12)}
+              onClick={() => {
+                vibrate(12);
+                playTapSound();
+              }}
               aria-label={`Navigate to ${item.label}`}
               className={({ isActive }) =>
                 cn(

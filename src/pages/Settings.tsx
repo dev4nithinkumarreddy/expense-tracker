@@ -8,7 +8,7 @@ import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
 import { vibrate } from "../lib/utils";
-import { playSuccessSound } from "../lib/sound";
+import { playSuccessSound, playTapSound, playDeleteSound } from "../lib/sound";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
 interface CategoryRowItemProps {
@@ -237,35 +237,74 @@ export default function Settings() {
                 </Button>
               </div>
 
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium">Haptic & Sound FX</span>
-                  <span className="text-xs text-muted-foreground">Apple-style clicks and celebration chimes</span>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">Haptic & Sound FX</span>
+                    <span className="text-xs text-muted-foreground">Apple-style clicks and celebration chimes</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-1.5"
+                    onClick={() => {
+                      const nextVal = !settings.soundEnabled;
+                      updateSettings({ soundEnabled: nextVal });
+                      if (nextVal) {
+                        setTimeout(() => playSuccessSound(), 50);
+                      }
+                    }}
+                  >
+                    {settings.soundEnabled ? (
+                      <>
+                        <Volume2 className="h-4 w-4 text-primary" />
+                        <span>On</span>
+                      </>
+                    ) : (
+                      <>
+                        <VolumeX className="h-4 w-4 text-muted-foreground" />
+                        <span>Off</span>
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-1.5"
-                  onClick={() => {
-                    const nextVal = !settings.soundEnabled;
-                    updateSettings({ soundEnabled: nextVal });
-                    if (nextVal) {
-                      setTimeout(() => playSuccessSound(), 50);
-                    }
-                  }}
-                >
-                  {settings.soundEnabled ? (
-                    <>
-                      <Volume2 className="h-4 w-4 text-primary" />
-                      <span>On</span>
-                    </>
-                  ) : (
-                    <>
-                      <VolumeX className="h-4 w-4 text-muted-foreground" />
-                      <span>Off</span>
-                    </>
-                  )}
-                </Button>
+
+                {/* Audio test preview triggers */}
+                {settings.soundEnabled && (
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="text-xs text-muted-foreground mr-1">Test audio:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(8);
+                        playTapSound();
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary/80 hover:bg-secondary border border-border/50 text-foreground transition-colors cursor-pointer"
+                    >
+                      🔘 Tap Click
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(15);
+                        playSuccessSound();
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary/80 hover:bg-secondary border border-border/50 text-foreground transition-colors cursor-pointer"
+                    >
+                      ✨ Chime
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(15);
+                        playDeleteSound();
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary/80 hover:bg-secondary border border-border/50 text-foreground transition-colors cursor-pointer"
+                    >
+                      🗑️ Trash Pop
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-between items-center">

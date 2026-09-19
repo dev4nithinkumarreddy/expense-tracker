@@ -3,6 +3,10 @@ import { useExpenseStore } from '../store/useExpenseStore';
 
 let audioCtx: AudioContext | null = null;
 
+export function _setAudioContext(ctx: AudioContext | null) {
+  audioCtx = ctx;
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   if (!audioCtx) {
