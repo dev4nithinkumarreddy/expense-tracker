@@ -1,14 +1,41 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { X, Loader2, ScanLine, Sparkles } from "lucide-react";
+import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { cn, vibrate } from "../lib/utils";
 import Tesseract from 'tesseract.js';
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subDays } from "date-fns";
 import { playSuccessSound } from "../lib/sound";
+
+const DEFAULT_CATEGORY_EMOJIS: Record<string, string> = {
+  Food: '🍔',
+  Dining: '🍽️',
+  Grocery: '🛒',
+  Groceries: '🛒',
+  Shopping: '🛍️',
+  Entertainment: '🎬',
+  Travel: '✈️',
+  Transport: '🚗',
+  Bills: '💡',
+  Utilities: '⚡',
+  Medical: '💊',
+  Health: '🏥',
+  Gym: '🏋️',
+  'Gym supplise': '🏋️',
+  'Gym supplies': '🏋️',
+  EMI: '💳',
+  Income: '💰',
+  Salary: '💵',
+  Investment: '📈',
+  Personal: '👤',
+  Education: '📚',
+  Other: '📦',
+};
+
+function getCategoryEmoji(categoryName: string, customEmojis?: Record<string, string>): string {
+  return customEmojis?.[categoryName] || DEFAULT_CATEGORY_EMOJIS[categoryName] || '🏷️';
+}
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -31,14 +58,13 @@ export function AddExpenseModal({
   const [isScanning, setIsScanning] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
 
-  // Top 4 frequently used categories
-  const quickCategories = useMemo(() => {
+  // Categories sorted with most frequently used first
+  const orderedCategories = useMemo(() => {
     const counts: Record<string, number> = {};
     (expenses || []).forEach((e) => {
       counts[e.category] = (counts[e.category] || 0) + 1;
     });
-    const sorted = [...settings.categories].sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
-    return sorted.slice(0, 4);
+    return [...settings.categories].sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
   }, [expenses, settings.categories]);
 
   useEffect(() => {
@@ -64,20 +90,21 @@ export function AddExpenseModal({
           setDescription("");
         }
 
-        setCategory(settings.categories[0] || "Other");
+        setCategory(orderedCategories[0] || settings.categories[0] || "Other");
         setDate(format(new Date(), 'yyyy-MM-dd'));
         setNotes("");
         setReceiptFile(null);
         setRecurrence('none');
       }
     }
-  }, [isOpen, expenseToEdit, settings.categories]);
+  }, [isOpen, expenseToEdit, settings.categories, orderedCategories]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setReceiptFile(file);
       setIsScanning(true);
+      vibrate(15);
       
       try {
         const result = await Tesseract.recognize(file, 'eng');
@@ -110,7 +137,7 @@ export function AddExpenseModal({
 
   const handleSave = async () => {
     if (!isValid) return;
-    vibrate();
+    vibrate(20);
     setUploading(true);
 
     let receipt_url = expenseToEdit?.receipt_url;
@@ -140,14 +167,14 @@ export function AddExpenseModal({
       return nextDate;
     };
 
-    const isToday = date === format(new Date(), 'yyyy-MM-dd');
+    const isDateToday = date === format(new Date(), 'yyyy-MM-dd');
     let isoDate: string;
     if (expenseToEdit && format(parseISO(expenseToEdit.date), 'yyyy-MM-dd') === date) {
       isoDate = expenseToEdit.date;
     } else {
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
-      isoDate = isToday ? now.toISOString() : new Date(`${date}T${timeStr}`).toISOString();
+      isoDate = isDateToday ? now.toISOString() : new Date(`${date}T${timeStr}`).toISOString();
     }
 
     const expenseData = {
@@ -166,30 +193,38 @@ export function AddExpenseModal({
     } else {
       addExpense(expenseData);
     }
+
     if (settings.soundEnabled) {
       playSuccessSound();
     }
+
     setUploading(false);
     onClose();
   };
+
+  const isTodayDate = date === format(new Date(), 'yyyy-MM-dd');
+  const isYesterdayDate = date === format(subDays(new Date(), 1), 'yyyy-MM-dd');
 
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          {/* Backdrop Blur */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-background/70 backdrop-blur-md"
+            className="fixed inset-0 bg-background/60 backdrop-blur-md"
           />
+
+          {/* Fluid Bottom Sheet Modal */}
           <motion.div
             drag="y"
             dragDirectionLock
             dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.05, bottom: 0.6 }}
+            dragElastic={{ top: 0.04, bottom: 0.6 }}
             onDragEnd={(_e, info: PanInfo) => {
               if (info.offset.y > 100 || info.velocity.y > 350) {
                 vibrate(20);
@@ -201,179 +236,339 @@ export function AddExpenseModal({
             exit={{ y: "100%", opacity: 0 }}
             transition={{
               type: "spring",
-              damping: 26,
-              stiffness: 320,
+              damping: 28,
+              stiffness: 340,
             }}
-            className="glass-card text-card-foreground w-full max-w-sm rounded-t-3xl sm:rounded-3xl border shadow-2xl max-h-[88dvh] flex flex-col z-10 relative"
+            className="bg-card/95 dark:bg-card/90 text-card-foreground w-full max-w-md rounded-t-[32px] sm:rounded-[32px] border border-white/20 dark:border-white/10 shadow-[0_-12px_44px_rgba(0,0,0,0.18)] dark:shadow-[0_-12px_44px_rgba(0,0,0,0.5)] max-h-[90dvh] flex flex-col z-10 relative overflow-hidden backdrop-blur-2xl"
           >
             {/* Grab Handle */}
-            <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto my-2.5 shrink-0 cursor-grab active:cursor-grabbing" />
+            <div className="w-10 h-1.2 bg-muted-foreground/30 rounded-full mx-auto my-2.5 shrink-0 cursor-grab active:cursor-grabbing" />
             
-            <div className="flex justify-between items-center px-4 pb-3 border-b shrink-0">
-              <h2 className="text-lg font-bold tracking-tight">{expenseToEdit ? 'Edit Expense' : 'Add Expense'}</h2>
-              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close modal">
-                <X className="h-5 w-5" aria-hidden="true" />
-              </Button>
-            </div>
-        <div className="p-4 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Amount</label>
-            <div className="relative">
-              <span className="absolute left-3 top-2 text-muted-foreground">{settings.currency}</span>
-              <Input
-                type="text"
-                inputMode="decimal"
-                className="pl-8 text-lg font-medium"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Description</label>
-            <Input
-              placeholder="e.g. Coffee with friends"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-muted-foreground">Category</label>
-              {quickCategories.length > 0 && (
-                <span className="text-[11px] font-medium text-muted-foreground/70 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-primary" /> Quick picks
-                </span>
-              )}
+            {/* Navigation Bar */}
+            <div className="flex justify-between items-center px-5 pt-0.5 pb-2 shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-1 -ml-1 rounded-md"
+              >
+                Cancel
+              </button>
+              <h2 className="text-base font-semibold tracking-tight">
+                {expenseToEdit ? 'Edit Expense' : 'New Expense'}
+              </h2>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!isValid || uploading}
+                className={cn(
+                  "text-sm font-semibold transition-colors px-1 py-1 -mr-1 rounded-md",
+                  isValid && !uploading
+                    ? "text-primary hover:opacity-85 cursor-pointer"
+                    : "text-muted-foreground/40 cursor-not-allowed"
+                )}
+              >
+                Done
+              </button>
             </div>
 
-            {/* Quick Suggestion Chips */}
-            {quickCategories.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
-                {quickCategories.map((c) => {
-                  const isSelected = category === c;
-                  return (
+            {/* Scrollable Form Body */}
+            <div className="p-5 pt-1 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
+
+              {/* 1. Hero Amount Display */}
+              <div className="flex flex-col items-center justify-center pt-2 pb-2">
+                <div className="flex items-baseline justify-center gap-1.5 w-full">
+                  <span className="text-3xl sm:text-4xl font-bold text-muted-foreground/50 select-none">
+                    {settings.currency}
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={amount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                        setAmount(val);
+                      }
+                    }}
+                    className="text-5xl sm:text-6xl font-black tracking-tight bg-transparent text-center focus:outline-none w-auto max-w-[260px] caret-primary text-foreground placeholder:text-muted-foreground/25"
+                  />
+                </div>
+
+                {/* Quick Bump Chips */}
+                <div className="flex items-center gap-1.5 mt-3 overflow-x-auto scrollbar-hide py-0.5">
+                  {[50, 100, 200, 500, 1000].map((preset) => (
                     <button
-                      key={`quick-${c}`}
+                      key={preset}
                       type="button"
                       onClick={() => {
-                        vibrate(10);
-                        setCategory(c);
+                        vibrate(8);
+                        const current = parseFloat(amount) || 0;
+                        setAmount(String(current + preset));
+                      }}
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary/80 hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground border border-border/50 shadow-2xs"
+                    >
+                      +{preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Apple Grouped Inset Card: Merchant & Category */}
+              <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
+                
+                {/* Merchant / Description Row */}
+                <div className="flex items-center gap-3 p-3 px-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <ShoppingBag className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Description</p>
+                    <input
+                      type="text"
+                      placeholder="e.g. Coffee, Groceries, Flight"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="w-full bg-transparent text-sm font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
+                    />
+                  </div>
+
+                  {/* Camera / Receipt Scan Button */}
+                  <label 
+                    className="relative overflow-hidden w-9 h-9 rounded-xl border border-border/60 hover:bg-secondary active:scale-95 flex items-center justify-center shrink-0 cursor-pointer transition-all text-muted-foreground hover:text-foreground bg-background/50"
+                    title="Scan Receipt"
+                  >
+                    {isScanning ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    ) : (
+                      <Camera className="w-4 h-4" />
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment"
+                      className="hidden" 
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                </div>
+
+                {/* Category Selection Row */}
+                <div className="p-3 px-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Category</p>
+                    <span className="text-[11px] font-medium text-primary flex items-center gap-1">
+                      {getCategoryEmoji(category, settings.categoryEmojis)} {category}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
+                    {orderedCategories.map((c) => {
+                      const isSelected = category === c;
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            vibrate(8);
+                            setCategory(c);
+                          }}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none",
+                            isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
+                              : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
+                          )}
+                        >
+                          <span className="text-sm leading-none">{getCategoryEmoji(c, settings.categoryEmojis)}</span>
+                          <span>{c}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* 3. Apple Grouped Inset Card: Date, Recurrence & Notes */}
+              <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
+                
+                {/* Date Row */}
+                <div className="flex items-center justify-between p-3 px-3.5 gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Date</p>
+                      <p className="text-xs font-semibold text-foreground">
+                        {isTodayDate ? 'Today' : isYesterdayDate ? 'Yesterday' : format(parseISO(date), 'MMM d, yyyy')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(8);
+                        setDate(format(new Date(), 'yyyy-MM-dd'));
                       }}
                       className={cn(
-                        "px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-all border",
-                        isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20 scale-[1.03]"
-                          : "bg-secondary/70 hover:bg-secondary text-foreground/80 border-border/70"
+                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border",
+                        isTodayDate
+                          ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                          : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
                       )}
                     >
-                      {c}
+                      Today
                     </button>
-                  );
-                })}
-              </div>
-            )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(8);
+                        setDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border",
+                        isYesterdayDate
+                          ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                          : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
+                      )}
+                    >
+                      Yesterday
+                    </button>
+                    <label className="relative px-2 py-1 rounded-lg text-xs font-medium bg-background/50 hover:bg-background border border-border/50 text-muted-foreground cursor-pointer flex items-center gap-1">
+                      <span>Custom</span>
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    </label>
+                  </div>
+                </div>
 
-            {/* Category Grid */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-32 overflow-y-auto p-1 scrollbar-hide">
-              {settings.categories.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => {
-                    vibrate(8);
-                    setCategory(c);
-                  }}
-                  className={cn(
-                    "px-2 py-1.5 rounded-md text-xs font-medium transition-colors border shadow-sm truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                    category === c 
-                      ? "bg-primary border-primary text-primary-foreground" 
-                      : "bg-secondary border-border hover:bg-secondary/80 text-foreground"
-                  )}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Date</label>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Recurrence</label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-              value={recurrence}
-              onChange={(e) => setRecurrence(e.target.value as any)}
-            >
-              <option value="none" className="bg-background">None</option>
-              <option value="daily" className="bg-background">Daily</option>
-              <option value="weekly" className="bg-background">Weekly</option>
-              <option value="monthly" className="bg-background">Monthly</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Notes (Optional)</label>
-            <Input
-              placeholder="Add more details..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Receipt (Optional)</label>
-            <div className="flex items-center gap-4">
-              {expenseToEdit?.receipt_url && !receiptFile && (
-                <img src={expenseToEdit.receipt_url} alt="Receipt" className="w-12 h-12 object-cover rounded-md border" />
-              )}
-              <label className="relative overflow-hidden flex items-center justify-center gap-2 px-4 py-2.5 border border-border/80 rounded-xl cursor-pointer hover:bg-secondary/50 text-sm font-medium transition-all w-full bg-secondary/20">
-                {isScanning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
-                    <span className="text-primary font-medium text-xs sm:text-sm">Scanning receipt...</span>
-                    {/* Animated sweeping laser line */}
-                    <motion.div
-                      initial={{ x: "-100%" }}
-                      animate={{ x: "200%" }}
-                      transition={{ repeat: Infinity, duration: 1.3, ease: "easeInOut" }}
-                      className="absolute inset-y-0 w-20 bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none"
+                {/* Recurrence Row */}
+                <div className="flex items-center justify-between p-3 px-3.5 gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Repeat className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Repeat</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center p-0.5 rounded-xl bg-background/60 border border-border/50">
+                    {(['none', 'daily', 'weekly', 'monthly'] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => {
+                          vibrate(8);
+                          setRecurrence(r);
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-all",
+                          recurrence === r
+                            ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Notes Row */}
+                <div className="flex items-center gap-3 p-3 px-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
+                    <input
+                      type="text"
+                      placeholder="Add optional details..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full bg-transparent text-xs font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
                     />
-                  </>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* 4. Scanning / Attached Receipt Card */}
+              {isScanning && (
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-primary/10 border border-primary/30 flex items-center gap-3 animate-in fade-in">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-primary">Scanning Receipt with AI OCR...</p>
+                    <p className="text-[10px] text-primary/70">Extracting amount & merchant</p>
+                  </div>
+                  <motion.div
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "200%" }}
+                    transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                    className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none"
+                  />
+                </div>
+              )}
+
+              {(receiptFile || (expenseToEdit?.receipt_url && !receiptFile)) && !isScanning && (
+                <div className="flex items-center justify-between p-2.5 px-3 rounded-2xl bg-secondary/35 border border-border/40">
+                  <div className="flex items-center gap-2.5 truncate">
+                    {expenseToEdit?.receipt_url && !receiptFile ? (
+                      <img src={expenseToEdit.receipt_url} alt="Receipt" className="w-8 h-8 rounded-lg object-cover border shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                        IMG
+                      </div>
+                    )}
+                    <span className="text-xs font-medium truncate text-foreground">
+                      {receiptFile ? receiptFile.name : 'Receipt attached'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptFile(null)}
+                    className="w-7 h-7 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center transition-colors shrink-0"
+                    aria-label="Remove receipt"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* 5. Primary Save Action Button */}
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                type="button"
+                onClick={handleSave}
+                disabled={!isValid || uploading}
+                className={cn(
+                  "w-full py-3.5 rounded-2xl font-bold text-sm tracking-tight transition-all shadow-md flex items-center justify-center gap-2 select-none mt-2",
+                  isValid && !uploading
+                    ? "bg-primary text-primary-foreground shadow-primary/25 hover:opacity-95 active:scale-[0.99] cursor-pointer"
+                    : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
+                )}
+              >
+                {uploading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
                 ) : (
                   <>
-                    <ScanLine className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="truncate text-xs sm:text-sm">{receiptFile ? receiptFile.name : 'Scan Receipt'}</span>
+                    {expenseToEdit ? 'Save Changes' : 'Add Expense'}
+                    {!isNaN(parsedAmount) && parsedAmount > 0 && (
+                      <span className="opacity-90">• {settings.currency}{parsedAmount.toLocaleString()}</span>
+                    )}
                   </>
                 )}
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  capture="environment"
-                  className="hidden" 
-                  onChange={handleFileChange}
-                />
-              </label>
+              </motion.button>
+
             </div>
-          </div>
-          <Button 
-            className="w-full mt-4" 
-            size="lg" 
-            onClick={handleSave}
-            disabled={!isValid || uploading}
-          >
-            {uploading ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</>
-            ) : (
-              expenseToEdit ? 'Save Changes' : 'Save Expense'
-            )}
-          </Button>
-        </div>
           </motion.div>
         </div>
       )}
