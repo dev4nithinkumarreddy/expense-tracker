@@ -91,6 +91,8 @@ export interface Settings {
   categoryEmojis?: Record<string, string>;
   currentStreak?: number;
   lastLogDate?: string;
+  userName?: string;
+  soundEnabled?: boolean;
 }
 
 interface ExpenseState {
@@ -176,7 +178,9 @@ export const useExpenseStore = create<ExpenseState>()(
         ],
         privacyMode: true,
         theme: 'default',
-        categoryEmojis: {}
+        categoryEmojis: {},
+        userName: '',
+        soundEnabled: false
       },
       wishlistItems: [],
       lastActiveMonth: new Date().toISOString().slice(0, 7), // YYYY-MM

@@ -1,117 +1,166 @@
-import { useState } from 'react';
-import { useSwipeable } from 'react-swipeable';
-import { motion } from 'framer-motion';
+import { useState, useRef } from 'react';
+import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
 import { Pencil, Trash2, Image as ImageIcon } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { cn } from '../lib/utils';
+import { cn, vibrate } from '../lib/utils';
 import { formatCurrency } from '../lib/formatCurrency';
 import { useExpenseStore, type Expense } from '../store/useExpenseStore';
+import { playDeleteSound } from '../lib/sound';
 
 interface SwipeableExpenseItemProps {
   expense: Expense;
   isIncome: boolean;
   onEdit: (expense: Expense) => void;
+  onViewReceipt?: (url: string, description?: string, amount?: number) => void;
 }
 
-export function SwipeableExpenseItem({ expense, isIncome, onEdit }: SwipeableExpenseItemProps) {
-  const { settings, deleteExpense } = useExpenseStore();
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [isDeleting, setIsDeleting] = useState(false);
+// Apple exponential momentum projection: projects landing point based on velocity
+function projectVelocity(velocity: number, decelerationRate = 0.998) {
+  return (velocity / 1000) * decelerationRate / (1 - decelerationRate);
+}
 
-  // Determine actions based on swipe distance
-  const threshold = 80;
-  
-  const handlers = useSwipeable({
-    onSwiping: (eventData) => {
-      // Only allow horizontal swipes
-      if (Math.abs(eventData.deltaX) > Math.abs(eventData.deltaY)) {
-        // limit swipe visually
-        const newOffset = Math.max(-120, Math.min(120, eventData.deltaX));
-        setSwipeOffset(newOffset);
-      }
-    },
-    onSwiped: (eventData) => {
-      if (eventData.deltaX < -threshold) {
-        // Swiped left - Delete
-        setIsDeleting(true);
-        setTimeout(() => deleteExpense(expense.id), 300); // Wait for animation
-      } else if (eventData.deltaX > threshold) {
-        // Swiped right - Edit
-        onEdit(expense);
-        setSwipeOffset(0);
-      } else {
-        // Not far enough, spring back
-        setSwipeOffset(0);
-      }
-    },
-    trackMouse: true,
-    preventScrollOnSwipe: true,
-  });
+export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt }: SwipeableExpenseItemProps) {
+  const { settings, deleteExpense } = useExpenseStore();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const hasHapticFired = useRef(false);
+
+  const x = useMotionValue(0);
+
+  // Smooth continuous opacity and scale for action indicators without React re-renders
+  const editOpacity = useTransform(x, [15, 60], [0, 1]);
+  const editScale = useTransform(x, [15, 60], [0.85, 1.05]);
+  const deleteOpacity = useTransform(x, [-15, -60], [0, 1]);
+  const deleteScale = useTransform(x, [-15, -60], [0.85, 1.05]);
+
+  const handleDrag = () => {
+    const currentX = x.get();
+    if (Math.abs(currentX) > 65 && !hasHapticFired.current) {
+      vibrate(15);
+      hasHapticFired.current = true;
+    } else if (Math.abs(currentX) < 40) {
+      hasHapticFired.current = false;
+    }
+  };
+
+  const handleDragEnd = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    hasHapticFired.current = false;
+    const projectedX = info.offset.x + projectVelocity(info.velocity.x);
+
+    // Left swipe = Delete
+    if (projectedX < -70 || info.offset.x < -75) {
+      setIsDeleting(true);
+      vibrate(25);
+      if (settings.soundEnabled) playDeleteSound();
+      setTimeout(() => deleteExpense(expense.id), 250);
+    } 
+    // Right swipe = Edit
+    else if (projectedX > 70 || info.offset.x > 75) {
+      vibrate(20);
+      onEdit(expense);
+    }
+  };
 
   if (isDeleting) {
     return (
       <motion.div 
-        initial={{ opacity: 1, height: 'auto' }}
-        animate={{ opacity: 0, height: 0, scale: 0.9 }}
-        transition={{ duration: 0.3 }}
+        initial={{ opacity: 1, height: 'auto', marginBottom: 12 }}
+        animate={{ opacity: 0, height: 0, marginBottom: 0, scale: 0.95 }}
+        transition={{ type: 'spring', bounce: 0, duration: 0.28 }}
         className="overflow-hidden"
       />
     );
   }
 
-  // Background colors based on swipe direction
-  const bgClass = swipeOffset < 0 
-    ? "bg-destructive/10 text-destructive" 
-    : swipeOffset > 0 
-      ? "bg-primary/10 text-primary" 
-      : "bg-card";
-
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border shadow-sm", bgClass)}>
+    <div className="relative overflow-hidden rounded-2xl border border-border/70 shadow-sm bg-card select-none">
       {/* Background Actions */}
-      <div className="absolute inset-0 flex items-center justify-between px-6 font-medium">
-        <div className="flex items-center gap-2 opacity-0 transition-opacity" style={{ opacity: swipeOffset > 30 ? 1 : 0 }}>
-          <Pencil className="w-5 h-5" />
+      <div className="absolute inset-0 flex items-center justify-between px-5 font-medium">
+        <motion.div 
+          style={{ opacity: editOpacity, scale: editScale }} 
+          className="flex items-center gap-2 text-primary font-semibold text-sm"
+        >
+          <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
+            <Pencil className="w-4 h-4 text-primary" />
+          </div>
           <span>Edit</span>
-        </div>
-        <div className="flex items-center gap-2 opacity-0 transition-opacity" style={{ opacity: swipeOffset < -30 ? 1 : 0 }}>
+        </motion.div>
+
+        <motion.div 
+          style={{ opacity: deleteOpacity, scale: deleteScale }} 
+          className="flex items-center gap-2 text-destructive font-semibold text-sm"
+        >
           <span>Delete</span>
-          <Trash2 className="w-5 h-5" />
-        </div>
+          <div className="w-8 h-8 rounded-full bg-destructive/15 flex items-center justify-center">
+            <Trash2 className="w-4 h-4 text-destructive" />
+          </div>
+        </motion.div>
       </div>
 
       {/* Foreground Draggable Item */}
       <motion.div
-        {...handlers}
-        animate={{ x: swipeOffset }}
-        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        drag="x"
+        dragDirectionLock
+        dragConstraints={{ left: -110, right: 110 }}
+        dragElastic={0.55} // Apple rubberband resistance constant c=0.55
+        dragTransition={{ bounceStiffness: 400, bounceDamping: 35 }}
+        style={{ x }}
+        onDrag={handleDrag}
+        onDragEnd={handleDragEnd}
         className={cn(
-          "relative flex justify-between items-center p-3 bg-card h-full w-full touch-pan-y",
+          "relative flex justify-between items-center p-3.5 bg-card/95 backdrop-blur-md h-full w-full touch-pan-y cursor-grab active:cursor-grabbing",
           isIncome && "border-green-500/30 bg-green-500/5"
         )}
       >
         <div className="flex items-center gap-3">
-          <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm shrink-0", isIncome ? "bg-green-500/20 text-green-600 font-bold" : "bg-primary/10 text-primary/70 font-semibold")}>
+          <div className={cn(
+            "w-10 h-10 rounded-2xl flex items-center justify-center text-sm shrink-0 shadow-xs", 
+            isIncome ? "bg-green-500/15 text-green-600 font-bold" : "bg-primary/10 text-primary font-semibold"
+          )}>
             {isIncome ? "$" : (settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase())}
           </div>
           <div className="overflow-hidden">
             <div className="flex items-center gap-2">
-              <p className="font-medium text-sm leading-none truncate">{expense.description}</p>
+              <p className="font-semibold text-sm leading-tight truncate">{expense.description}</p>
               {expense.receipt_url && (
-                <a href={expense.receipt_url} target="_blank" rel="noreferrer" className="text-primary hover:opacity-80 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <ImageIcon className="w-4 h-4" />
-                </a>
+                onViewReceipt ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewReceipt(expense.receipt_url!, expense.description, expense.amount);
+                    }}
+                    className="text-primary hover:opacity-80 p-0.5 shrink-0 transition-opacity"
+                    aria-label="View receipt"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <a 
+                    href={expense.receipt_url} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-primary hover:opacity-80 shrink-0" 
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </a>
+                )
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1 truncate">
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {expense.category} {expense.notes && `• ${expense.notes}`}
             </p>
           </div>
         </div>
+
         <div className="flex items-center gap-1 sm:gap-3 pl-2">
-          <span className={cn("font-semibold text-sm whitespace-nowrap", isIncome ? "text-green-600" : "")}>
+          <span className={cn(
+            "font-semibold text-sm whitespace-nowrap display-number", 
+            isIncome ? "text-green-600" : ""
+          )}>
             {isIncome ? "+" : ""}{formatCurrency(expense.amount, settings.currency)}
           </span>
+
           {/* Desktop Hover Actions */}
           <div className="hidden md:flex opacity-0 md:hover:opacity-100 group-hover:opacity-100 transition-opacity">
             <Button 

@@ -13,6 +13,7 @@ import { queryClient } from "./lib/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "sonner";
 import { AnimatedRoutes } from "./components/AnimatedRoutes";
+import { motion } from "framer-motion";
 
 import { vibrate } from "./lib/utils";
 
@@ -115,16 +116,19 @@ export default function App() {
             </main>
         
         {/* Global Floating Action Button */}
-        <button 
+        <motion.button 
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: "spring", stiffness: 450, damping: 20 }}
           onClick={() => {
-            vibrate();
+            vibrate(20);
             setModalOpen(true);
           }}
           aria-label="Add new expense"
-          className="fixed bottom-24 right-4 sm:right-1/2 sm:translate-x-[180px] w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform z-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          className="fixed bottom-24 right-4 sm:right-1/2 sm:translate-x-[180px] w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-xl flex items-center justify-center z-50 border border-white/20 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none select-none"
         >
           <Plus className="w-6 h-6" aria-hidden="true" />
-        </button>
+        </motion.button>
         <AddExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
 
         <ReloadPrompt />

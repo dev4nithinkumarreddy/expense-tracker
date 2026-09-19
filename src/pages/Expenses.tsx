@@ -1,20 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Download } from "lucide-react";
+import { Search, Download, Paperclip, Sparkles, Repeat } from "lucide-react";
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
 import { Button } from "../components/ui/button";
+import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
+import { PullToRefresh } from "../components/ui/PullToRefresh";
+import { vibrate } from "../lib/utils";
+
+type QuickFilter = 'all' | 'receipt' | 'high_spend' | 'recurring';
 
 export default function Expenses() {
-  const { expenses, settings } = useExpenseStore();
+  const { expenses, settings, fetchCloudData } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<string>("this_month");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
+  const [activeReceipt, setActiveReceipt] = useState<{ url: string; title?: string; amount?: number } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
@@ -22,6 +29,10 @@ export default function Expenses() {
   }, [searchTerm]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
+
+  const expenseOrderMap = useMemo(() => {
+    return new Map(expenses.map((e, idx) => [e.id, idx]));
+  }, [expenses]);
 
   const filteredExpenses = expenses
     .filter(e => {
@@ -43,9 +54,23 @@ export default function Expenses() {
         matchesDate = isAfter(expenseDate, subDays(new Date(), 7));
       }
 
-      return matchesSearch && matchesCategory && matchesDate && matchesMin && matchesMax;
+      let matchesQuick = true;
+      if (quickFilter === 'receipt') {
+        matchesQuick = !!e.receipt_url;
+      } else if (quickFilter === 'high_spend') {
+        matchesQuick = e.amount >= 1000;
+      } else if (quickFilter === 'recurring') {
+        matchesQuick = !!((e as any).is_recurring || e.category === 'Bills' || (e.notes && e.notes.toLowerCase().includes('sub')));
+      }
+
+      return matchesSearch && matchesCategory && matchesDate && matchesMin && matchesMax && matchesQuick;
     })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => {
+      const timeDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      // Tie-breaker: if dates are identical, show the one added later on top
+      return (expenseOrderMap.get(b.id) ?? 0) - (expenseOrderMap.get(a.id) ?? 0);
+    });
 
   // Group by date
   const grouped = filteredExpenses.reduce((acc, expense) => {
@@ -135,6 +160,57 @@ export default function Expenses() {
           />
         </div>
 
+        {/* Quick Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs">
+          <button
+            type="button"
+            onClick={() => { vibrate(10); setQuickFilter('all'); }}
+            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+              quickFilter === 'all' 
+                ? 'bg-primary text-primary-foreground shadow-xs' 
+                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            All Items
+          </button>
+          <button
+            type="button"
+            onClick={() => { vibrate(10); setQuickFilter('receipt'); }}
+            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+              quickFilter === 'receipt' 
+                ? 'bg-primary text-primary-foreground shadow-xs' 
+                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+            Has Receipt
+          </button>
+          <button
+            type="button"
+            onClick={() => { vibrate(10); setQuickFilter('high_spend'); }}
+            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+              quickFilter === 'high_spend' 
+                ? 'bg-primary text-primary-foreground shadow-xs' 
+                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            High Spend &gt;₹1k
+          </button>
+          <button
+            type="button"
+            onClick={() => { vibrate(10); setQuickFilter('recurring'); }}
+            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+              quickFilter === 'recurring' 
+                ? 'bg-primary text-primary-foreground shadow-xs' 
+                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Repeat className="w-3.5 h-3.5" />
+            Recurring
+          </button>
+        </div>
+
         {/* Category Filter Pills */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
           <Button
@@ -164,40 +240,51 @@ export default function Expenses() {
         </div>
       </header>
 
-      <div className="space-y-6 pb-24">
-        {Object.entries(grouped).length === 0 ? (
-          <div className="text-center py-16 bg-card border rounded-xl shadow-sm flex flex-col items-center mt-4">
-            <div className="bg-primary/10 p-4 rounded-full mb-4 text-primary">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>
-            </div>
-            <p className="text-foreground text-base font-semibold">No expenses found</p>
-            <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-[250px]">Try adjusting your search or filters to find what you're looking for.</p>
-          </div>
-        ) : (
-          Object.entries(grouped).map(([dateStr, dayExpenses]) => (
-            <div key={dateStr}>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3 sticky top-0 bg-background/95 backdrop-blur py-2 z-10">
-                {format(parseISO(dateStr), 'EEEE, MMMM d')}
-              </h3>
-              <div className="space-y-3">
-                {dayExpenses.map(expense => {
-                  const isIncome = expense.category === 'Income';
-                  return (
-                    <SwipeableExpenseItem 
-                      key={expense.id} 
-                      expense={expense} 
-                      isIncome={isIncome} 
-                      onEdit={handleEdit} 
-                    />
-                  );
-                })}
+      <PullToRefresh onRefresh={fetchCloudData}>
+        <div className="space-y-6 pb-24">
+          {Object.entries(grouped).length === 0 ? (
+            <div className="text-center py-16 bg-card border rounded-xl shadow-sm flex flex-col items-center mt-4">
+              <div className="bg-primary/10 p-4 rounded-full mb-4 text-primary">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>
               </div>
+              <p className="text-foreground text-base font-semibold">No expenses found</p>
+              <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-[250px]">Try adjusting your search or filters to find what you're looking for.</p>
             </div>
-          ))
-        )}
-      </div>
+          ) : (
+            Object.entries(grouped).map(([dateStr, dayExpenses]) => (
+              <div key={dateStr}>
+                <h3 className="text-sm font-medium text-muted-foreground mb-3 sticky top-0 bg-background/95 backdrop-blur py-2 z-10">
+                  {format(parseISO(dateStr), 'EEEE, MMMM d')}
+                </h3>
+                <div className="space-y-3">
+                  {dayExpenses.map(expense => {
+                    const isIncome = expense.category === 'Income';
+                    return (
+                      <SwipeableExpenseItem 
+                        key={expense.id} 
+                        expense={expense} 
+                        isIncome={isIncome} 
+                        onEdit={handleEdit}
+                        onViewReceipt={(url, title, amount) => setActiveReceipt({ url, title, amount })}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </PullToRefresh>
 
       <AddExpenseModal isOpen={isModalOpen} onClose={handleCloseModal} expenseToEdit={expenseToEdit} />
+
+      <ReceiptLightbox
+        imageUrl={activeReceipt?.url || null}
+        title={activeReceipt?.title}
+        amount={activeReceipt?.amount}
+        currency={settings.currency}
+        onClose={() => setActiveReceipt(null)}
+      />
     </div>
   );
 }

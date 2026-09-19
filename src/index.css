@@ -76,9 +76,12 @@
   }
   html, body {
     @apply bg-background text-foreground overflow-x-hidden;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     background-image: 
-      radial-gradient(circle at 0% 0%, hsl(var(--primary) / 0.1), transparent 30%),
-      radial-gradient(circle at 100% 100%, hsl(var(--sunset-end) / 0.1), transparent 30%);
+      radial-gradient(circle at 0% 0%, hsl(var(--primary) / 0.08), transparent 35%),
+      radial-gradient(circle at 100% 100%, hsl(var(--sunset-end) / 0.08), transparent 35%);
     background-attachment: fixed;
   }
 }
@@ -93,7 +96,63 @@
   }
   
   .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border shadow-2xl;
+    background-color: hsl(var(--card) / 0.75);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid hsl(var(--border) / 0.7);
+    border-top: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+  }
+
+  .dark .glass-card {
+    background-color: hsl(var(--card) / 0.72);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.45);
+  }
+
+  .glass-toolbar {
+    background-color: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 1px solid rgba(255, 255, 255, 0.4);
+  }
+
+  .dark .glass-toolbar {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .tap-feedback {
+    transition: transform 100ms ease-out;
+  }
+  .tap-feedback:active {
+    transform: scale(0.97);
+  }
+
+  .display-number {
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .display-title {
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-card, .glass-toolbar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: hsl(var(--card)) !important;
   }
 }
 

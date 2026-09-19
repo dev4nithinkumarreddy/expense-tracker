@@ -3,11 +3,12 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
 import { vibrate } from "../lib/utils";
+import { playSuccessSound } from "../lib/sound";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
 interface CategoryRowItemProps {
@@ -215,7 +216,17 @@ export default function Settings() {
           <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Preferences</h3>
           <Card>
             <CardContent className="p-4 space-y-4">
-              <div className="flex justify-between items-center">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Display Name</label>
+                <Input 
+                  placeholder="e.g. Nithin"
+                  value={settings.userName || ""}
+                  onChange={(e) => updateSettings({ userName: e.target.value })}
+                  className="max-w-xs bg-background"
+                />
+              </div>
+
+              <div className="flex justify-between items-center pt-1 border-t">
                 <span className="text-sm font-medium">Dark Mode</span>
                 <Button 
                   variant="outline" 
@@ -223,6 +234,37 @@ export default function Settings() {
                   onClick={() => updateSettings({ darkMode: !settings.darkMode })}
                 >
                   {settings.darkMode ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                </Button>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">Haptic & Sound FX</span>
+                  <span className="text-xs text-muted-foreground">Apple-style clicks and celebration chimes</span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-1.5"
+                  onClick={() => {
+                    const nextVal = !settings.soundEnabled;
+                    updateSettings({ soundEnabled: nextVal });
+                    if (nextVal) {
+                      setTimeout(() => playSuccessSound(), 50);
+                    }
+                  }}
+                >
+                  {settings.soundEnabled ? (
+                    <>
+                      <Volume2 className="h-4 w-4 text-primary" />
+                      <span>On</span>
+                    </>
+                  ) : (
+                    <>
+                      <VolumeX className="h-4 w-4 text-muted-foreground" />
+                      <span>Off</span>
+                    </>
+                  )}
                 </Button>
               </div>
 

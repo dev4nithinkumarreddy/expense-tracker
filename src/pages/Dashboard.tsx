@@ -5,11 +5,17 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { calculateStreak } from "../lib/streak";
+import { motion, AnimatePresence } from "framer-motion";
+import { BudgetRing } from "../components/ui/BudgetRing";
+import { AnimatedNumber } from "../components/ui/AnimatedNumber";
+import { PullToRefresh } from "../components/ui/PullToRefresh";
+import { playSuccessSound } from "../lib/sound";
+import { toast } from "sonner";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-4">
@@ -35,18 +41,53 @@ const DashboardSkeleton = () => (
 );
 
 export default function Dashboard() {
-  const { settings, addExpense, updateSettings } = useExpenseStore();
+  const { settings, addExpense, updateSettings, session, subscriptions, fetchCloudData } = useExpenseStore();
   const { expenses, bills, budgets, isLoading } = useDashboardData();
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [incomeSource, setIncomeSource] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
+  const [dismissedAlertId, setDismissedAlertId] = useState<string | null>(null);
+
+  const displayName = useMemo(() => {
+    if (settings.userName?.trim()) return settings.userName.trim();
+    const fullName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name;
+    if (fullName) return fullName.split(' ')[0];
+    const emailPrefix = session?.user?.email?.split('@')[0];
+    if (emailPrefix) {
+      return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+    }
+    return "Nithin";
+  }, [settings.userName, session]);
+
+  const currentStreak = useMemo(() => calculateStreak(expenses) || settings.currentStreak || 0, [expenses, settings.currentStreak]);
+
+  const upcomingAlert = useMemo(() => {
+    const now = new Date();
+    const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+    const dueSub = (subscriptions || []).find(s => {
+      if (!s.next_billing_date) return false;
+      const d = new Date(s.next_billing_date);
+      return d <= in48h && d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+    });
+
+    if (dueSub && dueSub.id !== dismissedAlertId) {
+      return {
+        id: dueSub.id,
+        name: dueSub.name,
+        amount: dueSub.amount,
+        category: dueSub.category || 'Bills',
+        dueDate: dueSub.next_billing_date,
+      };
+    }
+    return null;
+  }, [subscriptions, dismissedAlertId]);
 
   if (isLoading) {
     return <DashboardSkeleton />;
   }
 
   const quickAdds = settings.quickAdds || [];
-  const currentStreak = useMemo(() => calculateStreak(expenses) || settings.currentStreak || 0, [expenses, settings.currentStreak]);
 
   const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
   const incomeRecords = currentMonthRecords.filter(e => e.category === 'Income');
@@ -68,7 +109,11 @@ export default function Dashboard() {
   // Recent expenses (last 5, showing latest non-income transactions across month boundaries)
   const recentExpenses = [...expenses]
     .filter(e => e.category !== 'Income')
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .sort((a, b) => {
+      const timeDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return expenses.indexOf(b) - expenses.indexOf(a);
+    })
     .slice(0, 5);
 
   const handleAddIncome = () => {
@@ -85,120 +130,180 @@ export default function Dashboard() {
     setIsIncomeModalOpen(false);
   };
 
-  // Generate smart insight
-  let insightText = "No expenses logged this month yet.";
-  if (currentMonthExpenses.length > 0) {
-    const categoryTotals = currentMonthExpenses.reduce((acc, exp) => {
-      acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    let topCategory = "";
-    let maxSpend = 0;
-    Object.entries(categoryTotals).forEach(([cat, amount]) => {
-      if (amount > maxSpend) {
-        maxSpend = amount;
-        topCategory = cat;
-      }
-    });
-
-    if (isOverBudget) {
-      insightText = `You are over budget! You've spent the most on ${topCategory} (${settings.currency}${maxSpend.toLocaleString()}).`;
-    } else if (maxSpend > 0) {
-      insightText = `You've spent the most on ${topCategory} (${settings.currency}${maxSpend.toLocaleString()}). You have ${settings.currency}${remaining.toLocaleString()} left.`;
-    } else {
-      insightText = `You've made ${currentMonthExpenses.length} transactions this month. Keep tracking!`;
-    }
-  }
-
   return (
-    <div className="space-y-6 pb-20">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
-          <p className="text-muted-foreground text-sm">
-            {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </p>
-        </div>
-        
-        {currentStreak > 0 ? (
-          <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full font-medium text-sm border border-orange-500/20 shadow-sm animate-in fade-in zoom-in">
-            <span>🔥</span>
-            <span>{currentStreak} Day Streak</span>
-          </div>
-        ) : null}
-      </div>
-
-      <header className="flex justify-end items-center">
-        <button 
-          onClick={() => updateSettings({ privacyMode: !settings.privacyMode })}
-          className="p-2 text-muted-foreground hover:text-foreground transition-colors bg-secondary/50 rounded-full"
-        >
-          {settings.privacyMode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-        </button>
-      </header>
-
-      {/* Main Stats Card */}
-      <Card className={cn("border-none shadow-md overflow-hidden relative", isOverBudget ? "bg-destructive/10" : "bg-primary/5")}>
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-        <CardContent className="p-6">
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
-                Budget
-                <button 
-                  onClick={() => { vibrate(); setIsIncomeModalOpen(true); }}
-                  className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground rounded-full flex items-center justify-center transition-colors"
-                  aria-label="Add Extra Income"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              </p>
-              <p className="text-lg font-semibold flex items-baseline gap-1">
-                {formatCurrency(settings.monthlyIncome, settings.currency, settings.privacyMode)}
-                {!settings.privacyMode && extraIncome > 0 && (
-                  <span className="text-xs text-green-600 font-medium">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
-                )}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground mb-1">Bills</p>
-              <p className="text-lg font-semibold">{formatCurrency(totalBills, settings.currency)}</p>
-            </div>
+    <PullToRefresh onRefresh={fetchCloudData}>
+      <div className="space-y-6 pb-20">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold display-title leading-tight truncate">
+              {displayName}
+            </h1>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </p>
           </div>
           
-          <div className="flex justify-between items-end mb-2">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">Remaining</p>
-              <h2 className={cn("text-3xl font-bold tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
-                {formatCurrency(remaining, settings.currency)}
-              </h2>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground mb-1">Spent</p>
-              <p className="text-xl font-semibold">{formatCurrency(totalExpenses, settings.currency)}</p>
-            </div>
-          </div>
+          <div className="flex items-center gap-2">
+            {currentStreak > 0 ? (
+              <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full font-medium text-sm border border-orange-500/20 shadow-xs animate-in fade-in zoom-in">
+                <span>🔥</span>
+                <span>{currentStreak} Day Streak</span>
+              </div>
+            ) : null}
 
-          <div className="space-y-2 mt-4">
-            <div className="flex justify-between text-xs font-medium">
-              <span>Budget Used</span>
-              <span className={cn(budgetUsedPercent >= 90 ? "text-destructive" : "text-muted-foreground")}>{budgetUsedPercent}%</span>
-            </div>
-            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-              <div 
-                className={cn("h-full rounded-full transition-all duration-500", budgetUsedPercent >= 90 ? "bg-destructive" : budgetUsedPercent >= 75 ? "bg-warning" : "bg-primary")}
-                style={{ width: `${budgetUsedPercent}%` }}
-              />
-            </div>
+            <button 
+              onClick={() => {
+                vibrate(15);
+                updateSettings({ privacyMode: !settings.privacyMode });
+              }}
+              aria-label={settings.privacyMode ? "Show budget" : "Hide budget"}
+              className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none"
+            >
+              {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
-          {isOverBudget && (
-            <p className="text-xs text-destructive mt-3 font-medium flex items-center">
-              ⚠️ You exceeded your monthly budget.
-            </p>
+        </div>
+
+        {/* Upcoming Due Date Pill */}
+        <AnimatePresence>
+          {upcomingAlert && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+              className="flex items-center justify-between gap-3 p-3 px-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 backdrop-blur-md shadow-xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">
+                    ⚡ {upcomingAlert.name} due soon
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {formatCurrency(upcomingAlert.amount, settings.currency)} • Due {format(parseISO(upcomingAlert.dueDate), 'MMM d')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs px-3 rounded-full shadow-xs bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => {
+                    vibrate(20);
+                    if (settings.soundEnabled) playSuccessSound();
+                    addExpense({
+                      amount: upcomingAlert.amount,
+                      description: `${upcomingAlert.name} Payment`,
+                      category: upcomingAlert.category,
+                      date: new Date().toISOString(),
+                      notes: "Paid via Upcoming Due Alert"
+                    });
+                    toast.success(`${upcomingAlert.name} marked as paid!`);
+                    setDismissedAlertId(upcomingAlert.id);
+                  }}
+                >
+                  Pay
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-full"
+                  onClick={() => {
+                    vibrate(10);
+                    setDismissedAlertId(upcomingAlert.id);
+                  }}
+                  aria-label="Dismiss alert"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </motion.div>
           )}
-        </CardContent>
-      </Card>
+        </AnimatePresence>
+
+        {/* Main Stats Card */}
+        <Card className={cn("border-none shadow-md overflow-hidden relative", isOverBudget ? "bg-destructive/10" : "bg-primary/5")}>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+          <CardContent className="p-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
+                  Budget
+                  <button 
+                    onClick={() => { vibrate(15); setIsIncomeModalOpen(true); }}
+                    className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground active:scale-90 rounded-full flex items-center justify-center transition-all duration-100"
+                    aria-label="Add Extra Income"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </p>
+                <p className="text-lg font-semibold flex items-baseline gap-1 display-number">
+                  <AnimatedNumber
+                    value={settings.monthlyIncome}
+                    formatFn={(val) => formatCurrency(val, settings.currency, settings.privacyMode)}
+                  />
+                  {!settings.privacyMode && extraIncome > 0 && (
+                    <span className="text-xs text-green-600 font-medium">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
+                  )}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground mb-1">Bills</p>
+                <p className="text-lg font-semibold display-number">
+                  <AnimatedNumber
+                    value={totalBills}
+                    formatFn={(val) => formatCurrency(val, settings.currency)}
+                  />
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Remaining</p>
+                <h2 className={cn("text-3xl font-bold display-number tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
+                  <AnimatedNumber
+                    value={remaining}
+                    formatFn={(val) => formatCurrency(val, settings.currency)}
+                  />
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Spent: <span className="font-semibold text-foreground"><AnimatedNumber value={totalExpenses} formatFn={(val) => formatCurrency(val, settings.currency)} /></span>
+                </p>
+              </div>
+              <div className="shrink-0 flex items-center justify-center">
+                <BudgetRing
+                  value={budgetUsedPercent}
+                  size={76}
+                  strokeWidth={7}
+                  isOverBudget={isOverBudget}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 mt-4">
+              <div className="flex justify-between text-xs font-medium">
+                <span>Budget Used</span>
+                <span className={cn(budgetUsedPercent >= 90 ? "text-destructive" : "text-muted-foreground")}>{budgetUsedPercent}%</span>
+              </div>
+              <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                <div 
+                  className={cn("h-full rounded-full transition-all duration-500", budgetUsedPercent >= 90 ? "bg-destructive" : budgetUsedPercent >= 75 ? "bg-warning" : "bg-primary")}
+                  style={{ width: `${budgetUsedPercent}%` }}
+                />
+              </div>
+            </div>
+            {isOverBudget && (
+              <p className="text-xs text-destructive mt-3 font-medium flex items-center">
+                ⚠️ You exceeded your monthly budget.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
       {/* Income Modal */}
       {isIncomeModalOpen && (
@@ -242,16 +347,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Monthly Insights */}
-      <Card className="bg-secondary/50 border-none shadow-sm">
-        <CardContent className="p-4">
-          <p className="text-sm font-medium">💡 Monthly Insight</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {insightText}
-          </p>
-        </CardContent>
-      </Card>
 
       {/* Category Budgets */}
       <Card className="shadow-sm">
@@ -304,7 +399,7 @@ export default function Dashboard() {
               <button 
                 key={qa.description}
                 onClick={() => {
-                  vibrate();
+                  vibrate(15);
                   addExpense({
                     amount: qa.amount,
                     description: qa.description,
@@ -312,12 +407,12 @@ export default function Dashboard() {
                     date: new Date().toISOString(),
                   });
                 }}
-                className="flex items-center gap-2 bg-secondary/50 hover:bg-secondary px-4 py-2.5 rounded-xl whitespace-nowrap shrink-0 transition-colors border shadow-sm"
+                className="flex items-center gap-2 bg-secondary/60 hover:bg-secondary active:scale-[0.96] px-4 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-all duration-100 ease-out border shadow-xs select-none"
               >
                 <span className="text-xl">{qa.icon}</span>
                 <div className="text-left">
-                  <p className="text-sm font-medium leading-none">{qa.description}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(qa.amount, settings.currency)}</p>
+                  <p className="text-sm font-semibold leading-none">{qa.description}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 display-number">{formatCurrency(qa.amount, settings.currency)}</p>
                 </div>
               </button>
             ))}
@@ -377,7 +472,7 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }

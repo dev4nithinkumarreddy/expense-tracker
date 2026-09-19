@@ -40,6 +40,7 @@ import {
 import { getExpenseLocalDate } from "../lib/streak";
 import { CategoryDetailModal } from "../components/CategoryDetailModal";
 import { vibrate } from "../lib/utils";
+import { SegmentedControl } from "../components/ui/SegmentedControl";
 
 const COLORS = [
   'hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 
@@ -134,36 +135,15 @@ export default function Analytics() {
           </div>
 
           {/* Monthly / Trends Toggle */}
-          <div className="flex bg-secondary/60 p-1 rounded-xl border border-border/50 text-xs font-medium">
-            <button
-              onClick={() => {
-                vibrate(10);
-                setViewMode('monthly');
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'monthly'
-                  ? 'bg-background text-foreground shadow-xs font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <PieIcon className="w-3.5 h-3.5" />
-              Monthly
-            </button>
-            <button
-              onClick={() => {
-                vibrate(10);
-                setViewMode('trends');
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'trends'
-                  ? 'bg-background text-foreground shadow-xs font-semibold'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              6M Trends
-            </button>
-          </div>
+          <SegmentedControl
+            options={[
+              { label: "Monthly", value: "monthly", icon: <PieIcon className="w-3.5 h-3.5" /> },
+              { label: "6M Trends", value: "trends", icon: <BarChart3 className="w-3.5 h-3.5" /> }
+            ]}
+            value={viewMode}
+            onChange={(val) => setViewMode(val as any)}
+            className="text-xs"
+          />
         </div>
 
         {/* Month Navigator */}
@@ -447,10 +427,13 @@ export default function Analytics() {
                       className="group p-2.5 rounded-xl bg-secondary/30 hover:bg-secondary/60 border border-border/40 transition-all cursor-pointer space-y-2"
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-3">
                           <div 
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-sm bg-background border shadow-xs shrink-0"
-                            style={{ borderLeft: `3px solid ${color}` }}
+                            className="w-9 h-9 rounded-2xl flex items-center justify-center text-base bg-secondary/80 border border-border/60 shadow-xs shrink-0 transition-transform group-hover:scale-105"
+                            style={{ 
+                              boxShadow: `inset 0 0 0 1.5px ${color}40`,
+                              backgroundColor: `${color}15`
+                            }}
                           >
                             {settings.categoryEmojis?.[cat.name] || cat.name.substring(0, 2).toUpperCase()}
                           </div>

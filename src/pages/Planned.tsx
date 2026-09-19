@@ -1,12 +1,15 @@
 import { useState } from "react";
+import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Plus, Trash2, CheckCircle2, ShoppingBag } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ShoppingBag, Check } from "lucide-react";
 import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { toast } from "sonner";
+import { SegmentedControl } from "../components/ui/SegmentedControl";
+import { playSuccessSound } from "../lib/sound";
 
 export default function Planned() {
   const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
@@ -20,37 +23,67 @@ export default function Planned() {
         </div>
       </header>
 
-      <div className="flex bg-muted p-1 rounded-lg overflow-x-auto scrollbar-hide">
-        <button
-          onClick={() => { vibrate(10); setActiveTab("bills"); }}
-          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "bills" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-        >
-          Bills
-        </button>
-        <button
-          onClick={() => { vibrate(10); setActiveTab("subs"); }}
-          className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "subs" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-        >
-          Subs
-        </button>
-        <button
-          onClick={() => { vibrate(10); setActiveTab("wishlist"); }}
-          className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "wishlist" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-        >
-          Wishlist
-        </button>
-        <button
-          onClick={() => { vibrate(10); setActiveTab("iou"); }}
-          className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors shrink-0 ${activeTab === "iou" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-        >
-          IOUs
-        </button>
-      </div>
+      <SegmentedControl
+        options={[
+          { label: "Bills", value: "bills" },
+          { label: "Subs", value: "subs" },
+          { label: "Wishlist", value: "wishlist" },
+          { label: "IOUs", value: "iou" }
+        ]}
+        value={activeTab}
+        onChange={(val) => setActiveTab(val as any)}
+        className="w-full"
+      />
 
       {activeTab === "bills" && <BillsTab />}
       {activeTab === "subs" && <SubscriptionsTab />}
       {activeTab === "wishlist" && <WishlistTab />}
       {activeTab === "iou" && <IOUTab />}
+    </div>
+  );
+}
+
+function SwipeablePayRow({
+  children,
+  onPay,
+  payLabel = "Swipe to Pay"
+}: {
+  children: React.ReactNode;
+  onPay: () => void;
+  payLabel?: string;
+}) {
+  const x = useMotionValue(0);
+  const opacity = useTransform(x, [10, 60], [0, 1]);
+  const scale = useTransform(x, [10, 60], [0.8, 1]);
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs select-none">
+      {/* Background Pay Indicator */}
+      <div className="absolute inset-0 bg-emerald-500/15 flex items-center pl-4 font-semibold text-xs text-emerald-600 dark:text-emerald-400">
+        <motion.div style={{ opacity, scale }} className="flex items-center gap-1.5">
+          <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+            <Check className="w-3.5 h-3.5" />
+          </div>
+          <span>{payLabel}</span>
+        </motion.div>
+      </div>
+
+      {/* Draggable Foreground */}
+      <motion.div
+        drag="x"
+        dragDirectionLock
+        dragConstraints={{ left: 0, right: 80 }}
+        dragElastic={0.45}
+        style={{ x }}
+        onDragEnd={(_e, info) => {
+          if (info.offset.x > 60 || info.velocity.x > 250) {
+            onPay();
+          }
+        }}
+        className="relative bg-card touch-pan-y"
+      >
+        {children}
+      </motion.div>
     </div>
   );
 }
@@ -80,7 +113,8 @@ function SubscriptionsTab() {
   };
 
   const handleLogPayment = (sub: any) => {
-    vibrate();
+    vibrate(20);
+    if (settings.soundEnabled) playSuccessSound();
     addExpense({
       amount: sub.amount,
       description: `${sub.name} Subscription`,
@@ -146,11 +180,11 @@ function SubscriptionsTab() {
           <p className="text-center text-muted-foreground py-8">No subscriptions tracked yet.</p>
         ) : (
           subscriptions.map(sub => (
-            <Card key={sub.id} className="overflow-hidden relative group">
-              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-              <CardContent className="p-4 flex justify-between items-center pl-5">
-                <div className="space-y-1">
-                  <p className="font-semibold">{sub.name}</p>
+            <SwipeablePayRow key={sub.id} onPay={() => handleLogPayment(sub)} payLabel="Log Payment">
+              <div className="p-4 flex justify-between items-center pl-5 relative">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 rounded-l" />
+                <div className="space-y-1 min-w-0">
+                  <p className="font-semibold truncate">{sub.name}</p>
                   <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                     {formatCurrency(sub.amount, settings.currency)} 
                     <span className="text-[10px] uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
@@ -169,9 +203,12 @@ function SubscriptionsTab() {
                     >
                       Log Payment
                     </Button>
+                    <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                      (or swipe right to log)
+                    </span>
                   </div>
                 </div>
-                <div className="flex items-start h-full self-start">
+                <div className="flex items-start h-full self-start shrink-0">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
                     vibrate();
                     if(confirm("Delete this subscription?")) deleteSubscription(sub.id);
@@ -179,8 +216,8 @@ function SubscriptionsTab() {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SwipeablePayRow>
           ))
         )}
       </div>
@@ -526,7 +563,8 @@ function BillsTab() {
   };
 
   const handlePayNow = (bill: any) => {
-    vibrate();
+    vibrate(20);
+    if (settings.soundEnabled) playSuccessSound();
     addExpense({
       amount: bill.amount,
       description: `Manual Payment: ${bill.title}`,
@@ -576,14 +614,14 @@ function BillsTab() {
           <p className="text-center text-muted-foreground py-8">No bills added yet.</p>
         ) : (
           bills.map(bill => (
-            <Card key={bill.id} className="overflow-hidden">
-              <CardContent className="p-4 flex justify-between items-center">
-                <div className="space-y-1">
-                  <p className="font-semibold">{bill.title}</p>
+            <SwipeablePayRow key={bill.id} onPay={() => handlePayNow(bill)} payLabel="Pay Bill">
+              <div className="p-4 flex justify-between items-center">
+                <div className="space-y-1 min-w-0">
+                  <p className="font-semibold truncate">{bill.title}</p>
                   <p className="text-sm font-medium text-muted-foreground">
                     {formatCurrency(bill.amount, settings.currency)} / month
                   </p>
-                  <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-3 mt-3 flex-wrap">
                     <button 
                       onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
                       className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
@@ -599,9 +637,12 @@ function BillsTab() {
                     >
                       Pay Now
                     </Button>
+                    <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                      (or swipe right to pay)
+                    </span>
                   </div>
                 </div>
-                <div className="flex items-start h-full">
+                <div className="flex items-start h-full shrink-0">
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
                     vibrate();
                     if(confirm("Delete this bill?")) deleteBill(bill.id);
@@ -609,8 +650,8 @@ function BillsTab() {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SwipeablePayRow>
           ))
         )}
       </div>

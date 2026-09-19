@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -61,8 +62,6 @@ export function AddExpenseModal({
     }
   }, [isOpen, expenseToEdit, settings.categories]);
 
-  if (!isOpen) return null;
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -73,11 +72,11 @@ export function AddExpenseModal({
         const result = await Tesseract.recognize(file, 'eng');
         const text = result.data.text;
         
-        // Extract amounts (naive approach, looking for numbers with decimals)
+        // Extract amounts (looking for numbers with decimals)
         const amounts = text.match(/\b\d+\.\d{2}\b/g);
         if (amounts && amounts.length > 0) {
           const maxAmount = Math.max(...amounts.map(Number));
-          if (maxAmount > 0 && !amount) { // Only set if amount is currently empty
+          if (maxAmount > 0 && !amount) {
             setAmount(String(maxAmount));
           }
         }
@@ -135,7 +134,9 @@ export function AddExpenseModal({
     if (expenseToEdit && format(parseISO(expenseToEdit.date), 'yyyy-MM-dd') === date) {
       isoDate = expenseToEdit.date;
     } else {
-      isoDate = isToday ? new Date().toISOString() : new Date(`${date}T12:00:00`).toISOString();
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+      isoDate = isToday ? now.toISOString() : new Date(`${date}T${timeStr}`).toISOString();
     }
 
     const expenseData = {
@@ -159,14 +160,47 @@ export function AddExpenseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="glass-card text-card-foreground w-full max-w-sm rounded-t-2xl sm:rounded-2xl border shadow-lg animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 sm:zoom-in-95 max-h-[85dvh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b shrink-0">
-          <h2 className="text-lg font-semibold">{expenseToEdit ? 'Edit Expense' : 'Add Expense'}</h2>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close modal">
-            <X className="h-5 w-5" aria-hidden="true" />
-          </Button>
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-background/70 backdrop-blur-md"
+          />
+          <motion.div
+            drag="y"
+            dragDirectionLock
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0.05, bottom: 0.6 }}
+            onDragEnd={(_e, info: PanInfo) => {
+              if (info.offset.y > 100 || info.velocity.y > 350) {
+                vibrate(20);
+                onClose();
+              }
+            }}
+            initial={{ y: "100%", opacity: 0.8 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{
+              type: "spring",
+              damping: 26,
+              stiffness: 320,
+            }}
+            className="glass-card text-card-foreground w-full max-w-sm rounded-t-3xl sm:rounded-3xl border shadow-2xl max-h-[88dvh] flex flex-col z-10 relative"
+          >
+            {/* Grab Handle */}
+            <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto my-2.5 shrink-0 cursor-grab active:cursor-grabbing" />
+            
+            <div className="flex justify-between items-center px-4 pb-3 border-b shrink-0">
+              <h2 className="text-lg font-bold tracking-tight">{expenseToEdit ? 'Edit Expense' : 'Add Expense'}</h2>
+              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close modal">
+                <X className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            </div>
         <div className="p-4 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Amount</label>
@@ -276,7 +310,9 @@ export function AddExpenseModal({
             )}
           </Button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
