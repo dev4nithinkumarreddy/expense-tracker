@@ -262,7 +262,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Remaining</p>
                 <h2 className={cn("text-3xl font-bold display-number tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
@@ -278,25 +278,13 @@ export default function Dashboard() {
               <div className="shrink-0 flex items-center justify-center">
                 <BudgetRing
                   value={budgetUsedPercent}
-                  size={76}
-                  strokeWidth={7}
+                  size={82}
+                  strokeWidth={7.5}
                   isOverBudget={isOverBudget}
                 />
               </div>
             </div>
 
-            <div className="space-y-2 mt-4">
-              <div className="flex justify-between text-xs font-medium">
-                <span>Budget Used</span>
-                <span className={cn(budgetUsedPercent >= 90 ? "text-destructive" : "text-muted-foreground")}>{budgetUsedPercent}%</span>
-              </div>
-              <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                <div 
-                  className={cn("h-full rounded-full transition-all duration-500", budgetUsedPercent >= 90 ? "bg-destructive" : budgetUsedPercent >= 75 ? "bg-warning" : "bg-primary")}
-                  style={{ width: `${budgetUsedPercent}%` }}
-                />
-              </div>
-            </div>
             {isOverBudget && (
               <p className="text-xs text-destructive mt-3 font-medium flex items-center">
                 ⚠️ You exceeded your monthly budget.
