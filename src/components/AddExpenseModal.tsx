@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence, type PanInfo } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -46,7 +46,7 @@ export function AddExpenseModal({
   onClose: () => void;
   expenseToEdit?: Expense | null;
 }) {
-  const { settings, addExpense, updateExpense, expenses } = useExpenseStore();
+  const { settings, addExpense, updateExpense } = useExpenseStore();
   
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -57,15 +57,6 @@ export function AddExpenseModal({
   const [uploading, setUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
-
-  // Categories sorted with most frequently used first
-  const orderedCategories = useMemo(() => {
-    const counts: Record<string, number> = {};
-    (expenses || []).forEach((e) => {
-      counts[e.category] = (counts[e.category] || 0) + 1;
-    });
-    return [...settings.categories].sort((a, b) => (counts[b] || 0) - (counts[a] || 0));
-  }, [expenses, settings.categories]);
 
   useEffect(() => {
     if (isOpen) {
@@ -90,14 +81,14 @@ export function AddExpenseModal({
           setDescription("");
         }
 
-        setCategory(orderedCategories[0] || settings.categories[0] || "Other");
+        setCategory(settings.categories[0] || "Other");
         setDate(format(new Date(), 'yyyy-MM-dd'));
         setNotes("");
         setReceiptFile(null);
         setRecurrence('none');
       }
     }
-  }, [isOpen, expenseToEdit, settings.categories, orderedCategories]);
+  }, [isOpen, expenseToEdit, settings.categories]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -223,7 +214,7 @@ export function AddExpenseModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4">
           {/* Backdrop Blur */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -234,33 +225,20 @@ export function AddExpenseModal({
             className="fixed inset-0 bg-background/60 backdrop-blur-md"
           />
 
-          {/* Fluid Bottom Sheet Modal */}
+          {/* Centered Floating Glass Modal (No popping from bottom) */}
           <motion.div
-            drag="y"
-            dragDirectionLock
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.04, bottom: 0.6 }}
-            onDragEnd={(_e, info: PanInfo) => {
-              if (info.offset.y > 100 || info.velocity.y > 350) {
-                vibrate(20);
-                onClose();
-              }
-            }}
-            initial={{ y: "100%", opacity: 0.8 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
+            initial={{ opacity: 0, scale: 0.94, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{
               type: "spring",
-              damping: 28,
-              stiffness: 340,
+              damping: 26,
+              stiffness: 360,
             }}
-            className="bg-card/95 dark:bg-card/90 text-card-foreground w-full max-w-md rounded-t-[32px] sm:rounded-[32px] border border-white/20 dark:border-white/10 shadow-[0_-12px_44px_rgba(0,0,0,0.18)] dark:shadow-[0_-12px_44px_rgba(0,0,0,0.5)] max-h-[90dvh] flex flex-col z-10 relative overflow-hidden backdrop-blur-2xl"
+            className="bg-card/95 dark:bg-card/90 text-card-foreground w-full max-w-md rounded-[32px] border border-white/20 dark:border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.22)] dark:shadow-[0_24px_70px_rgba(0,0,0,0.6)] max-h-[88dvh] flex flex-col z-10 relative overflow-hidden backdrop-blur-2xl"
           >
-            {/* Grab Handle */}
-            <div className="w-10 h-1.2 bg-muted-foreground/30 rounded-full mx-auto my-2.5 shrink-0 cursor-grab active:cursor-grabbing" />
-            
             {/* Navigation Bar */}
-            <div className="flex justify-between items-center px-5 pt-0.5 pb-2 shrink-0">
+            <div className="flex justify-between items-center px-5 pt-4 pb-2 shrink-0 border-b border-border/20">
               <button
                 type="button"
                 onClick={onClose}
@@ -377,7 +355,7 @@ export function AddExpenseModal({
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
-                    {orderedCategories.map((c) => {
+                    {settings.categories.map((c) => {
                       const isSelected = category === c;
                       return (
                         <button
