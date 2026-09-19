@@ -31,29 +31,31 @@ export function BottomNav() {
               aria-label={`Navigate to ${item.label}`}
               className={({ isActive }) =>
                 cn(
-                  "relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1",
+                  "relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1 h-12",
                   isActive ? "text-primary font-semibold" : "hover:text-foreground"
                 )
               }
             >
               {({ isActive }) => (
-                <motion.div
-                  whileTap={{ scale: 0.88 }}
-                  transition={{ type: "spring", stiffness: 450, damping: 22 }}
-                  className="flex flex-col items-center relative"
-                >
+                <>
                   {isActive && (
                     <motion.div
                       layoutId="dock-active-pill"
-                      transition={{ type: "spring", stiffness: 480, damping: 32 }}
-                      className="absolute -inset-x-3 -inset-y-1.5 bg-primary/10 dark:bg-primary/20 rounded-full z-[-1] border border-primary/20 shadow-2xs"
+                      transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                      className="absolute inset-y-0.5 inset-x-1 bg-primary/12 dark:bg-primary/20 rounded-2xl border border-primary/20 shadow-2xs"
                     />
                   )}
-                  <item.icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "stroke-[2.2px] scale-105")} />
-                  <span className="text-[10px] tracking-tight mt-0.5 font-medium">
-                    {item.label}
-                  </span>
-                </motion.div>
+                  <motion.div
+                    whileTap={{ scale: 0.88 }}
+                    transition={{ type: "spring", stiffness: 450, damping: 22 }}
+                    className="flex flex-col items-center relative z-10"
+                  >
+                    <item.icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "stroke-[2.3px] scale-105")} />
+                    <span className="text-[10px] tracking-tight mt-0.5 font-medium">
+                      {item.label}
+                    </span>
+                  </motion.div>
+                </>
               )}
             </NavLink>
           ))}
@@ -84,29 +86,31 @@ export function BottomNav() {
               aria-label={`Navigate to ${item.label}`}
               className={({ isActive }) =>
                 cn(
-                  "relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1",
+                  "relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl text-muted-foreground transition-colors duration-200 flex-1 h-12",
                   isActive ? "text-primary font-semibold" : "hover:text-foreground"
                 )
               }
             >
               {({ isActive }) => (
-                <motion.div
-                  whileTap={{ scale: 0.88 }}
-                  transition={{ type: "spring", stiffness: 450, damping: 22 }}
-                  className="flex flex-col items-center relative"
-                >
+                <>
                   {isActive && (
                     <motion.div
                       layoutId="dock-active-pill"
-                      transition={{ type: "spring", stiffness: 480, damping: 32 }}
-                      className="absolute -inset-x-3 -inset-y-1.5 bg-primary/10 dark:bg-primary/20 rounded-full z-[-1] border border-primary/20 shadow-2xs"
+                      transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                      className="absolute inset-y-0.5 inset-x-1 bg-primary/12 dark:bg-primary/20 rounded-2xl border border-primary/20 shadow-2xs"
                     />
                   )}
-                  <item.icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "stroke-[2.2px] scale-105")} />
-                  <span className="text-[10px] tracking-tight mt-0.5 font-medium">
-                    {item.label}
-                  </span>
-                </motion.div>
+                  <motion.div
+                    whileTap={{ scale: 0.88 }}
+                    transition={{ type: "spring", stiffness: 450, damping: 22 }}
+                    className="flex flex-col items-center relative z-10"
+                  >
+                    <item.icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "stroke-[2.3px] scale-105")} />
+                    <span className="text-[10px] tracking-tight mt-0.5 font-medium">
+                      {item.label}
+                    </span>
+                  </motion.div>
+                </>
               )}
             </NavLink>
           ))}
