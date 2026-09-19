@@ -12,8 +12,8 @@ interface BudgetRingProps {
 export function BudgetRing({
   percentage,
   value,
-  size = 72,
-  strokeWidth = 7,
+  size = 78,
+  strokeWidth = 7.5,
   className = '',
   isOverBudget = false
 }: BudgetRingProps) {
@@ -27,38 +27,57 @@ export function BudgetRing({
   const isDanger = isOverBudget || percent >= 90;
   const isWarning = percent >= 75 && !isDanger;
 
+  // Apple Watch Activity Ring palette: vibrant gradients, tinted track, and soft luminance glow
+  const colors = isDanger
+    ? {
+        from: '#f43f5e',
+        to: '#ef4444',
+        track: 'rgba(239, 68, 68, 0.16)',
+        glow: 'drop-shadow(0 0 5px rgba(239, 68, 68, 0.5))',
+        text: 'text-destructive dark:text-rose-400'
+      }
+    : isWarning
+    ? {
+        from: '#fbbf24',
+        to: '#f59e0b',
+        track: 'rgba(245, 158, 11, 0.16)',
+        glow: 'drop-shadow(0 0 5px rgba(245, 158, 11, 0.5))',
+        text: 'text-amber-600 dark:text-amber-400'
+      }
+    : {
+        from: '#06b6d4',
+        to: '#10b981',
+        track: 'rgba(16, 185, 129, 0.16)',
+        glow: 'drop-shadow(0 0 5px rgba(16, 185, 129, 0.5))',
+        text: 'text-foreground'
+      };
+
   const gradientId = `budget-gradient-${isDanger ? 'danger' : isWarning ? 'warning' : 'healthy'}`;
 
   return (
-    <div className={`relative flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
+    <div
+      className={`relative flex items-center justify-center p-1 rounded-full bg-secondary/30 border border-border/30 shadow-2xs ${className}`}
+      style={{ width: size + 8, height: size + 8 }}
+    >
+      <svg width={size} height={size} className="transform -rotate-90 overflow-visible">
         <defs>
-          <linearGradient id="budget-gradient-healthy" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#06b6d4" />
-          </linearGradient>
-          <linearGradient id="budget-gradient-warning" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#fbbf24" />
-          </linearGradient>
-          <linearGradient id="budget-gradient-danger" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#ef4444" />
-            <stop offset="100%" stopColor="#f43f5e" />
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={colors.from} />
+            <stop offset="100%" stopColor={colors.to} />
           </linearGradient>
         </defs>
 
-        {/* Track Circle */}
+        {/* Tinted Apple Activity Track Circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="currentColor"
+          stroke={colors.track}
           strokeWidth={strokeWidth}
-          className="text-muted/40"
           fill="none"
         />
 
-        {/* Progress Ring */}
+        {/* Glowing Apple Activity Progress Ring */}
         <motion.circle
           cx={size / 2}
           cy={size / 2}
@@ -76,15 +95,20 @@ export function BudgetRing({
           }}
           strokeLinecap="round"
           fill="none"
+          style={{
+            filter: colors.glow
+          }}
         />
       </svg>
 
       {/* Center percentage label */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none">
-        <span className={`text-xs font-bold display-number leading-none ${isDanger ? 'text-destructive' : isWarning ? 'text-amber-500' : 'text-foreground'}`}>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center select-none pointer-events-none">
+        <span className={`text-sm font-bold display-number leading-none tracking-tight ${colors.text}`}>
           {Math.round(percent)}%
         </span>
-        <span className="text-[9px] text-muted-foreground font-medium mt-0.5">used</span>
+        <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5 opacity-80">
+          used
+        </span>
       </div>
     </div>
   );
