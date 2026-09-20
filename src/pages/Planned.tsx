@@ -4,12 +4,13 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Plus, Trash2, CheckCircle2, ShoppingBag, Check } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins } from "lucide-react";
 import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { toast } from "sonner";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { playSuccessSound } from "../lib/sound";
+import { EmptyState } from "../components/ui/EmptyState";
 
 export default function Planned() {
   const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
@@ -177,7 +178,14 @@ function SubscriptionsTab() {
 
       <div className="space-y-3">
         {subscriptions.length === 0 && !isAdding ? (
-          <p className="text-center text-muted-foreground py-8">No subscriptions tracked yet.</p>
+          <EmptyState
+            icon={<CalendarDays className="w-6 h-6" />}
+            title="No subscriptions tracked"
+            description="Keep tabs on your recurring services like Netflix, Spotify, or gym memberships."
+            compact
+            actionLabel="+ Add Subscription"
+            onAction={() => setIsAdding(true)}
+          />
         ) : (
           subscriptions.map(sub => (
             <SwipeablePayRow key={sub.id} onPay={() => handleLogPayment(sub)} payLabel="Log Payment">
@@ -311,10 +319,14 @@ function WishlistTab() {
 
       <div className="space-y-3">
         {pendingItems.length === 0 && !isAdding ? (
-          <div className="text-center text-muted-foreground py-8 flex flex-col items-center">
-            <ShoppingBag className="w-8 h-8 mb-2 opacity-50" />
-            <p>Your wishlist is empty.</p>
-          </div>
+          <EmptyState
+            icon={<ShoppingBag className="w-6 h-6" />}
+            title="Your wishlist is empty"
+            description="Save purchases you're planning for, estimate costs, and track goals."
+            compact
+            actionLabel="+ Add Item"
+            onAction={() => setIsAdding(true)}
+          />
         ) : (
           pendingItems.map(item => (
             <Card key={item.id} className="overflow-hidden border-l-4 border-l-orange-500">
@@ -494,9 +506,14 @@ function IOUTab() {
 
       <div className="space-y-3 mt-4">
         {pendingDebts.length === 0 && !isAdding ? (
-          <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
-            <p className="text-sm">No pending IOUs</p>
-          </div>
+          <EmptyState
+            icon={<HandCoins className="w-6 h-6" />}
+            title="No pending IOUs"
+            description="Track money you lent to friends or need to pay back."
+            compact
+            actionLabel="+ Add IOU"
+            onAction={() => setIsAdding(true)}
+          />
         ) : (
           pendingDebts.map(debt => (
             <Card key={debt.id} className="overflow-hidden">
@@ -611,7 +628,14 @@ function BillsTab() {
 
       <div className="space-y-3">
         {bills.length === 0 && !isAdding ? (
-          <p className="text-center text-muted-foreground py-8">No bills added yet.</p>
+          <EmptyState
+            icon={<CalendarDays className="w-6 h-6" />}
+            title="No monthly bills"
+            description="Add recurring monthly obligations like rent, utilities, electricity, or internet."
+            compact
+            actionLabel="+ Add Bill"
+            onAction={() => setIsAdding(true)}
+          />
         ) : (
           bills.map(bill => (
             <SwipeablePayRow key={bill.id} onPay={() => handlePayNow(bill)} payLabel="Pay Bill">

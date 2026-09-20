@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Download, Paperclip, Sparkles, Repeat } from "lucide-react";
+import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal } from "lucide-react";
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
@@ -9,6 +9,8 @@ import { Button } from "../components/ui/button";
 import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { vibrate } from "../lib/utils";
+import { EmptyState } from "../components/ui/EmptyState";
+import { getCategoryStyle } from "../components/ui/CategoryBadge";
 
 type QuickFilter = 'all' | 'receipt' | 'high_spend' | 'recurring';
 
@@ -20,6 +22,7 @@ export default function Expenses() {
   const [dateFilter, setDateFilter] = useState<string>("this_month");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
+  const [showAmountFilters, setShowAmountFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [activeReceipt, setActiveReceipt] = useState<{ url: string; title?: string; amount?: number } | null>(null);
 
@@ -113,26 +116,30 @@ export default function Expenses() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
-          <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2">
-            <Download className="w-4 h-4" /> Export CSV
-          </Button>
-        </div>
+    <div className="space-y-4">
+      {/* Top Page Header - Scrolls away naturally */}
+      <div className="flex justify-between items-center pt-1 pb-1">
+        <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
+        <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2 rounded-full">
+          <Download className="w-4 h-4" /> Export CSV
+        </Button>
+      </div>
+
+      {/* Sticky Frosted Glass Filter Bar - Stays pinned at top: 0 */}
+      <div className="sticky top-0 z-30 -mx-4 px-4 sm:mx-0 sm:px-0 py-2.5 bg-background/90 dark:bg-background/85 backdrop-blur-2xl border-b border-border/40 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] space-y-2.5 transition-all">
+        {/* Row 1: Search + Date Filter + Amount Filter Toggle */}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Search expenses..." 
-              className="pl-9 bg-card"
+              className="pl-9 bg-card/90 rounded-xl h-10 border-border/60"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <select
-            className="flex h-10 w-[120px] rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex h-10 w-[115px] rounded-xl border border-input bg-card/90 px-2.5 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
           >
@@ -141,31 +148,81 @@ export default function Expenses() {
             <option value="last_month">Last Month</option>
             <option value="last_7_days">Last 7 Days</option>
           </select>
-        </div>
-        
-        <div className="flex gap-2">
-          <Input 
-            type="number" 
-            placeholder="Min Amount" 
-            className="h-10 text-sm bg-card" 
-            value={minAmount} 
-            onChange={(e) => setMinAmount(e.target.value)} 
-          />
-          <Input 
-            type="number" 
-            placeholder="Max Amount" 
-            className="h-10 text-sm bg-card" 
-            value={maxAmount} 
-            onChange={(e) => setMaxAmount(e.target.value)} 
-          />
+          <Button
+            type="button"
+            variant={showAmountFilters || minAmount || maxAmount ? "default" : "outline"}
+            size="icon"
+            className="h-10 w-10 shrink-0 rounded-xl"
+            onClick={() => {
+              vibrate(10);
+              setShowAmountFilters(!showAmountFilters);
+            }}
+            title="Filter by amount"
+            aria-label="Filter by amount"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+          </Button>
         </div>
 
-        {/* Quick Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs">
+        {/* Collapsible Amount Filter Inputs */}
+        {(showAmountFilters || minAmount || maxAmount) && (
+          <div className="flex gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
+            <Input 
+              type="number" 
+              placeholder="Min Amount" 
+              className="h-8 text-xs bg-card/90 rounded-lg" 
+              value={minAmount} 
+              onChange={(e) => setMinAmount(e.target.value)} 
+            />
+            <Input 
+              type="number" 
+              placeholder="Max Amount" 
+              className="h-8 text-xs bg-card/90 rounded-lg" 
+              value={maxAmount} 
+              onChange={(e) => setMaxAmount(e.target.value)} 
+            />
+          </div>
+        )}
+
+        {/* Row 2: Category Filter Pills */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+          <Button
+            variant={selectedCategory === null ? "default" : "secondary"}
+            size="sm"
+            className="rounded-full shrink-0 h-7 text-xs px-3"
+            onClick={() => setSelectedCategory(null)}
+          >
+            All
+          </Button>
+          {settings.categories.map(cat => {
+            const count = expenses.filter(e => e.category === cat).length;
+            if (count === 0 && selectedCategory !== cat) return null;
+            const isSelected = selectedCategory === cat;
+            const style = getCategoryStyle(cat);
+            return (
+              <button
+                key={cat}
+                type="button"
+                className={`h-7 px-3 text-xs rounded-full font-medium shrink-0 transition-all flex items-center gap-1.5 border select-none ${
+                  isSelected
+                    ? `${style.bg} ${style.text} ${style.border} shadow-xs font-semibold ring-1 ring-primary/30`
+                    : 'bg-secondary/60 text-muted-foreground border-transparent hover:text-foreground'
+                }`}
+                onClick={() => setSelectedCategory(isSelected ? null : cat)}
+              >
+                <span>{style.emoji}</span>
+                <span>{cat}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Row 3: Quick Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide text-xs">
           <button
             type="button"
             onClick={() => { vibrate(10); setQuickFilter('all'); }}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
               quickFilter === 'all' 
                 ? 'bg-primary text-primary-foreground shadow-xs' 
                 : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
@@ -176,7 +233,7 @@ export default function Expenses() {
           <button
             type="button"
             onClick={() => { vibrate(10); setQuickFilter('receipt'); }}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
               quickFilter === 'receipt' 
                 ? 'bg-primary text-primary-foreground shadow-xs' 
                 : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
@@ -188,7 +245,7 @@ export default function Expenses() {
           <button
             type="button"
             onClick={() => { vibrate(10); setQuickFilter('high_spend'); }}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
               quickFilter === 'high_spend' 
                 ? 'bg-primary text-primary-foreground shadow-xs' 
                 : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
@@ -200,7 +257,7 @@ export default function Expenses() {
           <button
             type="button"
             onClick={() => { vibrate(10); setQuickFilter('recurring'); }}
-            className={`px-3 py-1.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
               quickFilter === 'recurring' 
                 ? 'bg-primary text-primary-foreground shadow-xs' 
                 : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
@@ -210,50 +267,32 @@ export default function Expenses() {
             Recurring
           </button>
         </div>
-
-        {/* Category Filter Pills */}
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-          <Button
-            variant={selectedCategory === null ? "default" : "secondary"}
-            size="sm"
-            className="rounded-full shrink-0"
-            onClick={() => setSelectedCategory(null)}
-          >
-            All
-          </Button>
-          {settings.categories.map(cat => {
-            // Only show category if it has expenses, or we could just show all
-            const count = expenses.filter(e => e.category === cat).length;
-            if (count === 0 && selectedCategory !== cat) return null;
-            return (
-              <Button
-                key={cat}
-                variant={selectedCategory === cat ? "default" : "secondary"}
-                size="sm"
-                className="rounded-full shrink-0"
-                onClick={() => setSelectedCategory(cat)}
-              >
-                {cat}
-              </Button>
-            );
-          })}
-        </div>
-      </header>
+      </div>
 
       <PullToRefresh onRefresh={fetchCloudData}>
         <div className="space-y-6 pb-24">
           {Object.entries(grouped).length === 0 ? (
-            <div className="text-center py-16 bg-card border rounded-xl shadow-sm flex flex-col items-center mt-4">
-              <div className="bg-primary/10 p-4 rounded-full mb-4 text-primary">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>
-              </div>
-              <p className="text-foreground text-base font-semibold">No expenses found</p>
-              <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-[250px]">Try adjusting your search or filters to find what you're looking for.</p>
-            </div>
+            <EmptyState
+              icon={<Receipt className="w-8 h-8" />}
+              title={expenses.length === 0 ? "No expenses logged yet" : "No matching expenses"}
+              description={expenses.length === 0 
+                ? "Your slate is clean for this month. Tap below to log your first expense."
+                : "No transactions matched your filters. Try adjusting your search or category."
+              }
+              actionLabel={expenses.length === 0 ? "+ Log First Expense" : "Reset Filters"}
+              onAction={expenses.length === 0 ? () => setIsModalOpen(true) : () => {
+                setSearchTerm("");
+                setSelectedCategory(null);
+                setDateFilter("this_month");
+                setMinAmount("");
+                setMaxAmount("");
+                setQuickFilter("all");
+              }}
+            />
           ) : (
             Object.entries(grouped).map(([dateStr, dayExpenses]) => (
               <div key={dateStr}>
-                <h3 className="text-sm font-medium text-muted-foreground mb-3 sticky top-0 bg-background/95 backdrop-blur py-2 z-10">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 mt-4">
                   {format(parseISO(dateStr), 'EEEE, MMMM d')}
                 </h3>
                 <div className="space-y-3">

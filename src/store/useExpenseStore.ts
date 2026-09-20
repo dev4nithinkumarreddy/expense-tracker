@@ -108,10 +108,12 @@ interface ExpenseState {
   pendingMutations: PendingMutation[];
   isModalOpen: boolean;
   sharedData: { title?: string, text?: string, url?: string } | null;
+  shouldTriggerScan: boolean;
   
   // Actions
   setSession: (session: Session | null) => void;
   setSharedData: (data: { title?: string, text?: string, url?: string } | null) => void;
+  setShouldTriggerScan: (shouldTriggerScan: boolean) => void;
   fetchCloudData: () => Promise<void>;
   addExpense: (expense: Omit<Expense, 'id'>) => Promise<string>;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
@@ -187,9 +189,11 @@ export const useExpenseStore = create<ExpenseState>()(
       session: null,
       isModalOpen: false,
       sharedData: null,
+      shouldTriggerScan: false,
       
       setSession: (session) => set({ session }),
       setSharedData: (data) => set({ sharedData: data }),
+      setShouldTriggerScan: (shouldTriggerScan) => set({ shouldTriggerScan }),
       
       addPendingMutation: (mutation) => {
         set((state) => ({ pendingMutations: [...state.pendingMutations, { ...mutation, id: crypto.randomUUID() }] }));

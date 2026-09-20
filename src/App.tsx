@@ -10,9 +10,12 @@ import { AddExpenseModal } from "./components/AddExpenseModal";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { AnimatedRoutes } from "./components/AnimatedRoutes";
 import { AmbientBackground } from "./components/ui/AmbientBackground";
+import { LoadingScreen } from "./components/ui/LoadingScreen";
+import { isThisMonth, isToday, parseISO } from "date-fns";
+import { formatCurrency } from "./lib/formatCurrency";
 
 export default function App() {
   const { settings, checkMonthRollover, setSession, session, fetchCloudData, syncPendingMutations, isModalOpen, setModalOpen } = useExpenseStore();
@@ -55,13 +58,14 @@ export default function App() {
     return () => window.removeEventListener('online', handleOnline);
   }, [syncPendingMutations]);
 
-  // Intercept Web Share Target API
+  // Intercept Web Share Target API & PWA Shortcuts
   useEffect(() => {
     if (session) {
       const urlParams = new URLSearchParams(window.location.search);
       const sharedTitle = urlParams.get('title');
       const sharedText = urlParams.get('text');
       const sharedUrl = urlParams.get('url');
+      const action = urlParams.get('action');
       
       if (sharedTitle || sharedText || sharedUrl) {
         // Clean URL to prevent re-triggering on refresh
@@ -74,6 +78,24 @@ export default function App() {
           url: sharedUrl || undefined
         });
         setModalOpen(true);
+      } else if (action === 'add-expense') {
+        window.history.replaceState({}, document.title, '/');
+        setModalOpen(true);
+      } else if (action === 'scan-receipt') {
+        window.history.replaceState({}, document.title, '/');
+        useExpenseStore.getState().setShouldTriggerScan(true);
+        setModalOpen(true);
+      } else if (action === 'today') {
+        window.history.replaceState({}, document.title, '/');
+        setTimeout(() => {
+          const storeState = useExpenseStore.getState();
+          const todayExpenses = storeState.expenses
+            .filter(e => isThisMonth(parseISO(e.date)) && isToday(parseISO(e.date)) && e.category !== 'Income')
+            .reduce((sum, e) => sum + e.amount, 0);
+          toast.info(`Today's Spend: ${formatCurrency(todayExpenses, storeState.settings.currency)}`, {
+            description: "Here's your spending summary for today."
+          });
+        }, 300);
       }
     }
   }, [session, setModalOpen]);
@@ -96,7 +118,7 @@ export default function App() {
   }, [settings.darkMode, settings.theme]);
 
   if (loading) {
-    return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground animate-pulse">Loading...</div>;
+    return <LoadingScreen fullScreen message="Expense Tracker" submessage="Syncing your workspace..." />;
   }
 
   if (!session) {
@@ -107,7 +129,7 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <div className="min-h-screen bg-background text-foreground pb-24 overflow-x-hidden relative">
+          <div className="min-h-screen bg-background text-foreground pb-24 [overflow-x:clip] relative">
             <AmbientBackground />
             <main className="container max-w-md md:max-w-xl lg:max-w-2xl mx-auto p-4 animate-in fade-in duration-300">
               <AnimatedRoutes />

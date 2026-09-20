@@ -7,6 +7,7 @@ import { formatCurrency } from '../lib/formatCurrency';
 import { useExpenseStore, type Expense } from '../store/useExpenseStore';
 import { playDeleteSound, playSuccessSound } from '../lib/sound';
 import { toast } from 'sonner';
+import { CategoryBadge } from './ui/CategoryBadge';
 
 interface SwipeableExpenseItemProps {
   expense: Expense;
@@ -98,7 +99,11 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border/70 shadow-sm bg-card select-none">
+    <motion.div
+      whileTap={{ scale: 0.985 }}
+      transition={{ type: "spring", stiffness: 400, damping: 28 }}
+      className="relative overflow-hidden rounded-2xl border border-border/70 shadow-sm bg-card select-none"
+    >
       {/* Background Actions */}
       <div className="absolute inset-0 flex items-center justify-between px-5 font-medium">
         <motion.div 
@@ -173,9 +178,14 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
                 )
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-              {expense.category} {expense.notes && `• ${expense.notes}`}
-            </p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <CategoryBadge category={expense.category} size="xs" />
+              {expense.notes && (
+                <span className="text-xs text-muted-foreground truncate">
+                  • {expense.notes}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -222,7 +232,7 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
           </div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag } from "lucide-react";
@@ -46,7 +46,8 @@ export function AddExpenseModal({
   onClose: () => void;
   expenseToEdit?: Expense | null;
 }) {
-  const { settings, addExpense, updateExpense } = useExpenseStore();
+  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan } = useExpenseStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -57,6 +58,16 @@ export function AddExpenseModal({
   const [uploading, setUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+
+  useEffect(() => {
+    if (isOpen && shouldTriggerScan) {
+      const timer = setTimeout(() => {
+        fileInputRef.current?.click();
+        setShouldTriggerScan(false);
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, shouldTriggerScan, setShouldTriggerScan]);
 
   useEffect(() => {
     if (isOpen) {
@@ -339,6 +350,7 @@ export function AddExpenseModal({
                       <Camera className="w-4 h-4" />
                     )}
                     <input 
+                      ref={fileInputRef}
                       type="file" 
                       accept="image/*" 
                       capture="environment"

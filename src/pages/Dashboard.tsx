@@ -6,7 +6,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -17,6 +17,8 @@ import { AnimatedNumber } from "../components/ui/AnimatedNumber";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { playSuccessSound } from "../lib/sound";
 import { toast } from "sonner";
+import { CategoryBadge } from "../components/ui/CategoryBadge";
+import { EmptyState } from "../components/ui/EmptyState";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-4">
@@ -295,9 +297,25 @@ export default function Dashboard() {
         </AnimatePresence>
 
         {/* Main Stats Card */}
-        <Card className={cn("border-none shadow-md overflow-hidden relative", isOverBudget ? "bg-destructive/10" : "bg-primary/5")}>
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-          <CardContent className="p-6">
+        <Card className={cn(
+          "border shadow-xl overflow-hidden relative rounded-3xl backdrop-blur-2xl transition-all duration-500",
+          "border-t border-white/40 dark:border-white/20",
+          isOverBudget 
+            ? "bg-destructive/10 border-destructive/25 shadow-destructive/10" 
+            : budgetUsedPercent >= 75
+            ? "bg-amber-500/10 border-amber-500/25 shadow-amber-500/10"
+            : "bg-card/85 dark:bg-card/65 border-white/20 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.4)]"
+        )}>
+          {/* Dynamic Ambient Rim Bloom */}
+          <div 
+            className={cn(
+              "absolute -top-14 -right-14 w-52 h-52 rounded-full blur-3xl pointer-events-none transition-colors duration-1000",
+              isOverBudget ? "bg-rose-500/30" : budgetUsedPercent >= 75 ? "bg-amber-500/25" : "bg-primary/20"
+            )} 
+          />
+          {/* Subtle inner sheen */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent dark:from-white/5 pointer-events-none" />
+          <CardContent className="p-6 relative z-10">
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
                 <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
@@ -562,8 +580,10 @@ export default function Dashboard() {
           <h3 className="font-semibold text-sm text-muted-foreground mb-3">Quick Add</h3>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
             {quickAdds.map(qa => (
-              <button 
+              <motion.button 
                 key={qa.description}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: "spring", stiffness: 500, damping: 24 }}
                 onClick={() => {
                   vibrate(15);
                   addExpense({
@@ -573,14 +593,14 @@ export default function Dashboard() {
                     date: new Date().toISOString(),
                   });
                 }}
-                className="flex items-center gap-2 bg-secondary/60 hover:bg-secondary active:scale-[0.96] px-4 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-all duration-100 ease-out border shadow-xs select-none"
+                className="flex items-center gap-2.5 bg-card/85 hover:bg-card border border-white/20 dark:border-white/10 px-4 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-colors shadow-xs select-none"
               >
                 <span className="text-xl">{qa.icon}</span>
                 <div className="text-left">
                   <p className="text-sm font-semibold leading-none">{qa.description}</p>
                   <p className="text-xs text-muted-foreground mt-0.5 display-number">{formatCurrency(qa.amount, settings.currency)}</p>
                 </div>
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
@@ -594,7 +614,7 @@ export default function Dashboard() {
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
             {bills.map(bill => (
-              <div key={bill.id} className="bg-card border rounded-xl p-3 shrink-0 w-[140px] shadow-sm">
+              <div key={bill.id} className="bg-card border border-white/20 dark:border-white/10 rounded-2xl p-3 shrink-0 w-[140px] shadow-sm">
                 <p className="text-xs text-muted-foreground mb-1">{bill.autoDeduct ? 'Auto-deduct' : 'Manual'}</p>
                 <p className="font-medium text-sm truncate">{bill.title}</p>
                 <p className="font-semibold mt-1">{formatCurrency(bill.amount, settings.currency)}</p>
@@ -611,23 +631,33 @@ export default function Dashboard() {
         </div>
         <div className="space-y-3">
           {recentExpenses.length === 0 ? (
-            <div className="text-center py-10 bg-card border rounded-xl shadow-sm flex flex-col items-center">
-              <div className="bg-primary/10 p-3 rounded-full mb-3 text-primary">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></svg>
-              </div>
-              <p className="text-foreground text-sm font-medium">No expenses logged yet.</p>
-              <p className="text-xs text-muted-foreground mt-1 mb-4 max-w-[200px]">Tap the + button below to add your first expense!</p>
-            </div>
+            <EmptyState
+              icon={<ReceiptText className="w-7 h-7" />}
+              title="No expenses logged yet"
+              description="Tap the quick-add buttons above or + to record today's spending."
+              compact
+              actionLabel="+ Add Expense"
+              onAction={() => useExpenseStore.getState().setModalOpen(true)}
+            />
           ) : (
             recentExpenses.map((expense) => (
-              <div key={expense.id} className="flex justify-between items-center p-3 bg-card border rounded-2xl shadow-xs hover:border-primary/30 transition-colors">
+              <motion.div
+                key={expense.id}
+                whileTap={{ scale: 0.985 }}
+                transition={{ type: "spring", stiffness: 450, damping: 26 }}
+                className="flex justify-between items-center p-3.5 bg-card/90 border border-white/20 dark:border-white/10 rounded-2xl shadow-xs hover:border-primary/30 transition-colors"
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0 shadow-xs">
                     {settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0">
                     <p className="font-semibold text-sm leading-tight truncate">{expense.description}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{format(parseISO(expense.date), 'MMM d')} • {expense.category}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-xs text-muted-foreground">{format(parseISO(expense.date), 'MMM d')}</span>
+                      <span>•</span>
+                      <CategoryBadge category={expense.category} size="xs" />
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -664,7 +694,7 @@ export default function Dashboard() {
                     <CopyPlus className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
         </div>
