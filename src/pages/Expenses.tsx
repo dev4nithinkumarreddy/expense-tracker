@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal } from "lucide-react";
+import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2 } from "lucide-react";
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
+import { RecentlyDeletedModal } from '../components/RecentlyDeletedModal';
 import { Button } from "../components/ui/button";
 import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
@@ -15,9 +16,10 @@ import { getCategoryStyle } from "../components/ui/CategoryBadge";
 type QuickFilter = 'all' | 'receipt' | 'high_spend' | 'recurring';
 
 export default function Expenses() {
-  const { expenses, settings, fetchCloudData } = useExpenseStore();
+  const { expenses, recentlyDeleted = [], settings, fetchCloudData } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<string>("this_month");
   const [minAmount, setMinAmount] = useState("");
@@ -120,9 +122,29 @@ export default function Expenses() {
       {/* Top Page Header - Scrolls away naturally */}
       <div className="flex justify-between items-center pt-1 pb-1">
         <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
-        <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2 rounded-full">
-          <Download className="w-4 h-4" /> Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              vibrate(10);
+              setIsRecentlyDeletedOpen(true);
+            }}
+            className="gap-1.5 rounded-full relative"
+            title="Recently Deleted History"
+          >
+            <Trash2 className="w-4 h-4 text-muted-foreground" />
+            <span className="hidden xs:inline">Trash</span>
+            {recentlyDeleted.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-destructive/15 text-destructive rounded-full text-[10px] font-bold">
+                {recentlyDeleted.length}
+              </span>
+            )}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2 rounded-full">
+            <Download className="w-4 h-4" /> Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Sticky Frosted Glass Filter Bar - Stays pinned at top: 0 */}
@@ -323,6 +345,11 @@ export default function Expenses() {
         amount={activeReceipt?.amount}
         currency={settings.currency}
         onClose={() => setActiveReceipt(null)}
+      />
+
+      <RecentlyDeletedModal
+        isOpen={isRecentlyDeletedOpen}
+        onClose={() => setIsRecentlyDeletedOpen(false)}
       />
     </div>
   );

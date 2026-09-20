@@ -19,6 +19,11 @@ export interface Expense {
   next_occurrence?: string | null;
 }
 
+export interface DeletedExpense {
+  expense: Expense;
+  deletedAt: string; // ISO string
+}
+
 export interface Budget {
   id: string;
   category: string;
@@ -109,6 +114,7 @@ interface ExpenseState {
   isModalOpen: boolean;
   sharedData: { title?: string, text?: string, url?: string } | null;
   shouldTriggerScan: boolean;
+  recentlyDeleted: DeletedExpense[];
   
   // Actions
   setSession: (session: Session | null) => void;
@@ -118,6 +124,9 @@ interface ExpenseState {
   addExpense: (expense: Omit<Expense, 'id'>) => Promise<string>;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+  restoreExpense: (id: string) => Promise<void>;
+  permanentlyDeleteExpense: (id: string) => Promise<void>;
+  clearRecentlyDeleted: () => Promise<void>;
   
   addBill: (bill: Omit<Bill, 'id'>) => void;
   updateBill: (id: string, bill: Partial<Bill>) => void;
@@ -190,6 +199,7 @@ export const useExpenseStore = create<ExpenseState>()(
       isModalOpen: false,
       sharedData: null,
       shouldTriggerScan: false,
+      recentlyDeleted: [],
       
       setSession: (session) => set({ session }),
       setSharedData: (data) => set({ sharedData: data }),
@@ -526,13 +536,21 @@ export const useExpenseStore = create<ExpenseState>()(
       },
       
       deleteExpense: (id) => {
-        const { session, expenses, addPendingMutation, syncPendingMutations } = get();
+        const { session, expenses, recentlyDeleted = [], addPendingMutation, syncPendingMutations } = get();
         const expenseToDelete = expenses.find(e => e.id === id);
+
+        if (!expenseToDelete) return;
+
+        const newRecentlyDeleted: DeletedExpense[] = [
+          { expense: expenseToDelete, deletedAt: new Date().toISOString() },
+          ...recentlyDeleted.filter(d => d.expense.id !== id).slice(0, 49)
+        ];
 
         set((state) => {
           const updatedExpenses = state.expenses.filter(e => e.id !== id);
           return {
             expenses: updatedExpenses,
+            recentlyDeleted: newRecentlyDeleted,
             settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
           };
         });
@@ -545,40 +563,65 @@ export const useExpenseStore = create<ExpenseState>()(
           syncPendingMutations();
         }
 
-        if (expenseToDelete) {
-          toast.success('Expense deleted', {
-            action: {
-              label: 'Undo',
-              onClick: () => {
-                set(state => {
-                  const updatedExpenses = [...state.expenses, expenseToDelete];
-                  return {
-                    expenses: updatedExpenses,
-                    settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
-                  };
-                });
-                if (session) {
-                  queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
-                     return old ? [...old, expenseToDelete] : [expenseToDelete];
-                  });
-                  addPendingMutation({ type: 'INSERT_EXPENSE', payload: {
-                    id: expenseToDelete.id,
-                    user_id: session.user.id,
-                    amount: expenseToDelete.amount,
-                    description: expenseToDelete.description,
-                    category: expenseToDelete.category,
-                    date: expenseToDelete.date,
-                    notes: expenseToDelete.notes,
-                    receipt_url: expenseToDelete.receipt_url,
-                    recurrence: expenseToDelete.recurrence || 'none',
-                    next_occurrence: expenseToDelete.next_occurrence || null
-                  }});
-                  syncPendingMutations();
-                }
-              }
+        toast.success(`Deleted "${expenseToDelete.description}"`, {
+          action: {
+            label: 'Undo',
+            onClick: () => {
+              get().restoreExpense(expenseToDelete.id);
             }
+          }
+        });
+      },
+
+      restoreExpense: async (id) => {
+        const { session, recentlyDeleted = [], expenses, addPendingMutation, syncPendingMutations } = get();
+        const itemToRestore = recentlyDeleted.find(d => d.expense.id === id);
+        if (!itemToRestore) return;
+
+        const restoredExpense = itemToRestore.expense;
+        const updatedRecentlyDeleted = recentlyDeleted.filter(d => d.expense.id !== id);
+        const updatedExpenses = [...expenses, restoredExpense];
+
+        set((state) => ({
+          expenses: updatedExpenses,
+          recentlyDeleted: updatedRecentlyDeleted,
+          settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
+        }));
+
+        if (session) {
+          queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
+            return old ? [...old, restoredExpense] : [restoredExpense];
           });
+          const payload = {
+            id: restoredExpense.id,
+            user_id: session.user.id,
+            amount: restoredExpense.amount,
+            description: restoredExpense.description,
+            category: restoredExpense.category,
+            date: restoredExpense.date,
+            notes: restoredExpense.notes,
+            receipt_url: restoredExpense.receipt_url,
+            recurrence: restoredExpense.recurrence || 'none',
+            next_occurrence: restoredExpense.next_occurrence || null
+          };
+          addPendingMutation({ type: 'INSERT_EXPENSE', payload });
+          syncPendingMutations();
         }
+
+        toast.success(`Restored "${restoredExpense.description}"`);
+      },
+
+      permanentlyDeleteExpense: async (id) => {
+        const { recentlyDeleted = [] } = get();
+        set({
+          recentlyDeleted: recentlyDeleted.filter(d => d.expense.id !== id)
+        });
+        toast.info('Permanently deleted');
+      },
+
+      clearRecentlyDeleted: async () => {
+        set({ recentlyDeleted: [] });
+        toast.info('Trash emptied');
       },
       
       addBill: (bill) => {
@@ -897,7 +940,8 @@ export const useExpenseStore = create<ExpenseState>()(
           budgets: [],
           wishlistItems: [],
           debts: [],
-          pendingMutations: []
+          pendingMutations: [],
+          recentlyDeleted: []
         });
       },
 
@@ -1044,6 +1088,7 @@ export const useExpenseStore = create<ExpenseState>()(
           wishlistItems: [],
           debts: [],
           pendingMutations: [],
+          recentlyDeleted: [],
           settings: {
             monthlyIncome: 45000,
             currency: '₹',

@@ -16,11 +16,6 @@ interface SwipeableExpenseItemProps {
   onViewReceipt?: (url: string, description?: string, amount?: number) => void;
 }
 
-// Apple exponential momentum projection: projects landing point based on velocity
-function projectVelocity(velocity: number, decelerationRate = 0.998) {
-  return (velocity / 1000) * decelerationRate / (1 - decelerationRate);
-}
-
 export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt }: SwipeableExpenseItemProps) {
   const { settings, addExpense, deleteExpense } = useExpenseStore();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -54,14 +49,15 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
   const x = useMotionValue(0);
 
   // Smooth continuous opacity and scale for action indicators without React re-renders
-  const editOpacity = useTransform(x, [15, 60], [0, 1]);
-  const editScale = useTransform(x, [15, 60], [0.85, 1.05]);
-  const deleteOpacity = useTransform(x, [-15, -60], [0, 1]);
-  const deleteScale = useTransform(x, [-15, -60], [0.85, 1.05]);
+  const editOpacity = useTransform(x, [20, 80], [0, 1]);
+  const editScale = useTransform(x, [20, 80], [0.85, 1.05]);
+  const deleteOpacity = useTransform(x, [-25, -110], [0, 1]);
+  const deleteScale = useTransform(x, [-25, -110], [0.85, 1.1]);
 
   const handleDrag = () => {
     const currentX = x.get();
-    if (Math.abs(currentX) > 65 && !hasHapticFired.current) {
+    // Fire tactile haptic when crossing the deliberate action commit detents
+    if ((currentX <= -120 || currentX >= 80) && !hasHapticFired.current) {
       vibrate(15);
       hasHapticFired.current = true;
     } else if (Math.abs(currentX) < 40) {
@@ -71,17 +67,22 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
 
   const handleDragEnd = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     hasHapticFired.current = false;
-    const projectedX = info.offset.x + projectVelocity(info.velocity.x);
+    const { offset, velocity } = info;
 
-    // Left swipe = Delete
-    if (projectedX < -70 || info.offset.x < -75) {
+    // Calibrated Left Swipe = Delete
+    // Requires deliberate physical pull past 120px, OR a strong flick past 85px with velocity <= -500px/s.
+    // Anything smaller (e.g. casual scroll or small drag) safely springs back to center.
+    const isDeliberateDelete = offset.x <= -120 || (offset.x <= -85 && velocity.x <= -500);
+
+    // Right swipe = Edit (requires offset >= 80px or strong flick past 60px)
+    const isDeliberateEdit = offset.x >= 80 || (offset.x >= 60 && velocity.x >= 500);
+
+    if (isDeliberateDelete) {
       setIsDeleting(true);
       vibrate(25);
       if (settings.soundEnabled) playDeleteSound();
       setTimeout(() => deleteExpense(expense.id), 250);
-    } 
-    // Right swipe = Edit
-    else if (projectedX > 70 || info.offset.x > 75) {
+    } else if (isDeliberateEdit) {
       vibrate(20);
       onEdit(expense);
     }
@@ -131,7 +132,7 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
       <motion.div
         drag="x"
         dragDirectionLock
-        dragConstraints={{ left: -110, right: 110 }}
+        dragConstraints={{ left: -160, right: 100 }}
         dragElastic={0.55} // Apple rubberband resistance constant c=0.55
         dragTransition={{ bounceStiffness: 400, bounceDamping: 35 }}
         style={{ x }}

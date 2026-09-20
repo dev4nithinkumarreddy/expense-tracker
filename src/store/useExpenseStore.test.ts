@@ -26,6 +26,7 @@ describe('useExpenseStore', () => {
       bills: [],
       budgets: [],
       pendingMutations: [],
+      recentlyDeleted: [],
       session: { user: { id: 'test-user-id' } } as any
     });
   });
@@ -260,5 +261,65 @@ describe('useExpenseStore', () => {
     store.deleteExpense(newId);
     state = useExpenseStore.getState();
     expect(state.expenses.find(e => e.id === newId)).toBeUndefined();
+  });
+
+  it('should preserve deleted expenses in recentlyDeleted and allow restoration', async () => {
+    const store = useExpenseStore.getState();
+    const id = await store.addExpense({
+      amount: 450,
+      description: 'Groceries',
+      category: 'Grocery',
+      date: new Date().toISOString()
+    });
+
+    // Delete the expense
+    store.deleteExpense(id);
+
+    let state = useExpenseStore.getState();
+    expect(state.expenses.length).toBe(0);
+    expect(state.recentlyDeleted.length).toBe(1);
+    expect(state.recentlyDeleted[0].expense.id).toBe(id);
+    expect(state.recentlyDeleted[0].expense.description).toBe('Groceries');
+    expect(state.recentlyDeleted[0].deletedAt).toBeDefined();
+
+    // Restore the expense
+    await store.restoreExpense(id);
+
+    state = useExpenseStore.getState();
+    expect(state.expenses.length).toBe(1);
+    expect(state.expenses[0].id).toBe(id);
+    expect(state.expenses[0].description).toBe('Groceries');
+    expect(state.recentlyDeleted.length).toBe(0);
+  });
+
+  it('should permanently delete an expense from recentlyDeleted', async () => {
+    const store = useExpenseStore.getState();
+    const id = await store.addExpense({
+      amount: 200,
+      description: 'Book',
+      category: 'Shopping',
+      date: new Date().toISOString()
+    });
+
+    store.deleteExpense(id);
+    expect(useExpenseStore.getState().recentlyDeleted.length).toBe(1);
+
+    await store.permanentlyDeleteExpense(id);
+    expect(useExpenseStore.getState().recentlyDeleted.length).toBe(0);
+    expect(useExpenseStore.getState().expenses.length).toBe(0);
+  });
+
+  it('should empty all recentlyDeleted items on clearRecentlyDeleted', async () => {
+    const store = useExpenseStore.getState();
+    const id1 = await store.addExpense({ amount: 100, description: 'Item 1', category: 'Other', date: new Date().toISOString() });
+    const id2 = await store.addExpense({ amount: 200, description: 'Item 2', category: 'Other', date: new Date().toISOString() });
+
+    store.deleteExpense(id1);
+    store.deleteExpense(id2);
+
+    expect(useExpenseStore.getState().recentlyDeleted.length).toBe(2);
+
+    await store.clearRecentlyDeleted();
+    expect(useExpenseStore.getState().recentlyDeleted.length).toBe(0);
   });
 });

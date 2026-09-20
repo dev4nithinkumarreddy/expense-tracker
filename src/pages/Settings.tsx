@@ -9,6 +9,7 @@ import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
 import { vibrate } from "../lib/utils";
 import { playSuccessSound, playTapSound, playDeleteSound } from "../lib/sound";
+import { RecentlyDeletedModal } from "../components/RecentlyDeletedModal";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
 interface CategoryRowItemProps {
@@ -92,11 +93,12 @@ function CategoryRowItem({
 }
 
 export default function Settings() {
-  const { settings, updateSettings, addCategory, deleteCategory, reorderCategories, eraseAllData, expenses, bills, session, budgets, updateBudget } = useExpenseStore();
+  const { settings, updateSettings, addCategory, deleteCategory, reorderCategories, eraseAllData, expenses, bills, session, budgets, updateBudget, recentlyDeleted = [] } = useExpenseStore();
   const { isSupported, permission, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
   
   const [newCat, setNewCat] = useState("");
   const [editingEmojiFor, setEditingEmojiFor] = useState<string | null>(null);
+  const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
   
   // Quick Add states
   const [qaName, setQaName] = useState("");
@@ -478,6 +480,26 @@ export default function Settings() {
           <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Data Management</h3>
           <Card>
             <CardContent className="p-4 space-y-3">
+              <Button 
+                variant="outline" 
+                className="w-full justify-between gap-2" 
+                onClick={() => {
+                  vibrate(10);
+                  setIsRecentlyDeletedOpen(true);
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Trash2 className="w-4 h-4 text-muted-foreground" />
+                  <span>Recently Deleted</span>
+                </div>
+                {recentlyDeleted.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-destructive/15 text-destructive">
+                    {recentlyDeleted.length} items
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Empty</span>
+                )}
+              </Button>
               <Button variant="outline" className="w-full justify-start gap-2" onClick={handleCsvExport}>
                 <FileSpreadsheet className="w-4 h-4" />
                 Export Expenses (CSV)
@@ -497,6 +519,11 @@ export default function Settings() {
           </Card>
         </div>
       </div>
+
+      <RecentlyDeletedModal 
+        isOpen={isRecentlyDeletedOpen} 
+        onClose={() => setIsRecentlyDeletedOpen(false)} 
+      />
     </div>
   );
 }
