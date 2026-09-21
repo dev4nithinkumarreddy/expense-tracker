@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { urlBase64ToUint8Array, enableNotifications } from './pushNotifications';
 
 describe('pushNotifications.ts', () => {
