@@ -12,12 +12,9 @@ dist
 dist-ssr
 *.local
 .env
-.env.local
-.env.*.local
-.env.development.local
-.env.test.local
-.env.production.local
-# Note: .env.example is intentionally committed. Do NOT add it here.
+.env.*
+!.env.example
+# Note: .env.example is intentionally committed — it contains only placeholder values.
 
 # Editor directories and files
 .vscode/*
