@@ -99,10 +99,72 @@ anon key and URL in `sw.ts` are low-risk but will be cleaned up in Phase 1.
 | `docs/CLEANUP_LOG.md` | Created |
 | `docs/ARCHITECTURE_AUDIT.md` | Created (from prior audit session) |
 
-### Open Questions for Phase 0 Checkpoint
-1. **Schema capture:** Please run `supabase db pull --schema public` and confirm — the
-   output will be committed as the baseline migration.
-2. **Branch push:** Should `chore/hardening-cleanup` be pushed to `origin` now?
+### Open Questions for Phase 0 Checkpoint (resolved)
+1. **Schema capture:** Pending — see §0.3 below.
+2. **Branch push:** Done — see below.
 
 ---
-<!-- Future phases will be appended below -->
+
+## Phase 0 (continued) — Approved Items
+**Date:** 2026-09-21
+
+### Fix: rules-of-hooks in Dashboard.tsx
+- `cashflow = useMemo(...)` was placed after `if (isLoading) return` early return at line 100.
+- Moved `cashflow` useMemo and `quickAdds` const **above** the early return. All deps already in scope.
+- No behavior change.
+- **Commit:** `f3d06fd` — `fix: move useMemo above early return in Dashboard (rules-of-hooks)`
+- **Result:** `oxlint` now exits 0 errors (was 1 error). 3 pre-existing warnings remain.
+
+### Fix: .gitignore wildcard pattern
+- Reverted expanded per-file rules to `.env.*` wildcard + `!.env.example` negation.
+- **Commit:** `e8193dc`
+- **Verified** with `git check-ignore -v`:
+
+| Path | Ignored? | Rule |
+|---|---|---|
+| `.env` | ✅ Yes | `.gitignore:14 .env` |
+| `.env.local` | ✅ Yes | `.gitignore:15 .env.*` |
+| `.env.production` | ✅ Yes | `.gitignore:15 .env.*` |
+| `.env.staging` | ✅ Yes | `.gitignore:15 .env.*` |
+| `.env.example` | ✅ Not ignored (tracked) | `!.env.example` exception |
+
+### Branch Push
+- Branch `chore/hardening-cleanup` pushed to `origin/chore/hardening-cleanup`.
+- PR: https://github.com/dev4nithinkumarreddy/expense-tracker/pull/new/chore/hardening-cleanup
+
+### Phase 0 Final Tool Results
+
+| Check | Result |
+|---|---|
+| `tsc --noEmit` | ✅ 0 errors |
+| `oxlint` | ✅ 0 errors, 3 warnings (pre-existing) |
+| `npm run build` | ✅ succeeds |
+
+---
+
+## Phase 0.3 — Schema Baseline (PENDING USER ACTION)
+
+### Commands to run (read-only, no remote changes)
+```bash
+# Link CLI to project (skip if already linked)
+supabase link --project-ref sjodifnzidavsazajlcx
+
+# Pull the live public schema
+supabase db pull --schema public
+```
+
+This creates: `supabase/migrations/<timestamp>_remote_schema.sql`
+
+Share the filename and confirm no errors. I will then:
+1. Rename to `supabase/migrations/20240101000000_baseline_schema.sql`
+2. Check for missing `auth.users` triggers (signup profile creation, etc.)
+3. Add a baseline-only header comment
+4. Commit it
+5. Provide the exact repair command:
+
+```bash
+supabase migration repair --status applied 20240101000000
+```
+
+---
+<!-- Future phases appended below -->
