@@ -36,10 +36,12 @@ SET search_path = ''
 AS $$
 BEGIN
   IF NEW.user_id IS NULL AND NEW.email IS NOT NULL THEN
-    SELECT id INTO NEW.user_id
-    FROM auth.users
-    WHERE LOWER(email) = LOWER(NEW.email)
-    LIMIT 1;
+    NEW.user_id := (
+      SELECT id
+      FROM auth.users
+      WHERE LOWER(email) = LOWER(NEW.email)
+      LIMIT 1
+    );
   END IF;
   RETURN NEW;
 END;
