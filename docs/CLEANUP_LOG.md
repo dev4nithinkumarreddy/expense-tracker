@@ -142,28 +142,30 @@ anon key and URL in `sw.ts` are low-risk but will be cleaned up in Phase 1.
 
 ---
 
-## Phase 0.3 — Schema Baseline (PENDING USER ACTION)
+## Phase 0.3 — Schema Baseline & Archive of Dashboard Migrations
+**Date:** 2026-09-21
 
-### Commands to run (read-only, no remote changes)
+### Action Taken: Migrations Archived
+- Remote migration history (`supabase_migrations.schema_migrations`) is empty because all schema objects were created via Supabase dashboard / SQL editor.
+- The 3 existing migrations (`20260921_admin_portal.sql`, `20260921_admin_advanced.sql`, `20260921_bills_due_date.sql`) have been moved to `supabase/migrations_archive/` with an explanatory `README.md`.
+- This clears `supabase/migrations/` so that a clean, unified baseline dump can be placed at `supabase/migrations/20260101000000_baseline.sql`.
+
+### Next Step: Live Schema Dump (Read-only)
+User will run:
 ```bash
-# Link CLI to project (skip if already linked)
-supabase link --project-ref sjodifnzidavsazajlcx
-
-# Pull the live public schema
-supabase db pull --schema public
+npx supabase db dump --schema public -f supabase/migrations/20260101000000_baseline.sql
 ```
 
-This creates: `supabase/migrations/<timestamp>_remote_schema.sql`
+Once generated, the dump will be audited for:
+- Full inventory: tables, enums, functions, triggers, and RLS policies.
+- Presence/absence of `profiles` and `app_role`.
+- Alignment of `admin_users` policies with archived files.
+- Non-public schema dependencies (storage buckets, auth triggers, extensions, cron, edge secrets).
 
-Share the filename and confirm no errors. I will then:
-1. Rename to `supabase/migrations/20240101000000_baseline_schema.sql`
-2. Check for missing `auth.users` triggers (signup profile creation, etc.)
-3. Add a baseline-only header comment
-4. Commit it
-5. Provide the exact repair command:
-
+After verification and approval:
 ```bash
-supabase migration repair --status applied 20240101000000
+npx supabase migration repair --status applied 20260101000000
+npx supabase migration list
 ```
 
 ---
