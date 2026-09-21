@@ -28,6 +28,89 @@ const DEFAULT_CATCHPHRASES = [
   "Treat yo' self! (But seriously, log it in the app). 🛍️"
 ];
 
+/**
+ * Validates caller's JWT and ensures they have admin privileges in admin_users table
+ */
+async function authenticateAdmin(req: Request): Promise<{ authorized: boolean; errorResponse?: Response; userId?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return {
+      authorized: false,
+      errorResponse: new Response(JSON.stringify({ error: 'Unauthorized: Missing Authorization header' }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      })
+    };
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) {
+    return {
+      authorized: false,
+      errorResponse: new Response(JSON.stringify({ error: 'Unauthorized: Missing Bearer token' }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      })
+    };
+  }
+
+  // Allow direct service_role invocation (e.g., cron jobs or server triggers)
+  if (supabaseServiceKey && token === supabaseServiceKey) {
+    return { authorized: true, userId: 'service_role' };
+  }
+
+  // Resolve user from JWT using Supabase Auth
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user) {
+    return {
+      authorized: false,
+      errorResponse: new Response(JSON.stringify({ error: 'Unauthorized: Invalid or expired token' }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      })
+    };
+  }
+
+  // Check admin status in admin_users table by user_id or email
+  const { data: adminById } = await supabase
+    .from('admin_users')
+    .select('id, role')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  let isAdmin = !!adminById;
+
+  if (!isAdmin && user.email) {
+    const { data: adminByEmail } = await supabase
+      .from('admin_users')
+      .select('id, role')
+      .ilike('email', user.email)
+      .maybeSingle();
+
+    if (adminByEmail) {
+      isAdmin = true;
+      // Auto-backfill user_id on match
+      await supabase
+        .from('admin_users')
+        .update({ user_id: user.id })
+        .eq('id', adminByEmail.id)
+        .is('user_id', null);
+    }
+  }
+
+  if (!isAdmin) {
+    return {
+      authorized: false,
+      errorResponse: new Response(JSON.stringify({ error: 'Forbidden: Admin access required' }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403,
+      })
+    };
+  }
+
+  return { authorized: true, userId: user.id };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -60,7 +143,14 @@ serve(async (req) => {
     // -------------------------------------------------------------
     // ACTION: TRACK CLICK / OPEN (CTR)
     // -------------------------------------------------------------
-    if (bodyData.action === 'track_click' && bodyData.campaign_id) {
+    if (bodyData.action === 'track_click') {
+      if (!bodyData.campaign_id || typeof bodyData.campaign_id !== 'string') {
+        return new Response(JSON.stringify({ error: 'Missing or invalid campaign_id' }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400
+        });
+      }
+
       try {
         const { data: logItem } = await supabase
           .from('notification_logs')
@@ -85,10 +175,20 @@ serve(async (req) => {
     }
 
     // -------------------------------------------------------------
-    // ACTION: GET USER DETAILS (USER INSPECTOR)
+    // ACTION: GET USER DETAILS (USER INSPECTOR) - ADMIN ONLY
     // -------------------------------------------------------------
-    if (bodyData.action === 'get_user_details' && bodyData.user_id) {
-      const targetUid = bodyData.user_id;
+    if (bodyData.action === 'get_user_details') {
+      const auth = await authenticateAdmin(req);
+      if (!auth.authorized) return auth.errorResponse!;
+
+      if (!bodyData.user_id || typeof bodyData.user_id !== 'string') {
+        return new Response(JSON.stringify({ error: 'Missing or invalid user_id parameter' }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400
+        });
+      }
+
+      const targetUid = bodyData.user_id.trim();
 
       const [expensesRes, userSettingsRes, pushRes] = await Promise.all([
         supabase.from('expenses').select('*').eq('user_id', targetUid).order('date', { ascending: false }),
@@ -161,9 +261,12 @@ serve(async (req) => {
     }
 
     // -------------------------------------------------------------
-    // ACTION: GET ANALYTICS & MACRO CHARTS
+    // ACTION: GET ANALYTICS & MACRO CHARTS - ADMIN ONLY
     // -------------------------------------------------------------
     if (bodyData.action === 'get_analytics') {
+      const auth = await authenticateAdmin(req);
+      if (!auth.authorized) return auth.errorResponse!;
+
       const [expensesRes, pushRes, userSettingsRes] = await Promise.all([
         supabase.from('expenses').select('id, user_id, amount, date, category'),
         supabase.from('push_subscriptions').select('id, user_id, user_agent'),
@@ -300,9 +403,12 @@ serve(async (req) => {
     }
 
     // -------------------------------------------------------------
-    // ACTION: SCHEDULED CAMPAIGNS & AUTOMATED DRIP CRON CHECK
+    // ACTION: SCHEDULED CAMPAIGNS & AUTOMATED DRIP CRON CHECK - ADMIN / SERVICE ROLE
     // -------------------------------------------------------------
     if (bodyData.is_scheduled_check) {
+      const auth = await authenticateAdmin(req);
+      if (!auth.authorized) return auth.errorResponse!;
+
       if (!vapidPublicKey || !vapidPrivateKey) {
         throw new Error("Missing VAPID keys in Edge Function secrets");
       }
@@ -389,18 +495,35 @@ serve(async (req) => {
     }
 
     // -------------------------------------------------------------
-    // ACTION: IMMEDIATE CUSTOM BROADCAST DISPATCH
+    // ACTION: IMMEDIATE CUSTOM BROADCAST DISPATCH - ADMIN ONLY
     // -------------------------------------------------------------
+    const auth = await authenticateAdmin(req);
+    if (!auth.authorized) return auth.errorResponse!;
+
     if (!vapidPublicKey || !vapidPrivateKey) {
       throw new Error("Missing VAPID keys in Edge Function secrets");
     }
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-    const title = bodyData.title || "Hey there... 👋";
-    const body = bodyData.body || DEFAULT_CATCHPHRASES[Math.floor(Math.random() * DEFAULT_CATCHPHRASES.length)];
-    const url = bodyData.url || "/";
-    const targetAudience = bodyData.target_audience || "all";
-    const targetUserId = bodyData.target_user_id;
+    // Validate and sanitize broadcast payload
+    const title = typeof bodyData.title === 'string' && bodyData.title.trim().length > 0
+      ? bodyData.title.trim().slice(0, 200)
+      : "Hey there... 👋";
+    const body = typeof bodyData.body === 'string' && bodyData.body.trim().length > 0
+      ? bodyData.body.trim().slice(0, 1000)
+      : DEFAULT_CATCHPHRASES[Math.floor(Math.random() * DEFAULT_CATCHPHRASES.length)];
+    const url = typeof bodyData.url === 'string' && bodyData.url.length <= 500
+      ? bodyData.url
+      : "/";
+
+    const allowedAudiences = ['all', 'inactive_today', 'active_streaks'];
+    const targetAudience = allowedAudiences.includes(bodyData.target_audience)
+      ? bodyData.target_audience
+      : "all";
+
+    const targetUserId = typeof bodyData.target_user_id === 'string' && bodyData.target_user_id.trim().length > 0
+      ? bodyData.target_user_id.trim()
+      : undefined;
 
     const result = await dispatchNotification({
       title,
@@ -408,7 +531,7 @@ serve(async (req) => {
       url,
       targetAudience,
       targetUserId,
-      triggeredBy: bodyData.admin_user_id
+      triggeredBy: auth.userId || bodyData.admin_user_id
     });
 
     return new Response(JSON.stringify({ 
