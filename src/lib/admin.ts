@@ -12,6 +12,12 @@ export interface AdminAnalytics {
     desktop: number;
     other: number;
   };
+  hourlyDistribution?: number[];
+  platformCategories?: Array<{
+    name: string;
+    amount: number;
+    percent: number;
+  }>;
   recentUsers: Array<{
     userId: string;
     email?: string;
@@ -20,6 +26,52 @@ export interface AdminAnalytics {
     expenseCount: number;
     hasPush: boolean;
   }>;
+}
+
+export interface UserInspectorDetails {
+  id: string;
+  email?: string;
+  name?: string;
+  createdAt?: string;
+  lastSignInAt?: string;
+  totalSpent: number;
+  expenseCount: number;
+  averageExpense: number;
+  lastExpenseDate: string | null;
+  hasPush: boolean;
+  pushTokensCount: number;
+  topCategories: Array<{
+    name: string;
+    count: number;
+    total: number;
+    percent: number;
+  }>;
+  recentExpenses: Array<{
+    id: string;
+    title: string;
+    amount: number;
+    category: string;
+    date: string;
+  }>;
+}
+
+export interface AutomatedRule {
+  id: string;
+  rule_type: string;
+  title: string;
+  body: string;
+  trigger_time: string;
+  target_url: string;
+  is_enabled: boolean;
+  last_triggered_at?: string | null;
+  created_at?: string;
+}
+
+export interface AdminMember {
+  id: string;
+  email: string;
+  role: string;
+  created_at?: string;
 }
 
 export interface ScheduledNotification {
@@ -45,6 +97,7 @@ export interface NotificationLog {
   total_recipients: number;
   successful_deliveries: number;
   failed_deliveries: number;
+  opened_count?: number;
 }
 
 /**
@@ -309,3 +362,161 @@ export function calculateRemainingTime(scheduledAtIso: string): {
 
   return { isDue: false, formatted, hours, minutes, seconds };
 }
+
+/**
+ * Fetch detailed metrics and recent history for a specific user
+ */
+export async function fetchUserDetails(userId: string): Promise<UserInspectorDetails | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('push-notify', {
+      body: { action: 'get_user_details', user_id: userId }
+    });
+    if (!error && data?.success && data?.user) {
+      return data.user as UserInspectorDetails;
+    }
+  } catch (err) {
+    console.warn("Could not fetch user details:", err);
+  }
+  return null;
+}
+
+/**
+ * Send a 1-on-1 personalized push notification nudge to a single user
+ */
+export async function sendDirectUserNudge(userId: string, payload: { title: string; body: string; url?: string; admin_user_id?: string }) {
+  const { data, error } = await supabase.functions.invoke('push-notify', {
+    body: {
+      target_user_id: userId,
+      title: payload.title,
+      body: payload.body,
+      url: payload.url || '/',
+      admin_user_id: payload.admin_user_id
+    }
+  });
+  if (error) {
+    throw new Error(error.message || 'Failed to dispatch direct nudge');
+  }
+  return data;
+}
+
+/**
+ * Fetch all automated smart drip rules
+ */
+export async function fetchAutomatedRules(): Promise<AutomatedRule[]> {
+  try {
+    const { data, error } = await supabase
+      .from('automated_rules')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.warn("Could not fetch automated rules:", error);
+      return [];
+    }
+    return (data || []) as AutomatedRule[];
+  } catch (err) {
+    console.warn("Error fetching automated rules:", err);
+    return [];
+  }
+}
+
+/**
+ * Toggle an automated rule on or off
+ */
+export async function toggleAutomatedRule(id: string, is_enabled: boolean): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('automated_rules')
+      .update({ is_enabled })
+      .eq('id', id);
+
+    if (error) {
+      console.error("Failed to toggle rule:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Error toggling rule:", err);
+    return false;
+  }
+}
+
+/**
+ * Fetch admin whitelist team members
+ */
+export async function fetchAdminTeam(): Promise<AdminMember[]> {
+  try {
+    const { data, error } = await supabase
+      .from('admin_users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn("Could not fetch admin team:", error);
+      return [];
+    }
+    return (data || []) as AdminMember[];
+  } catch (err) {
+    console.warn("Error fetching admin team:", err);
+    return [];
+  }
+}
+
+/**
+ * Add a new admin to whitelist
+ */
+export async function addAdminMember(email: string, role = 'admin'): Promise<{ success: boolean; error?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    const { error } = await supabase
+      .from('admin_users')
+      .insert({ email: cleanEmail, role });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to add admin' };
+  }
+}
+
+/**
+ * Remove an admin from whitelist
+ */
+export async function removeAdminMember(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('admin_users')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to remove admin' };
+  }
+}
+
+/**
+ * Ping Edge Function to measure real-time latency and service health
+ */
+export async function pingHealth(): Promise<{ latencyMs: number; status: string; timestamp: string }> {
+  const start = performance.now();
+  try {
+    const { data, error } = await supabase.functions.invoke('push-notify', {
+      body: { action: 'ping' }
+    });
+    const latencyMs = Math.round(performance.now() - start);
+    if (!error && data?.status) {
+      return { latencyMs, status: data.status, timestamp: data.timestamp || new Date().toISOString() };
+    }
+    return { latencyMs, status: 'degraded', timestamp: new Date().toISOString() };
+  } catch {
+    const latencyMs = Math.round(performance.now() - start);
+    return { latencyMs, status: 'unreachable', timestamp: new Date().toISOString() };
+  }
+}
+

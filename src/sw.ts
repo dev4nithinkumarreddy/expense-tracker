@@ -23,6 +23,7 @@ self.addEventListener('push', (event) => {
         badge: '/icon.png',
         data: {
           url: data.url || '/',
+          campaign_id: data.campaign_id || null
         }
       };
       
@@ -39,7 +40,27 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
   const targetPath = event.notification.data?.url || '/';
+  const campaignId = event.notification.data?.campaign_id;
   const targetUrl = new URL(targetPath, self.location.origin).href;
+
+  // Track CTR Open in background (non-blocking)
+  if (campaignId) {
+    try {
+      const supabaseUrl = 'https://sjodifnzidavsazajlcx.supabase.co';
+      const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqb2RpZm56aWRhdnNhemFqbGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyMTQyMTEsImV4cCI6MjA5OTc5MDIxMX0.ywIfnyfrsK8tFqGA4mbFy1JrLkG5RhKQnAsbHmzOm18';
+      fetch(`${supabaseUrl}/functions/v1/push-notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`
+        },
+        body: JSON.stringify({ action: 'track_click', campaign_id: campaignId })
+      }).catch(() => {});
+    } catch {
+      // Ignore background tracking failure
+    }
+  }
   
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (windowClients) => {

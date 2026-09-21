@@ -5,17 +5,26 @@ import { useExpenseStore } from '../../store/useExpenseStore';
 import { 
   fetchAdminAnalytics, 
   sendPushBroadcast, 
+  sendDirectUserNudge,
   fetchScheduledNotifications, 
   createScheduledNotification, 
   cancelScheduledNotification, 
   fetchNotificationLogs, 
   calculateRemainingTime,
+  fetchAutomatedRules,
+  toggleAutomatedRule,
+  pingHealth,
   type AdminAnalytics, 
   type ScheduledNotification, 
-  type NotificationLog 
+  type NotificationLog,
+  type AutomatedRule
 } from '../../lib/admin';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { PhoneMockupPreview } from '../../components/admin/PhoneMockupPreview';
+import { UserInspectorSheet } from '../../components/admin/UserInspectorSheet';
+import { DirectNudgeModal } from '../../components/admin/DirectNudgeModal';
+import { AdminTeamModal } from '../../components/admin/AdminTeamModal';
+import { MacroChartsSection } from '../../components/admin/MacroChartsSection';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card, CardContent } from '../../components/ui/card';
@@ -37,8 +46,13 @@ import {
   CheckCircle2,
   ExternalLink,
   ShieldCheck,
+  Shield,
   Radio,
-  BarChart3
+  BarChart3,
+  Zap,
+  Sliders,
+  MousePointerClick,
+  Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { vibrate } from '../../lib/utils';
@@ -96,6 +110,13 @@ export default function AdminDashboard() {
   const [scheduledList, setScheduledList] = useState<ScheduledNotification[]>([]);
   const [logs, setLogs] = useState<NotificationLog[]>([]);
 
+  // Advanced features state
+  const [automatedRules, setAutomatedRules] = useState<AutomatedRule[]>([]);
+  const [health, setHealth] = useState<{ latencyMs: number; status: string } | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [nudgeTargetUser, setNudgeTargetUser] = useState<{ id: string; name?: string; email?: string } | null>(null);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+
   // Timer refresh ticker
   const [, setTicker] = useState(0);
 
@@ -112,18 +133,67 @@ export default function AdminDashboard() {
   const loadAllData = async () => {
     setLoadingAnalytics(true);
     try {
-      const [analyticsData, scheduledData, logsData] = await Promise.all([
+      const [analyticsData, scheduledData, logsData, rulesData, healthData] = await Promise.all([
         fetchAdminAnalytics(),
         fetchScheduledNotifications(),
-        fetchNotificationLogs()
+        fetchNotificationLogs(),
+        fetchAutomatedRules(),
+        pingHealth()
       ]);
       setAnalytics(analyticsData);
       setScheduledList(scheduledData);
       setLogs(logsData);
+      setAutomatedRules(rulesData);
+      setHealth({ latencyMs: healthData.latencyMs, status: healthData.status });
     } catch (err: any) {
       toast.error("Failed to load admin data: " + (err.message || 'Unknown error'));
     } finally {
       setLoadingAnalytics(false);
+    }
+  };
+
+  const handleTestOnMyself = async () => {
+    if (!session?.user?.id) {
+      toast.error("You must be logged in to test on yourself.");
+      return;
+    }
+
+    setIsSending(true);
+    vibrate(15);
+    try {
+      const res = await sendDirectUserNudge(session.user.id, {
+        title: "Test Push from Admin 🚀",
+        body: "System Check: Your device received this push notification instantly!",
+        url: "/",
+        admin_user_id: session.user.id
+      });
+
+      if (res.successful > 0) {
+        toast.success("Test notification received on your device!");
+      } else {
+        toast.warning("Notification sent, but no active subscription found for your account. Ensure push notifications are enabled in Settings.");
+      }
+      loadAllData();
+    } catch (err: any) {
+      toast.error("Test push failed: " + (err.message || "Unknown error"));
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleToggleRule = async (id: string, currentStatus: boolean) => {
+    vibrate(10);
+    const nextStatus = !currentStatus;
+    // Optimistic UI update
+    setAutomatedRules(rules => rules.map(r => r.id === id ? { ...r, is_enabled: nextStatus } : r));
+
+    const ok = await toggleAutomatedRule(id, nextStatus);
+    if (ok) {
+      toast.success(nextStatus ? "Automated drip rule enabled" : "Automated drip rule paused");
+    } else {
+      toast.error("Failed to update rule state");
+      // Revert
+      setAutomatedRules(rules => rules.map(r => r.id === id ? { ...r, is_enabled: currentStatus } : r));
     }
   };
 
@@ -264,23 +334,66 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+          {/* Edge Latency & Health Indicator */}
+          {health && (
+            <div 
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-secondary/50 border border-border/50 text-[11px] font-mono shadow-xs"
+              title={`Edge Function status: ${health.status} (${health.latencyMs}ms)`}
+            >
+              <span className={`w-2 h-2 rounded-full ${health.status === 'operational' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="text-muted-foreground font-sans text-xs">Edge:</span>
+              <span className="font-bold text-foreground">{health.latencyMs}ms</span>
+            </div>
+          )}
+
+          {/* Test Push on Current Admin */}
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 rounded-2xl text-xs font-semibold h-9 px-3.5 bg-background/60 hover:bg-background border-border/60 shadow-xs active:scale-95 transition-all"
+            className="gap-1.5 rounded-2xl text-xs font-semibold h-9 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 shadow-xs active:scale-95 transition-all"
+            onClick={handleTestOnMyself}
+            disabled={isSending}
+            title="Dispatch a test push notification solely to your current device"
+          >
+            <Zap className="w-3.5 h-3.5 fill-current" />
+            <span className="hidden sm:inline">Test on Myself</span>
+            <span className="sm:hidden">Test</span>
+          </Button>
+
+          {/* Admin Team Whitelist Modal Trigger */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 rounded-2xl text-xs font-semibold h-9 px-3 bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 shadow-xs active:scale-95 transition-all"
+            onClick={() => {
+              vibrate(10);
+              setIsTeamModalOpen(true);
+            }}
+            title="Manage admin whitelist and authorized team members"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Team</span>
+          </Button>
+
+          {/* Refresh Button */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="rounded-2xl h-9 w-9 bg-background/60 hover:bg-background border-border/60 shadow-xs active:scale-95 transition-all"
             onClick={() => {
               vibrate(10);
               loadAllData();
             }}
             disabled={loadingAnalytics}
+            title="Refresh dashboard data"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingAnalytics ? 'animate-spin text-primary' : ''}`} />
-            Refresh
           </Button>
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono bg-secondary/40 px-3 py-1.5 rounded-2xl border border-border/50 text-muted-foreground">
+
+          <div className="hidden lg:flex items-center gap-2 text-xs font-mono bg-secondary/40 px-3 py-1.5 rounded-2xl border border-border/50 text-muted-foreground">
             <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            <span className="truncate max-w-[180px]">{session?.user.email}</span>
+            <span className="truncate max-w-[150px]">{session?.user.email}</span>
           </div>
         </div>
       </div>
@@ -416,10 +529,17 @@ export default function AdminDashboard() {
             </Card>
           </div>
 
+          {/* Platform Macro Spending & 24H Activity Heatmap Charts */}
+          <MacroChartsSection
+            platformCategories={analytics?.platformCategories}
+            hourlyDistribution={analytics?.hourlyDistribution}
+            totalSpend={analytics?.totalPlatformSpend || 0}
+          />
+
           {/* Device Breakdown & User Table Grid */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
             {/* Device Split Card */}
-            <Card className="md:col-span-5 rounded-3xl border border-white/30 dark:border-white/10 bg-card/80 backdrop-blur-xl shadow-xs">
+            <Card className="md:col-span-4 rounded-3xl border border-white/30 dark:border-white/10 bg-card/80 backdrop-blur-xl shadow-xs">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
@@ -517,19 +637,24 @@ export default function AdminDashboard() {
             </Card>
 
             {/* Recent User Activity Table */}
-            <Card className="md:col-span-7 rounded-3xl border border-white/30 dark:border-white/10 bg-card/80 backdrop-blur-xl shadow-xs">
+            <Card className="md:col-span-8 rounded-3xl border border-white/30 dark:border-white/10 bg-card/80 backdrop-blur-xl shadow-xs">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-emerald-500" />
-                    Recent User Records
-                  </h3>
+                  <div>
+                    <h3 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-500" />
+                      Recent User Telemetry & Actions
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Click any user row to inspect deep metrics or send a direct 1-on-1 push nudge
+                    </p>
+                  </div>
                   <span className="text-xs font-mono text-muted-foreground">
                     {analytics?.recentUsers.length ?? 0} active records
                   </span>
                 </div>
 
-                <div className="overflow-x-auto max-h-[300px] scrollbar-thin">
+                <div className="overflow-x-auto max-h-[340px] scrollbar-thin">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-border/50 text-muted-foreground">
@@ -537,24 +662,32 @@ export default function AdminDashboard() {
                         <th className="pb-2.5 font-semibold">Logged</th>
                         <th className="pb-2.5 font-semibold">Last Active</th>
                         <th className="pb-2.5 font-semibold">Push</th>
+                        <th className="pb-2.5 font-semibold text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/20">
                       {(analytics?.recentUsers || []).map((u, idx) => {
                         const avatarLetter = (u.name || u.email || 'U').charAt(0).toUpperCase();
                         return (
-                          <tr key={u.userId} className="hover:bg-secondary/40 transition-colors">
+                          <tr 
+                            key={u.userId} 
+                            onClick={() => {
+                              vibrate(8);
+                              setSelectedUserId(u.userId);
+                            }}
+                            className="hover:bg-secondary/40 transition-colors cursor-pointer group"
+                          >
                             <td className="py-2.5">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary border border-primary/20 font-bold text-xs flex items-center justify-center shrink-0">
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary border border-primary/20 font-bold text-xs flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                                   {avatarLetter}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-semibold text-xs text-foreground truncate max-w-[170px]">
+                                  <p className="font-semibold text-xs text-foreground truncate max-w-[150px]">
                                     {u.name || (u.email ? u.email.split('@')[0] : `User ${idx + 1}`)}
                                   </p>
-                                  <p className="text-[10.5px] text-muted-foreground truncate max-w-[170px] font-mono">
-                                    {u.email || `${u.userId.substring(0, 12)}...`}
+                                  <p className="text-[10.5px] text-muted-foreground truncate max-w-[150px] font-mono">
+                                    {u.email || `${u.userId.substring(0, 10)}...`}
                                   </p>
                                 </div>
                               </div>
@@ -573,6 +706,34 @@ export default function AdminDashboard() {
                                   Off
                                 </span>
                               )}
+                            </td>
+                            <td className="py-2.5 text-right">
+                              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    vibrate(8);
+                                    setSelectedUserId(u.userId);
+                                  }}
+                                  className="p-1.5 rounded-xl bg-secondary/80 hover:bg-primary/15 hover:text-primary text-muted-foreground transition-all flex items-center gap-1 text-[11px] font-medium"
+                                  title="Inspect user telemetry"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Inspect</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    vibrate(8);
+                                    setNudgeTargetUser({ id: u.userId, name: u.name, email: u.email });
+                                  }}
+                                  className="p-1.5 rounded-xl bg-primary/10 hover:bg-primary hover:text-primary-foreground text-primary transition-all flex items-center gap-1 text-[11px] font-medium shadow-2xs active:scale-95"
+                                  title="Send direct 1-on-1 nudge"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Nudge</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -720,6 +881,100 @@ export default function AdminDashboard() {
       {/* TAB 3: SCHEDULED CAMPAIGNS & LIVE TIMERS */}
       {activeTab === 'scheduled' && (
         <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Automated Recurring Smart Drips (Set & Forget) Card */}
+          <Card className="rounded-3xl border border-white/30 dark:border-white/10 bg-card/85 backdrop-blur-2xl shadow-sm">
+            <CardContent className="p-5 sm:p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-primary" />
+                    Automated Recurring Smart Drips
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    "Set & Forget" autonomous behavioral nudges triggered via Supabase Cron
+                  </p>
+                </div>
+                <span className="w-fit text-[11px] font-mono px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1.5 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Cron Active
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
+                {(automatedRules.length > 0 ? automatedRules : [
+                  {
+                    id: 'rule-inactivity',
+                    rule_type: 'daily_inactivity',
+                    title: 'Daily Evening Inactivity Nudge',
+                    body: 'Dispatched to users who haven\'t logged any expense by 8:30 PM today.',
+                    trigger_time: '20:30',
+                    target_url: '/',
+                    is_enabled: true
+                  },
+                  {
+                    id: 'rule-streak',
+                    rule_type: 'streak_saver',
+                    title: '9:30 PM Streak Saver Alert',
+                    body: 'Alerts active streaks at risk before midnight to maintain habit retention.',
+                    trigger_time: '21:30',
+                    target_url: '/',
+                    is_enabled: true
+                  },
+                  {
+                    id: 'rule-weekly',
+                    rule_type: 'weekly_summary',
+                    title: 'Sunday 7 PM Weekly Recap',
+                    body: 'Wraps up total weekly expenses and helps users plan ahead for Monday.',
+                    trigger_time: '19:00',
+                    target_url: '/analytics',
+                    is_enabled: true
+                  }
+                ]).map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="p-4 rounded-2xl bg-secondary/30 border border-border/50 flex flex-col justify-between gap-3 hover:border-primary/40 transition-colors"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-foreground truncate">
+                          {rule.title}
+                        </span>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10px] font-mono text-muted-foreground">
+                          <Clock className="w-3 h-3" />
+                          <span>{rule.trigger_time}</span>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                        {rule.body}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-border/40 pt-2.5">
+                      <span className={`text-[11px] font-semibold ${rule.is_enabled ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                        {rule.is_enabled ? 'Active • Running' : 'Paused'}
+                      </span>
+                      {/* Apple Style Toggle Switch */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleRule(rule.id, rule.is_enabled)}
+                        className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                          rule.is_enabled ? 'bg-emerald-500' : 'bg-muted-foreground/30'
+                        }`}
+                        title={rule.is_enabled ? 'Pause rule' : 'Enable rule'}
+                      >
+                        <span
+                          className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                            rule.is_enabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             {/* Left: Schedule Form */}
             <div className="md:col-span-5">
@@ -953,53 +1208,96 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="space-y-3">
-              {logs.map((log) => (
-                <Card 
-                  key={log.id} 
-                  className="rounded-3xl border border-white/30 dark:border-white/10 bg-card/85 backdrop-blur-xl shadow-xs"
-                >
-                  <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-foreground truncate">
-                          {log.title}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary text-muted-foreground uppercase tracking-wider">
-                          {log.target_audience}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-1">
-                        {log.body}
-                      </p>
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-mono pt-0.5">
-                        <span>Route: {log.target_url}</span>
-                        <span>•</span>
-                        <span>Sent: {format(new Date(log.created_at), 'MMM d, yyyy h:mm:ss a')}</span>
-                      </div>
-                    </div>
+              {logs.map((log) => {
+                const openCount = log.opened_count || 0;
+                const openRate = log.successful_deliveries > 0
+                  ? Math.round((openCount / log.successful_deliveries) * 100)
+                  : 0;
 
-                    <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
-                      <div className="text-right">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                            {log.successful_deliveries} delivered
+                return (
+                  <Card 
+                    key={log.id} 
+                    className="rounded-3xl border border-white/30 dark:border-white/10 bg-card/85 backdrop-blur-xl shadow-xs"
+                  >
+                    <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-foreground truncate">
+                            {log.title}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary text-muted-foreground uppercase tracking-wider">
+                            {log.target_audience}
                           </span>
                         </div>
-                        {log.failed_deliveries > 0 && (
-                          <span className="text-[10px] text-destructive font-mono">
-                            {log.failed_deliveries} failed
-                          </span>
-                        )}
+                        <p className="text-xs text-muted-foreground line-clamp-1">
+                          {log.body}
+                        </p>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-mono pt-0.5">
+                          <span>Route: {log.target_url}</span>
+                          <span>•</span>
+                          <span>Sent: {format(new Date(log.created_at), 'MMM d, yyyy h:mm:ss a')}</span>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      <div className="flex flex-wrap items-center gap-3 shrink-0 self-end sm:self-auto">
+                        {/* Open Rate (CTR) Pill */}
+                        <div 
+                          className="px-3 py-1.5 rounded-2xl bg-primary/10 border border-primary/25 flex items-center gap-1.5 text-xs font-bold text-primary font-mono shadow-xs"
+                          title={`${openCount} clicks recorded on notification`}
+                        >
+                          <MousePointerClick className="w-3.5 h-3.5" />
+                          <span>{openRate}% CTR</span>
+                          <span className="text-[10px] opacity-75">({openCount} opens)</span>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                              {log.successful_deliveries} delivered
+                            </span>
+                          </div>
+                          {log.failed_deliveries > 0 && (
+                            <span className="text-[10px] text-destructive font-mono">
+                              {log.failed_deliveries} failed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
       )}
+
+      {/* User Inspector Deep-Dive Sheet */}
+      <UserInspectorSheet
+        userId={selectedUserId}
+        isOpen={!!selectedUserId}
+        onClose={() => setSelectedUserId(null)}
+        onNudgeUser={(u) => {
+          setSelectedUserId(null);
+          setNudgeTargetUser(u);
+        }}
+      />
+
+      {/* 1-on-1 Direct Nudge Composer Modal */}
+      <DirectNudgeModal
+        user={nudgeTargetUser}
+        isOpen={!!nudgeTargetUser}
+        onClose={() => setNudgeTargetUser(null)}
+        onSuccess={loadAllData}
+      />
+
+      {/* Admin Team Whitelist Management Modal */}
+      <AdminTeamModal
+        isOpen={isTeamModalOpen}
+        onClose={() => setIsTeamModalOpen(false)}
+        currentUserEmail={session?.user?.email}
+      />
     </div>
   );
 }

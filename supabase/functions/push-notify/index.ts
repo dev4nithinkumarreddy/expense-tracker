@@ -34,11 +34,6 @@ serve(async (req) => {
   }
 
   try {
-    if (!vapidPublicKey || !vapidPrivateKey) {
-      throw new Error("Missing VAPID keys in Edge Function secrets");
-    }
-    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-
     let bodyData: any = {};
     if (req.method === 'POST') {
       try {
@@ -48,12 +43,131 @@ serve(async (req) => {
       }
     }
 
-    // 0. Fetch platform analytics using service role (bypasses RLS)
+    // -------------------------------------------------------------
+    // ACTION: PING / HEALTH CHECK
+    // -------------------------------------------------------------
+    if (bodyData.action === 'ping') {
+      return new Response(JSON.stringify({
+        success: true,
+        status: 'operational',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: TRACK CLICK / OPEN (CTR)
+    // -------------------------------------------------------------
+    if (bodyData.action === 'track_click' && bodyData.campaign_id) {
+      try {
+        const { data: logItem } = await supabase
+          .from('notification_logs')
+          .select('id, opened_count')
+          .eq('id', bodyData.campaign_id)
+          .maybeSingle();
+
+        if (logItem) {
+          await supabase
+            .from('notification_logs')
+            .update({ opened_count: (logItem.opened_count || 0) + 1 })
+            .eq('id', bodyData.campaign_id);
+        }
+      } catch (clickErr) {
+        console.warn("Could not increment opened_count:", clickErr);
+      }
+
+      return new Response(JSON.stringify({ success: true, tracked: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: GET USER DETAILS (USER INSPECTOR)
+    // -------------------------------------------------------------
+    if (bodyData.action === 'get_user_details' && bodyData.user_id) {
+      const targetUid = bodyData.user_id;
+
+      const [expensesRes, userSettingsRes, pushRes] = await Promise.all([
+        supabase.from('expenses').select('*').eq('user_id', targetUid).order('date', { ascending: false }),
+        supabase.from('user_settings').select('*').eq('user_id', targetUid).maybeSingle(),
+        supabase.from('push_subscriptions').select('*').eq('user_id', targetUid)
+      ]);
+
+      const userExpenses = expensesRes.data || [];
+      const userSettings = userSettingsRes.data || null;
+      const userPushSubs = pushRes.data || [];
+
+      // Category breakdown
+      const categoryMap = new Map<string, { count: number; total: number }>();
+      let totalSpent = 0;
+      userExpenses.forEach((exp: any) => {
+        const cat = exp.category || 'General';
+        const amt = Number(exp.amount) || 0;
+        totalSpent += amt;
+        const current = categoryMap.get(cat) || { count: 0, total: 0 };
+        categoryMap.set(cat, { count: current.count + 1, total: current.total + amt });
+      });
+
+      const topCategories = Array.from(categoryMap.entries())
+        .map(([name, data]) => ({
+          name,
+          count: data.count,
+          total: data.total,
+          percent: totalSpent > 0 ? Math.round((data.total / totalSpent) * 100) : 0
+        }))
+        .sort((a, b) => b.total - a.total);
+
+      // Auth user info
+      let authInfo: any = null;
+      try {
+        const { data: userData } = await supabase.auth.admin.getUserById(targetUid);
+        if (userData && userData.user) {
+          authInfo = {
+            id: userData.user.id,
+            email: userData.user.email,
+            created_at: userData.user.created_at,
+            last_sign_in_at: userData.user.last_sign_in_at,
+            name: userData.user.user_metadata?.full_name || userData.user.user_metadata?.name
+          };
+        }
+      } catch (err) {
+        console.warn("Could not get auth user:", err);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        user: {
+          id: targetUid,
+          email: authInfo?.email,
+          name: userSettings?.user_name || authInfo?.name || (authInfo?.email ? authInfo.email.split('@')[0] : 'User'),
+          createdAt: authInfo?.created_at,
+          lastSignInAt: authInfo?.last_sign_in_at,
+          totalSpent,
+          expenseCount: userExpenses.length,
+          averageExpense: userExpenses.length > 0 ? Math.round(totalSpent / userExpenses.length) : 0,
+          lastExpenseDate: userExpenses[0]?.date || null,
+          hasPush: userPushSubs.length > 0,
+          pushTokensCount: userPushSubs.length,
+          topCategories,
+          recentExpenses: userExpenses.slice(0, 8)
+        }
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: GET ANALYTICS & MACRO CHARTS
+    // -------------------------------------------------------------
     if (bodyData.action === 'get_analytics') {
       const [expensesRes, pushRes, userSettingsRes] = await Promise.all([
-        supabase.from('expenses').select('id, user_id, amount, date'),
+        supabase.from('expenses').select('id, user_id, amount, date, category'),
         supabase.from('push_subscriptions').select('id, user_id, user_agent'),
-        supabase.from('user_settings').select('user_id, updated_at')
+        supabase.from('user_settings').select('user_id, updated_at, user_name')
       ]);
 
       const expenses = expensesRes.data || [];
@@ -73,14 +187,42 @@ serve(async (req) => {
       const activeTodayIds = new Set<string>();
       const activeThisWeekIds = new Set<string>();
 
+      // Hourly activity heatmap (24 hours)
+      const hourlyDistribution = new Array(24).fill(0);
+
+      // Platform macro category breakdown
+      const categoryBreakdownMap = new Map<string, number>();
+
       expenses.forEach((e: any) => {
         if (e.date) {
           if (e.date.startsWith(todayStr)) activeTodayIds.add(e.user_id);
           if (e.date >= sevenDaysAgoStr) activeThisWeekIds.add(e.user_id);
+
+          try {
+            const hour = new Date(e.date).getHours();
+            if (hour >= 0 && hour < 24) {
+              hourlyDistribution[hour]++;
+            }
+          } catch {
+            // ignore invalid dates
+          }
         }
+
+        const cat = e.category || 'Other';
+        const amt = Number(e.amount) || 0;
+        categoryBreakdownMap.set(cat, (categoryBreakdownMap.get(cat) || 0) + amt);
       });
 
       const totalPlatformSpend = expenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+
+      const platformCategories = Array.from(categoryBreakdownMap.entries())
+        .map(([name, amount]) => ({
+          name,
+          amount,
+          percent: totalPlatformSpend > 0 ? Math.round((amount / totalPlatformSpend) * 100) : 0
+        }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 6);
 
       let mobilePwa = 0;
       let desktop = 0;
@@ -99,7 +241,7 @@ serve(async (req) => {
 
       const pushUsersSet = new Set(pushSubs.map((s: any) => s.user_id));
 
-      // Fetch auth users using service role admin API to get real emails and names
+      // Fetch auth users for real names and emails
       const authUserMap = new Map<string, { email?: string; name?: string }>();
       try {
         const { data: authData } = await supabase.auth.admin.listUsers({ page: 1, perPage: 100 });
@@ -116,7 +258,6 @@ serve(async (req) => {
         console.warn("Could not list auth users:", authErr);
       }
 
-      // Also map user_settings for custom user_name
       const settingsMap = new Map<string, string>();
       userSettings.forEach((s: any) => {
         if (s.user_id && s.user_name) {
@@ -149,6 +290,8 @@ serve(async (req) => {
         totalPlatformSpend,
         totalPushSubscribers: pushSubs.length,
         deviceBreakdown: { mobilePwa, desktop, other },
+        hourlyDistribution,
+        platformCategories,
         recentUsers
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -156,8 +299,15 @@ serve(async (req) => {
       });
     }
 
-    // 1. Check if this is a scheduled cron worker dispatch
+    // -------------------------------------------------------------
+    // ACTION: SCHEDULED CAMPAIGNS & AUTOMATED DRIP CRON CHECK
+    // -------------------------------------------------------------
     if (bodyData.is_scheduled_check) {
+      if (!vapidPublicKey || !vapidPrivateKey) {
+        throw new Error("Missing VAPID keys in Edge Function secrets");
+      }
+      webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
       const now = new Date().toISOString();
       const { data: pendingCampaigns, error: pendingErr } = await supabase
         .from('scheduled_notifications')
@@ -194,13 +344,58 @@ serve(async (req) => {
         processedCount++;
       }
 
+      // Check Automated Smart Drips (if enabled)
+      try {
+        const { data: enabledRules } = await supabase
+          .from('automated_rules')
+          .select('*')
+          .eq('is_enabled', true);
+
+        const currentHour = new Date().getHours();
+        const currentMinute = new Date().getMinutes();
+        const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`;
+
+        for (const rule of (enabledRules || [])) {
+          // If trigger time matches and hasn't fired in the last 12 hours
+          const lastTriggered = rule.last_triggered_at ? new Date(rule.last_triggered_at).getTime() : 0;
+          const hoursSinceLast = (Date.now() - lastTriggered) / (1000 * 60 * 60);
+
+          if (hoursSinceLast >= 12 && rule.trigger_time <= currentTimeStr) {
+            let audience = 'all';
+            if (rule.rule_type === 'daily_inactivity') audience = 'inactive_today';
+            if (rule.rule_type === 'streak_saver') audience = 'active_streaks';
+
+            await dispatchNotification({
+              title: rule.title,
+              body: rule.body,
+              url: rule.target_url || '/',
+              targetAudience: audience
+            });
+
+            await supabase
+              .from('automated_rules')
+              .update({ last_triggered_at: new Date().toISOString() })
+              .eq('id', rule.id);
+          }
+        }
+      } catch (ruleErr) {
+        console.warn("Error processing automated smart rules:", ruleErr);
+      }
+
       return new Response(JSON.stringify({ success: true, processedCampaigns: processedCount }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
-    // 2. Immediate Custom Broadcast Dispatch
+    // -------------------------------------------------------------
+    // ACTION: IMMEDIATE CUSTOM BROADCAST DISPATCH
+    // -------------------------------------------------------------
+    if (!vapidPublicKey || !vapidPrivateKey) {
+      throw new Error("Missing VAPID keys in Edge Function secrets");
+    }
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
     const title = bodyData.title || "Hey there... 👋";
     const body = bodyData.body || DEFAULT_CATCHPHRASES[Math.floor(Math.random() * DEFAULT_CATCHPHRASES.length)];
     const url = bodyData.url || "/";
@@ -266,10 +461,38 @@ async function dispatchNotification({ title, body, url, targetAudience = 'all', 
     targetSubs = targetSubs.filter(s => !activeUserIds.has(s.user_id));
   }
 
+  // First create campaign entry in notification_logs to get the campaign_id
+  let campaignId: string | null = null;
+  try {
+    const { data: logEntry } = await supabase
+      .from('notification_logs')
+      .insert({
+        title,
+        body,
+        target_audience: targetUserId ? `direct:${targetUserId}` : targetAudience,
+        target_url: url,
+        total_recipients: targetSubs.length,
+        successful_deliveries: 0,
+        failed_deliveries: 0,
+        opened_count: 0,
+        triggered_by: triggeredBy || null
+      })
+      .select('id')
+      .single();
+
+    if (logEntry) {
+      campaignId = logEntry.id;
+    }
+  } catch (logErr) {
+    console.warn("Could not pre-write notification log:", logErr);
+  }
+
+  // Payload includes campaign_id so service worker can track CTR
   const payload = JSON.stringify({
     title,
     body,
-    url
+    url,
+    campaign_id: campaignId
   });
 
   let successful = 0;
@@ -302,23 +525,23 @@ async function dispatchNotification({ title, body, url, targetAudience = 'all', 
 
   await Promise.all(sendPromises);
 
-  // Log campaign to notification_logs table
-  try {
-    await supabase.from('notification_logs').insert({
-      title,
-      body,
-      target_audience: targetAudience,
-      target_url: url,
-      total_recipients: targetSubs.length,
-      successful_deliveries: successful,
-      failed_deliveries: failed,
-      triggered_by: triggeredBy || null
-    });
-  } catch (logErr) {
-    console.warn("Could not write notification log:", logErr);
+  // Update notification_logs with delivery counts
+  if (campaignId) {
+    try {
+      await supabase
+        .from('notification_logs')
+        .update({
+          successful_deliveries: successful,
+          failed_deliveries: failed
+        })
+        .eq('id', campaignId);
+    } catch (updateErr) {
+      console.warn("Could not update notification log:", updateErr);
+    }
   }
 
   return {
+    campaignId,
     totalRecipients: targetSubs.length,
     successful,
     failed
