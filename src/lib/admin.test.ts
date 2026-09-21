@@ -30,4 +30,17 @@ describe('Admin Helper Functions', () => {
       expect(result.formatted).toMatch(/02h 15m \d\ds/);
     });
   });
+
+  describe('checkIsAdmin', () => {
+    it('recognizes super admin email', async () => {
+      const { checkIsAdmin } = await import('./admin');
+      const isAdmin1 = await checkIsAdmin('dev4nithinkumarreddyc@gmail.com');
+      const isAdmin2 = await checkIsAdmin('dev4nithinkumarreddy@gmail.com');
+      const isNotAdmin = await checkIsAdmin('randomuser@example.com');
+
+      expect(isAdmin1).toBe(true);
+      expect(isAdmin2).toBe(true);
+      expect(isNotAdmin).toBe(false);
+    });
+  });
 });

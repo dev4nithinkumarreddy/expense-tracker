@@ -52,20 +52,31 @@ export interface NotificationLog {
 export async function checkIsAdmin(email?: string | null, userId?: string | null): Promise<boolean> {
   if (!email && !userId) return false;
 
-  // 1. Check if configured in environment variable
-  const adminEnv = import.meta.env.VITE_ADMIN_EMAILS || '';
-  const adminEmails = adminEnv.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean);
-  if (email && adminEmails.includes(email.toLowerCase())) {
+  const normalizedEmail = (email || '').trim().toLowerCase();
+
+  // 1. Built-in super admin fallback
+  const builtInAdmins = [
+    'dev4nithinkumarreddyc@gmail.com',
+    'dev4nithinkumarreddy@gmail.com'
+  ];
+  if (normalizedEmail && builtInAdmins.includes(normalizedEmail)) {
     return true;
   }
 
-  // 2. Query admin_users table in Supabase
+  // 2. Check if configured in environment variable
+  const adminEnv = import.meta.env.VITE_ADMIN_EMAILS || '';
+  const adminEmails = adminEnv.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean);
+  if (normalizedEmail && adminEmails.includes(normalizedEmail)) {
+    return true;
+  }
+
+  // 3. Query admin_users table in Supabase
   try {
-    const query = supabase.from('admin_users').select('*');
-    if (email) {
-      query.eq('email', email.toLowerCase());
+    let query = supabase.from('admin_users').select('*');
+    if (normalizedEmail) {
+      query = query.ilike('email', normalizedEmail);
     } else if (userId) {
-      query.eq('user_id', userId);
+      query = query.eq('user_id', userId);
     }
     const { data, error } = await query.maybeSingle();
     if (!error && data) {
