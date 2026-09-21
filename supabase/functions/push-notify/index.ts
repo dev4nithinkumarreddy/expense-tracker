@@ -71,32 +71,14 @@ async function authenticateAdmin(req: Request): Promise<{ authorized: boolean; e
     };
   }
 
-  // Check admin status in admin_users table by user_id or email
+  // Check admin status in admin_users table strictly by user_id
   const { data: adminById } = await supabase
     .from('admin_users')
     .select('id, role')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  let isAdmin = !!adminById;
-
-  if (!isAdmin && user.email) {
-    const { data: adminByEmail } = await supabase
-      .from('admin_users')
-      .select('id, role')
-      .ilike('email', user.email)
-      .maybeSingle();
-
-    if (adminByEmail) {
-      isAdmin = true;
-      // Auto-backfill user_id on match
-      await supabase
-        .from('admin_users')
-        .update({ user_id: user.id })
-        .eq('id', adminByEmail.id)
-        .is('user_id', null);
-    }
-  }
+  const isAdmin = !!adminById;
 
   if (!isAdmin) {
     return {
