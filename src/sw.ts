@@ -46,8 +46,8 @@ self.addEventListener('notificationclick', (event) => {
   // Track CTR Open in background (non-blocking)
   if (campaignId) {
     try {
-      const supabaseUrl = 'https://sjodifnzidavsazajlcx.supabase.co';
-      const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqb2RpZm56aWRhdnNhemFqbGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyMTQyMTEsImV4cCI6MjA5OTc5MDIxMX0.ywIfnyfrsK8tFqGA4mbFy1JrLkG5RhKQnAsbHmzOm18';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       fetch(`${supabaseUrl}/functions/v1/push-notify`, {
         method: 'POST',
         headers: {
