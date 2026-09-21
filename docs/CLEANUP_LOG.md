@@ -204,4 +204,49 @@ anon key and URL in `sw.ts` are low-risk but will be cleaned up in Phase 1.
 - `npm run build`: Success
 
 ---
+
+## Phase 2 — Data-Loss and Sync Bugs
+**Date:** 2026-09-21
+
+### 2.1 Module-Scoped Sync Mutex & Exponential Backoff Retry
+- **Issue**: `syncPendingMutations` relied on `(window as any).isSyncing = true`. If an uncaught exception occurred, the flag remained `true` forever, permanently bricking sync.
+- **Fix**:
+  - Replaced `(window as any).isSyncing` with module-scoped `isSyncingLock` variable.
+  - Enclosed the entire synchronization loop in a `try ... finally { isSyncingLock = false; }` block, guaranteeing lock release regardless of runtime errors.
+  - Implemented `scheduleSyncRetry()` with exponential backoff (`2s`, `4s`, `8s`, up to `30s`) so transient failures automatically retry once connection stabilizes.
+  - Reset failure counters on successful mutation or `online` window events.
+
+### 2.2 Offline Settings Persistence & Merge Guard (`updateSettings`)
+- **Issue**: `updateSettings` made a direct unhandled Supabase `.upsert()` call that silently failed when offline, leaving local changes unsaved to cloud. Furthermore, `fetchCloudData` unconditionally overwrote local settings on reconnect, destroying offline edits to income, currency, categories, and themes.
+- **Fix**:
+  - Added `'UPDATE_SETTINGS'` to `MutationType`.
+  - Routed `updateSettings` through `addPendingMutation({ type: 'UPDATE_SETTINGS', payload })`, persisting offline edits in localStorage.
+  - Added a merge guard in `fetchCloudData`: checks if any `'UPDATE_SETTINGS'` mutations are pending. If pending, cloud settings are not applied, ensuring local changes win until successfully synced.
+
+### 2.3 Idempotent Recurring Expenses & Month Rollover
+- **Issue**: `checkMonthRollover` used `crypto.randomUUID()` to generate occurrences, wrote directly via bare `.then()` without error handlers, never queued offline mutations, and would create duplicate rows if run concurrently across devices.
+- **Fix**:
+  - Implemented RFC 4122 v5-compliant `generateDeterministicUUID(namespace, key)` in `src/lib/utils.ts`.
+  - Generated deterministic IDs for carry-forward (`carry_forward:userId:YYYY-MM`), bill auto-deduct (`auto_deduct:billId:YYYY-MM`), and recurring occurrences (`recurring:sourceId:YYYY-MM-DD`).
+  - Added memory idempotency guards (`some(...)`) before adding occurrences.
+  - Queued all generated expenses and master expense `next_occurrence` updates through `addPendingMutation`.
+  - Created migration `supabase/migrations/20260922000002_recurring_idempotency.sql` adding `recurring_source_id UUID` to `expenses` and a partial unique index `idx_expenses_recurring_dedup` on `(user_id, recurring_source_id, date)`.
+
+### 2.4 Codebase Write Audit
+- **`usePushNotifications.ts`**:
+  - Fixed hardcoded VAPID public key to read from `import.meta.env.VITE_VAPID_PUBLIC_KEY`.
+  - Removed unnecessary regex escape `\-` resolving linter warning.
+- **`eraseAllData`**:
+  - Wrapped `Promise.all` in `try / catch` with user-facing toasts for success and failure.
+- **Eliminated all bare `.then()` calls**: Replaced all unhandled promise chains in `useExpenseStore.ts` with queued mutations and error-handled async actions.
+
+### 2.5 User Feedback on Sync Failures
+- Integrated non-blocking `toast.error` messages when mutations fail or network pauses sync, alerting users that mutations are safely preserved and will retry automatically.
+
+### Verification Results
+- `npx tsc --noEmit`: 0 errors
+- `npx oxlint .`: 0 errors (2 non-blocking warnings, down from 3)
+- `npm run build`: Success (PWA service worker bundled with 0 warnings)
+
+---
 <!-- Future phases appended below -->
