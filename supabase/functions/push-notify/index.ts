@@ -99,12 +99,42 @@ serve(async (req) => {
 
       const pushUsersSet = new Set(pushSubs.map((s: any) => s.user_id));
 
-      const recentUsers = Array.from(allUserIds).slice(0, 20).map(uid => {
+      // Fetch auth users using service role admin API to get real emails and names
+      const authUserMap = new Map<string, { email?: string; name?: string }>();
+      try {
+        const { data: authData } = await supabase.auth.admin.listUsers({ page: 1, perPage: 100 });
+        if (authData && authData.users) {
+          authData.users.forEach((u: any) => {
+            authUserMap.set(u.id, {
+              email: u.email,
+              name: u.user_metadata?.full_name || u.user_metadata?.name || (u.email ? u.email.split('@')[0] : undefined)
+            });
+            allUserIds.add(u.id);
+          });
+        }
+      } catch (authErr) {
+        console.warn("Could not list auth users:", authErr);
+      }
+
+      // Also map user_settings for custom user_name
+      const settingsMap = new Map<string, string>();
+      userSettings.forEach((s: any) => {
+        if (s.user_id && s.user_name) {
+          settingsMap.set(s.user_id, s.user_name);
+        }
+      });
+
+      const recentUsers = Array.from(allUserIds).slice(0, 30).map(uid => {
         const userExpenses = expenses.filter((e: any) => e.user_id === uid);
         const lastExpense = userExpenses.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        const authInfo = authUserMap.get(uid);
+        const customName = settingsMap.get(uid);
+        const displayName = customName || authInfo?.name || (authInfo?.email ? authInfo.email.split('@')[0] : undefined);
         
         return {
           userId: uid,
+          email: authInfo?.email,
+          name: displayName,
           lastActive: lastExpense ? lastExpense.date : undefined,
           expenseCount: userExpenses.length,
           hasPush: pushUsersSet.has(uid)

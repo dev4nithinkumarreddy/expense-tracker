@@ -15,6 +15,7 @@ export interface AdminAnalytics {
   recentUsers: Array<{
     userId: string;
     email?: string;
+    name?: string;
     lastActive?: string;
     expenseCount: number;
     hasPush: boolean;

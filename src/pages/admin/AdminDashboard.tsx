@@ -540,33 +540,43 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/20">
-                      {(analytics?.recentUsers || []).map((u, idx) => (
-                        <tr key={u.userId} className="hover:bg-secondary/40 transition-colors">
-                          <td className="py-2.5 font-mono text-[11px] text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0">
-                                {idx + 1}
+                      {(analytics?.recentUsers || []).map((u, idx) => {
+                        const avatarLetter = (u.name || u.email || 'U').charAt(0).toUpperCase();
+                        return (
+                          <tr key={u.userId} className="hover:bg-secondary/40 transition-colors">
+                            <td className="py-2.5">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary border border-primary/20 font-bold text-xs flex items-center justify-center shrink-0">
+                                  {avatarLetter}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-xs text-foreground truncate max-w-[170px]">
+                                    {u.name || (u.email ? u.email.split('@')[0] : `User ${idx + 1}`)}
+                                  </p>
+                                  <p className="text-[10.5px] text-muted-foreground truncate max-w-[170px] font-mono">
+                                    {u.email || `${u.userId.substring(0, 12)}...`}
+                                  </p>
+                                </div>
                               </div>
-                              <span className="truncate max-w-[120px]">{u.userId.substring(0, 12)}...</span>
-                            </div>
-                          </td>
-                          <td className="py-2.5 font-bold tabular-nums">{u.expenseCount}</td>
-                          <td className="py-2.5 text-muted-foreground text-[11px]">
-                            {u.lastActive ? format(new Date(u.lastActive), 'MMM d, h:mm a') : 'Never'}
-                          </td>
-                          <td className="py-2.5">
-                            {u.hasPush ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 w-fit border border-emerald-500/25">
-                                <CheckCircle2 className="w-3 h-3" /> Subscribed
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground w-fit">
-                                Off
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="py-2.5 font-bold tabular-nums text-xs">{u.expenseCount}</td>
+                            <td className="py-2.5 text-muted-foreground text-[11px]">
+                              {u.lastActive ? format(new Date(u.lastActive), 'MMM d, h:mm a') : 'Never'}
+                            </td>
+                            <td className="py-2.5">
+                              {u.hasPush ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 w-fit border border-emerald-500/25">
+                                  <CheckCircle2 className="w-3 h-3" /> Subscribed
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-muted-foreground w-fit">
+                                  Off
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
