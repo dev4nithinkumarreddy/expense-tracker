@@ -6,8 +6,8 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { calculateStreak } from "../lib/streak";
@@ -19,6 +19,7 @@ import { playSuccessSound } from "../lib/sound";
 import { toast } from "sonner";
 import { CategoryBadge } from "../components/ui/CategoryBadge";
 import { EmptyState } from "../components/ui/EmptyState";
+import { checkIsAdmin } from "../lib/admin";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-4">
@@ -50,6 +51,15 @@ export default function Dashboard() {
   const [incomeSource, setIncomeSource] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [dismissedAlertId, setDismissedAlertId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (session?.user?.email || session?.user?.id) {
+      checkIsAdmin(session.user.email, session.user.id).then(setIsAdmin);
+    } else {
+      setIsAdmin(false);
+    }
+  }, [session]);
 
   const displayName = useMemo(() => {
     if (settings.userName?.trim()) return settings.userName.trim();
@@ -223,6 +233,18 @@ export default function Dashboard() {
             >
               {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
+
+            {isAdmin && (
+              <Link
+                to="/admin"
+                onClick={() => vibrate(15)}
+                aria-label="Admin Portal"
+                title="Admin Portal"
+                className="p-2 text-primary hover:text-primary active:scale-95 transition-all duration-100 bg-primary/10 hover:bg-primary/20 rounded-full shadow-xs border border-primary/25 select-none animate-in fade-in"
+              >
+                <ShieldCheck className="w-4 h-4" />
+              </Link>
+            )}
 
             <Link
               to="/settings"

@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
 import { vibrate } from "../lib/utils";
 import { playSuccessSound, playTapSound, playDeleteSound } from "../lib/sound";
 import { RecentlyDeletedModal } from "../components/RecentlyDeletedModal";
+import { checkIsAdmin } from "../lib/admin";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
 interface CategoryRowItemProps {
@@ -93,12 +95,22 @@ function CategoryRowItem({
 }
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { settings, updateSettings, addCategory, deleteCategory, reorderCategories, eraseAllData, expenses, bills, session, budgets, updateBudget, recentlyDeleted = [] } = useExpenseStore();
   const { isSupported, permission, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
   
+  const [isAdmin, setIsAdmin] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [editingEmojiFor, setEditingEmojiFor] = useState<string | null>(null);
   const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
+
+  useEffect(() => {
+    if (session?.user?.email || session?.user?.id) {
+      checkIsAdmin(session.user.email, session.user.id).then(setIsAdmin);
+    } else {
+      setIsAdmin(false);
+    }
+  }, [session]);
   
   // Quick Add states
   const [qaName, setQaName] = useState("");
@@ -198,19 +210,59 @@ export default function Settings() {
 
       <div className="space-y-4">
         {session?.user?.email && (
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Account</h3>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-                  {session.user.email.substring(0, 1).toUpperCase()}
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Account</h3>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
+                    {session.user.email.substring(0, 1).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-medium">{session.user.email}</p>
+                    <p className="text-xs text-muted-foreground">Logged in via Supabase</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {isAdmin && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-primary" />
+                    Admin Console
+                  </h3>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25">
+                    Super Admin
+                  </span>
                 </div>
-                <div>
-                  <p className="font-medium">{session.user.email}</p>
-                  <p className="text-xs text-muted-foreground">Logged in via Supabase</p>
-                </div>
-              </CardContent>
-            </Card>
+                <Card 
+                  onClick={() => {
+                    vibrate(15);
+                    navigate('/admin');
+                  }}
+                  className="cursor-pointer border-primary/30 hover:border-primary/60 transition-all active:scale-[0.98] bg-gradient-to-br from-primary/10 via-card to-card shadow-sm hover:shadow-md group rounded-2xl"
+                >
+                  <CardContent className="p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0 border border-primary/25 shadow-inner">
+                        <ShieldCheck className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                          Open Admin Portal
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Analytics, push broadcaster & campaign scheduler
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         )}
 
