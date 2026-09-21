@@ -3,14 +3,13 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, Bell } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
 import { vibrate } from "../lib/utils";
 import { playSuccessSound, playTapSound, playDeleteSound } from "../lib/sound";
 import { RecentlyDeletedModal } from "../components/RecentlyDeletedModal";
-import { toast } from "sonner";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
 interface CategoryRowItemProps {
@@ -100,46 +99,6 @@ export default function Settings() {
   const [newCat, setNewCat] = useState("");
   const [editingEmojiFor, setEditingEmojiFor] = useState<string | null>(null);
   const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
-  
-  const handleSendTestNotification = async () => {
-    vibrate(15);
-    try {
-      if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready;
-        await registration.showNotification("Expense Tracker 💸", {
-          body: "Did it hurt? When you spent all that money today? Log it now! 😉",
-          icon: "/icon.png",
-          badge: "/icon.png",
-          data: { url: "/" }
-        });
-        toast.success("Test notification delivered to system!");
-      }
-    } catch (e: any) {
-      toast.error("Failed to show notification: " + (e.message || "Unknown error"));
-    }
-  };
-
-  const handleDelayedNotification = () => {
-    vibrate(15);
-    toast.info("Sending in 4s! Switch apps or lock screen now to test background push...", {
-      duration: 3800
-    });
-    setTimeout(async () => {
-      try {
-        if ('serviceWorker' in navigator) {
-          const registration = await navigator.serviceWorker.ready;
-          await registration.showNotification("Expense Tracker 💸", {
-            body: "Your wallet misses you. Come give it some attention! 💳",
-            icon: "/icon.png",
-            badge: "/icon.png",
-            data: { url: "/" }
-          });
-        }
-      } catch (err) {
-        console.error("Delayed notification error", err);
-      }
-    }, 4000);
-  };
   
   // Quick Add states
   const [qaName, setQaName] = useState("");
@@ -426,33 +385,6 @@ export default function Settings() {
                       {isSubscribed ? "Disable" : "Enable"}
                     </Button>
                   </div>
-
-                  {isSubscribed && (
-                    <div className="pt-2 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-in fade-in duration-200">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <Bell className="w-3.5 h-3.5 text-primary" /> Test notification banner:
-                      </span>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs px-2.5 rounded-xl font-medium"
-                          onClick={handleSendTestNotification}
-                        >
-                          Send Now
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs px-2.5 rounded-xl font-medium"
-                          onClick={handleDelayedNotification}
-                          title="Sends in 4s so you can minimize app and test background push"
-                        >
-                          In 4s (Background)
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                   
                   {permission === 'denied' && (
                     <p className="text-xs text-destructive">Notifications are blocked by your browser. Please enable them in your browser settings.</p>
