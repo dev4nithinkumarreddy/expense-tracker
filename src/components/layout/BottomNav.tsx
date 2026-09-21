@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LayoutDashboard, ReceiptText, CalendarDays, PieChart, Plus } from "lucide-react";
 import { cn, vibrate } from "../../lib/utils";
@@ -17,6 +17,11 @@ const rightNavItems = [
 
 export function BottomNav() {
   const { setModalOpen } = useExpenseStore();
+  const location = useLocation();
+
+  if (location.pathname.startsWith('/admin')) {
+    return null;
+  }
 
   return (
     <nav className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] max-w-sm sm:max-w-md">
