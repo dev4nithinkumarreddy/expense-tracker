@@ -148,25 +148,60 @@ anon key and URL in `sw.ts` are low-risk but will be cleaned up in Phase 1.
 ### Action Taken: Migrations Archived
 - Remote migration history (`supabase_migrations.schema_migrations`) is empty because all schema objects were created via Supabase dashboard / SQL editor.
 - The 3 existing migrations (`20260921_admin_portal.sql`, `20260921_admin_advanced.sql`, `20260921_bills_due_date.sql`) have been moved to `supabase/migrations_archive/` with an explanatory `README.md`.
-- This clears `supabase/migrations/` so that a clean, unified baseline dump can be placed at `supabase/migrations/20260101000000_baseline.sql`.
+- Per user instruction, local Docker/dump commands were skipped. Full schema dump is deferred to the end.
+- Hardening proceeded directly against the verified live production schema and policies.
 
-### Next Step: Live Schema Dump (Read-only)
-User will run:
-```bash
-npx supabase db dump --schema public -f supabase/migrations/20260101000000_baseline.sql
-```
+---
 
-Once generated, the dump will be audited for:
-- Full inventory: tables, enums, functions, triggers, and RLS policies.
-- Presence/absence of `profiles` and `app_role`.
-- Alignment of `admin_users` policies with archived files.
-- Non-public schema dependencies (storage buckets, auth triggers, extensions, cron, edge secrets).
+## Phase 1 — Security Hardening
+**Date:** 2026-09-21
 
-After verification and approval:
-```bash
-npx supabase migration repair --status applied 20260101000000
-npx supabase migration list
-```
+### 1.1 Live Policy Audit & Privilege Escalation Verification
+- **Confirmed Vulnerability**: On live production `admin_users`, the INSERT policy was `WITH CHECK (true)` and DELETE was `USING (true)`. Any authenticated user could add themselves as admin or delete existing admins.
+- **Admin Tables**: `automated_rules`, `scheduled_notifications`, `notification_logs` all had overly broad `true` policies allowing any authenticated user to manage rules, schedule push notifications, or modify logs.
+- **User Data Tables**: `expenses`, `bills`, `budgets`, `debts`, `subscriptions`, `user_settings`, `wishlist`, `push_subscriptions`, and `profiles` are all properly locked down to `auth.uid() = user_id` (or `auth.uid() = id`).
+
+### 1.2 Migration: 20260922000001_admin_hardening.sql
+- Created `supabase/migrations/20260922000001_admin_hardening.sql`.
+- Added `user_id UUID REFERENCES auth.users(id)` column with backfill and auto-sync trigger `trg_sync_admin_user_id`.
+- Created `public.is_admin()` function with `SECURITY DEFINER` and `SET search_path = ''`, checking `auth.uid()` against `admin_users.user_id`.
+- Replaced insecure policies with:
+  - `admin_users`: SELECT restricted to `is_admin() OR user_id = auth.uid()`; INSERT, UPDATE, DELETE strictly restricted to `is_admin()`.
+  - `automated_rules`: ALL restricted to `is_admin()`.
+  - `scheduled_notifications`: ALL restricted to `is_admin()`.
+  - `notification_logs`: ALL restricted to `is_admin()`.
+- Added a complete commented rollback script at the bottom of the migration.
+
+### 1.3 Edge Function Authentication & Validation (`push-notify`)
+- Added `authenticateAdmin(req)` helper to `supabase/functions/push-notify/index.ts`.
+- Validates caller JWT via `supabase.auth.getUser()`, allows `service_role` key for cron jobs, and verifies admin status in `admin_users`.
+- Protected endpoints:
+  - `get_analytics`: Requires admin (returns 401/403 otherwise).
+  - `get_user_details`: Requires admin; validates `user_id` parameter.
+  - `is_scheduled_check`: Requires admin or service_role.
+  - Broadcast push dispatch: Requires admin; validates payload `title` (max 200), `body` (max 1000), `url` (max 500), `target_audience`.
+- Open endpoints:
+  - `ping`: Health check remains accessible.
+  - `track_click`: Publicly accessible with anon key for service worker CTR tracking; validates `campaign_id`.
+
+### 1.4 Service Worker Single Source of Truth (`src/sw.ts`)
+- Replaced hardcoded Supabase URL and anon key literals in `src/sw.ts` with `import.meta.env.VITE_SUPABASE_URL` and `import.meta.env.VITE_SUPABASE_ANON_KEY`.
+- Verified Vite bundles these at build time into `dist/sw.js` with 0 warnings.
+
+### 1.5 RLS & Security Test Plan
+- Created `docs/security/rls-test-plan.md` with runnable DevTools JS and SQL snippets testing:
+  - (a) Normal user cannot insert/delete in `admin_users`.
+  - (b) Normal user cannot read/tamper with other users' expenses.
+  - (c) Normal user cannot invoke protected Edge Function actions.
+  - (d) Legitimate admin can perform all admin actions.
+
+### 1.6 Route Guard UX Notice
+- Updated `src/components/admin/AdminRouteGuard.tsx` with an architectural comment explaining that the route guard is for client-side UX navigation only, while real security is enforced at RLS and Edge Function levels.
+
+### Verification Results
+- `npx tsc --noEmit`: 0 errors
+- `npx oxlint .`: 0 errors (3 non-blocking warnings)
+- `npm run build`: Success
 
 ---
 <!-- Future phases appended below -->

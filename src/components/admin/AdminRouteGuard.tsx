@@ -10,6 +10,13 @@ interface AdminRouteGuardProps {
   children: React.ReactNode;
 }
 
+/**
+ * NOTE: AdminRouteGuard provides client-side UX gating and navigation protection only.
+ * Hard security and authorization are strictly enforced server-side via PostgreSQL
+ * Row Level Security (RLS) policies and Edge Function JWT / is_admin() verification.
+ * Client-side checks can be bypassed by an attacker inspecting network traffic or manipulating DOM,
+ * but unauthorized database operations and administrative API requests will be rejected with 401/403.
+ */
 export function AdminRouteGuard({ children }: AdminRouteGuardProps) {
   const { session } = useExpenseStore();
   const navigate = useNavigate();
