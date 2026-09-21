@@ -84,10 +84,14 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const res = await supabase.from('expenses').delete().eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'INSERT_BILL') {
-            const res = await supabase.from('bills').upsert(mut.payload);
+            const payload = { ...mut.payload };
+            if (payload.due_date === null) delete payload.due_date;
+            const res = await supabase.from('bills').upsert(payload);
             error = res.error;
           } else if (mut.type === 'UPDATE_BILL') {
-            const res = await supabase.from('bills').update(mut.payload).eq('id', mut.payload.id);
+            const payload = { ...mut.payload };
+            if (payload.due_date === null) delete payload.due_date;
+            const res = await supabase.from('bills').update(payload).eq('id', payload.id);
             error = res.error;
           } else if (mut.type === 'DELETE_BILL') {
             const res = await supabase.from('bills').delete().eq('id', mut.payload.id);

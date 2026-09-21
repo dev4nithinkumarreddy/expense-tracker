@@ -467,5 +467,63 @@ describe('useExpenseStore', () => {
       state = useExpenseStore.getState();
       expect(state.wishlistItems.length).toBe(0);
     });
+
+    it('should sanitize due_date when adding a bill without due_date', () => {
+      const store = useExpenseStore.getState();
+      store.addBill({
+        title: 'PG Rent',
+        amount: 7000,
+        autoDeduct: true,
+        category: 'Bills',
+        due_day: 5
+      });
+
+      const state = useExpenseStore.getState();
+      expect(state.bills.length).toBe(1);
+      expect(state.bills[0].title).toBe('PG Rent');
+      expect(state.pendingMutations.length).toBe(1);
+      const billMutation = state.pendingMutations[0];
+      expect(billMutation.type).toBe('INSERT_BILL');
+      expect(billMutation.payload.due_date).toBeUndefined();
+      expect(billMutation.payload.due_day).toBe(5);
+    });
+
+    it('should add, reorder, and delete categories', () => {
+      const store = useExpenseStore.getState();
+      const initialCount = store.settings.categories.length;
+
+      store.addCategory('Investment');
+      let state = useExpenseStore.getState();
+      expect(state.settings.categories).toContain('Investment');
+      expect(state.settings.categories.length).toBe(initialCount + 1);
+
+      store.reorderCategories(['Investment', ...state.settings.categories.filter(c => c !== 'Investment')]);
+      state = useExpenseStore.getState();
+      expect(state.settings.categories[0]).toBe('Investment');
+
+      store.deleteCategory('Investment');
+      state = useExpenseStore.getState();
+      expect(state.settings.categories).not.toContain('Investment');
+    });
+
+    it('should wipe state cleanly on eraseAllData', async () => {
+      const store = useExpenseStore.getState();
+      store.addBill({ title: 'Bill', amount: 500, autoDeduct: false, category: 'Bills' });
+      store.addDebt({ person_name: 'Person', amount: 200, type: 'lent', status: 'pending', date: '2026-09-21' });
+
+      expect(useExpenseStore.getState().bills.length).toBe(1);
+      expect(useExpenseStore.getState().debts.length).toBe(1);
+
+      await store.eraseAllData();
+
+      const state = useExpenseStore.getState();
+      expect(state.expenses.length).toBe(0);
+      expect(state.bills.length).toBe(0);
+      expect(state.debts.length).toBe(0);
+      expect(state.subscriptions.length).toBe(0);
+      expect(state.budgets.length).toBe(0);
+      expect(state.wishlistItems.length).toBe(0);
+    });
   });
 });
+
