@@ -322,4 +322,150 @@ describe('useExpenseStore', () => {
     await store.clearRecentlyDeleted();
     expect(useExpenseStore.getState().recentlyDeleted.length).toBe(0);
   });
+
+  describe('Planned module: Bills, Subscriptions, Debts, and Wishlist', () => {
+    it('should add, update, and delete bills', () => {
+      const store = useExpenseStore.getState();
+      store.addBill({
+        title: 'Electricity',
+        amount: 1500,
+        autoDeduct: true,
+        category: 'Bills'
+      });
+
+      let state = useExpenseStore.getState();
+      expect(state.bills.length).toBe(1);
+      expect(state.bills[0].title).toBe('Electricity');
+      expect(state.bills[0].autoDeduct).toBe(true);
+
+      const billId = state.bills[0].id;
+      store.updateBill(billId, { amount: 1650 });
+      state = useExpenseStore.getState();
+      expect(state.bills[0].amount).toBe(1650);
+
+      store.deleteBill(billId);
+      state = useExpenseStore.getState();
+      expect(state.bills.length).toBe(0);
+    });
+
+    it('should auto-deduct bills on month rollover', () => {
+      const store = useExpenseStore.getState();
+      useExpenseStore.setState({ lastActiveMonth: '2023-01', expenses: [] });
+      store.addBill({
+        title: 'Internet',
+        amount: 999,
+        autoDeduct: true,
+        category: 'Bills'
+      });
+      store.addBill({
+        title: 'Gym',
+        amount: 2000,
+        autoDeduct: false,
+        category: 'Bills'
+      });
+
+      store.checkMonthRollover();
+
+      const state = useExpenseStore.getState();
+      const autoDeducted = state.expenses.filter(e => e.description.includes('Auto-deduct'));
+      expect(autoDeducted.length).toBe(1);
+      expect(autoDeducted[0].amount).toBe(999);
+      expect(autoDeducted[0].description).toBe('Auto-deduct: Internet');
+    });
+
+    it('should carry forward surplus on month rollover when enabled', () => {
+      const store = useExpenseStore.getState();
+      useExpenseStore.setState({
+        lastActiveMonth: '2023-01',
+        settings: {
+          ...useExpenseStore.getState().settings,
+          monthlyIncome: 30000,
+          carryForward: true
+        },
+        expenses: [
+          { id: '1', amount: 10000, description: 'Rent', category: 'Bills', date: '2023-01-10T00:00:00.000Z' }
+        ],
+        bills: []
+      });
+
+      store.checkMonthRollover();
+
+      const state = useExpenseStore.getState();
+      const carryForwardExpense = state.expenses.find(e => e.description === 'Previous Month Carry Forward');
+      expect(carryForwardExpense).toBeDefined();
+      expect(carryForwardExpense?.amount).toBe(-20000);
+    });
+
+    it('should add, update, and delete subscriptions', () => {
+      const store = useExpenseStore.getState();
+      store.addSubscription({
+        name: 'Spotify',
+        amount: 119,
+        billing_cycle: 'monthly',
+        next_billing_date: '2026-10-15',
+        category: 'Entertainment'
+      });
+
+      let state = useExpenseStore.getState();
+      expect(state.subscriptions.length).toBe(1);
+      expect(state.subscriptions[0].name).toBe('Spotify');
+
+      const subId = state.subscriptions[0].id;
+      store.updateSubscription(subId, { amount: 129 });
+      state = useExpenseStore.getState();
+      expect(state.subscriptions[0].amount).toBe(129);
+
+      store.deleteSubscription(subId);
+      state = useExpenseStore.getState();
+      expect(state.subscriptions.length).toBe(0);
+    });
+
+    it('should add, update, and delete debts (IOUs)', () => {
+      const store = useExpenseStore.getState();
+      store.addDebt({
+        person_name: 'Rahul',
+        amount: 500,
+        type: 'lent',
+        status: 'pending',
+        date: '2026-09-20'
+      });
+
+      let state = useExpenseStore.getState();
+      expect(state.debts.length).toBe(1);
+      expect(state.debts[0].person_name).toBe('Rahul');
+      expect(state.debts[0].type).toBe('lent');
+
+      const debtId = state.debts[0].id;
+      store.updateDebt(debtId, { status: 'settled' });
+      state = useExpenseStore.getState();
+      expect(state.debts[0].status).toBe('settled');
+
+      store.deleteDebt(debtId);
+      state = useExpenseStore.getState();
+      expect(state.debts.length).toBe(0);
+    });
+
+    it('should add, update, and delete wishlist items', () => {
+      const store = useExpenseStore.getState();
+      store.addWishlistItem({
+        item_name: 'Mechanical Keyboard',
+        estimated_amount: 4500,
+        category: 'Shopping'
+      });
+
+      let state = useExpenseStore.getState();
+      expect(state.wishlistItems.length).toBe(1);
+      expect(state.wishlistItems[0].item_name).toBe('Mechanical Keyboard');
+      expect(state.wishlistItems[0].is_purchased).toBe(false);
+
+      const wishId = state.wishlistItems[0].id;
+      store.updateWishlistItem(wishId, { is_purchased: true });
+      state = useExpenseStore.getState();
+      expect(state.wishlistItems[0].is_purchased).toBe(true);
+
+      store.deleteWishlistItem(wishId);
+      state = useExpenseStore.getState();
+      expect(state.wishlistItems.length).toBe(0);
+    });
+  });
 });
