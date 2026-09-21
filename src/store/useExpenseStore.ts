@@ -6,6 +6,7 @@ import { queryClient } from '../lib/queryClient';
 import type { Session } from '@supabase/supabase-js';
 import { format } from 'date-fns';
 import { calculateStreak } from '../lib/streak';
+import { generateDeterministicUUID } from '../lib/utils';
 
 export interface Expense {
   id: string;
@@ -17,6 +18,7 @@ export interface Expense {
   receipt_url?: string;
   recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
   next_occurrence?: string | null;
+  recurring_source_id?: string | null;
 }
 
 export interface DeletedExpense {
@@ -66,7 +68,8 @@ export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE
   | 'UPSERT_BUDGET' | 'DELETE_BUDGET'
   | 'INSERT_WISHLIST_ITEM' | 'UPDATE_WISHLIST_ITEM' | 'DELETE_WISHLIST_ITEM'
   | 'INSERT_DEBT' | 'UPDATE_DEBT' | 'DELETE_DEBT'
-  | 'INSERT_SUBSCRIPTION' | 'UPDATE_SUBSCRIPTION' | 'DELETE_SUBSCRIPTION';
+  | 'INSERT_SUBSCRIPTION' | 'UPDATE_SUBSCRIPTION' | 'DELETE_SUBSCRIPTION'
+  | 'UPDATE_SETTINGS';
 
 export interface PendingMutation {
   id: string;
@@ -168,6 +171,26 @@ const defaultCategories = [
   'Travel', 'Medical', 'EMI', 'Bills', 'Other'
 ];
 
+// Module-scoped synchronization lock & retry state (never stored on window)
+let isSyncingLock = false;
+let syncRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let consecutiveSyncFailures = 0;
+const BASE_BACKOFF_MS = 2000;
+const MAX_BACKOFF_MS = 30000;
+
+function scheduleSyncRetry() {
+  if (syncRetryTimer) return;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+  const backoff = Math.min(BASE_BACKOFF_MS * Math.pow(2, consecutiveSyncFailures - 1), MAX_BACKOFF_MS);
+  syncRetryTimer = setTimeout(() => {
+    syncRetryTimer = null;
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      useExpenseStore.getState().syncPendingMutations();
+    }
+  }, backoff);
+}
+
 export const useExpenseStore = create<ExpenseState>()(
   persist(
     (set, get) => ({
@@ -217,87 +240,105 @@ export const useExpenseStore = create<ExpenseState>()(
       
       syncPendingMutations: async () => {
         const { pendingMutations, session, removePendingMutation } = get();
-        if (!session || pendingMutations.length === 0 || !navigator.onLine) return;
+        if (!session || pendingMutations.length === 0) return;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
         
-        if ((window as any).isSyncing) return;
-        (window as any).isSyncing = true;
+        if (isSyncingLock) return;
+        isSyncingLock = true;
 
-        for (const mut of pendingMutations) {
-          try {
-            let error = null;
-            if (mut.type === 'INSERT_EXPENSE') {
-              const res = await supabase.from('expenses').insert(mut.payload);
-              error = res.error;
-            } else if (mut.type === 'UPDATE_EXPENSE') {
-              const res = await supabase.from('expenses').update(mut.payload).eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'DELETE_EXPENSE') {
-              const res = await supabase.from('expenses').delete().eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'INSERT_BILL') {
-              const res = await supabase.from('bills').insert(mut.payload);
-              error = res.error;
-            } else if (mut.type === 'UPDATE_BILL') {
-              const res = await supabase.from('bills').update(mut.payload).eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'DELETE_BILL') {
-              const res = await supabase.from('bills').delete().eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'UPSERT_BUDGET') {
-              const res = await supabase.from('budgets').upsert(mut.payload);
-              error = res.error;
-            } else if (mut.type === 'DELETE_BUDGET') {
-              const res = await supabase.from('budgets').delete().eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'INSERT_WISHLIST_ITEM') {
-              const res = await supabase.from('wishlist').insert(mut.payload);
-              error = res.error;
-            } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
-              const res = await supabase.from('wishlist').update(mut.payload).eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
-              const res = await supabase.from('wishlist').delete().eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'INSERT_DEBT') {
-              const res = await supabase.from('debts').insert(mut.payload);
-              error = res.error;
-            } else if (mut.type === 'UPDATE_DEBT') {
-              const res = await supabase.from('debts').update(mut.payload).eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'DELETE_DEBT') {
-              const res = await supabase.from('debts').delete().eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'INSERT_SUBSCRIPTION') {
-              const res = await supabase.from('subscriptions').insert(mut.payload);
-              error = res.error;
-            } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
-              const res = await supabase.from('subscriptions').update(mut.payload).eq('id', mut.payload.id);
-              error = res.error;
-            } else if (mut.type === 'DELETE_SUBSCRIPTION') {
-              const res = await supabase.from('subscriptions').delete().eq('id', mut.payload.id);
-              error = res.error;
-            }
-
-            if (!error) {
-              removePendingMutation(mut.id);
-              if (mut.type.includes('EXPENSE')) {
-                 queryClient.invalidateQueries({ queryKey: ['expenses'] });
-              } else if (mut.type.includes('BILL')) {
-                 queryClient.invalidateQueries({ queryKey: ['bills'] });
-              } else if (mut.type.includes('BUDGET')) {
-                 queryClient.invalidateQueries({ queryKey: ['budgets'] });
-              }
-            } else {
-              console.error("Mutation failed:", error);
-              toast.error(`Sync failed: ${error.message || 'Unknown error'}`);
-              break; 
-            }
-          } catch (e) {
-             console.error("Sync error:", e);
-             break;
+        try {
+          if (syncRetryTimer) {
+            clearTimeout(syncRetryTimer);
+            syncRetryTimer = null;
           }
+
+          for (const mut of pendingMutations) {
+            try {
+              let error = null;
+              if (mut.type === 'INSERT_EXPENSE') {
+                const res = await supabase.from('expenses').upsert(mut.payload);
+                error = res.error;
+              } else if (mut.type === 'UPDATE_EXPENSE') {
+                const res = await supabase.from('expenses').update(mut.payload).eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'DELETE_EXPENSE') {
+                const res = await supabase.from('expenses').delete().eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'INSERT_BILL') {
+                const res = await supabase.from('bills').upsert(mut.payload);
+                error = res.error;
+              } else if (mut.type === 'UPDATE_BILL') {
+                const res = await supabase.from('bills').update(mut.payload).eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'DELETE_BILL') {
+                const res = await supabase.from('bills').delete().eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'UPSERT_BUDGET') {
+                const res = await supabase.from('budgets').upsert(mut.payload);
+                error = res.error;
+              } else if (mut.type === 'DELETE_BUDGET') {
+                const res = await supabase.from('budgets').delete().eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'INSERT_WISHLIST_ITEM') {
+                const res = await supabase.from('wishlist').upsert(mut.payload);
+                error = res.error;
+              } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
+                const res = await supabase.from('wishlist').update(mut.payload).eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
+                const res = await supabase.from('wishlist').delete().eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'INSERT_DEBT') {
+                const res = await supabase.from('debts').upsert(mut.payload);
+                error = res.error;
+              } else if (mut.type === 'UPDATE_DEBT') {
+                const res = await supabase.from('debts').update(mut.payload).eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'DELETE_DEBT') {
+                const res = await supabase.from('debts').delete().eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'INSERT_SUBSCRIPTION') {
+                const res = await supabase.from('subscriptions').upsert(mut.payload);
+                error = res.error;
+              } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
+                const res = await supabase.from('subscriptions').update(mut.payload).eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'DELETE_SUBSCRIPTION') {
+                const res = await supabase.from('subscriptions').delete().eq('id', mut.payload.id);
+                error = res.error;
+              } else if (mut.type === 'UPDATE_SETTINGS') {
+                const res = await supabase.from('user_settings').upsert(mut.payload);
+                error = res.error;
+              }
+
+              if (!error) {
+                removePendingMutation(mut.id);
+                consecutiveSyncFailures = 0;
+                if (mut.type.includes('EXPENSE')) {
+                   queryClient.invalidateQueries({ queryKey: ['expenses'] });
+                } else if (mut.type.includes('BILL')) {
+                   queryClient.invalidateQueries({ queryKey: ['bills'] });
+                } else if (mut.type.includes('BUDGET')) {
+                   queryClient.invalidateQueries({ queryKey: ['budgets'] });
+                }
+              } else {
+                console.error("Mutation failed:", error);
+                consecutiveSyncFailures++;
+                toast.error(`Sync paused: ${error.message || 'Server error'}. Retrying...`);
+                scheduleSyncRetry();
+                break; 
+              }
+            } catch (e: any) {
+               console.error("Sync error:", e);
+               consecutiveSyncFailures++;
+               toast.error(`Sync network error. Retrying in background...`);
+               scheduleSyncRetry();
+               break;
+            }
+          }
+        } finally {
+          isSyncingLock = false;
         }
-        (window as any).isSyncing = false;
       },
 
       setModalOpen: (isModalOpen) => set({ isModalOpen }),
@@ -414,7 +455,9 @@ export const useExpenseStore = create<ExpenseState>()(
             });
             set({ budgets: mergedBudgets });
           }
-          if (settingsRes.data) {
+          const { pendingMutations: activeMutations } = get();
+          const hasPendingSettings = activeMutations.some(m => m.type === 'UPDATE_SETTINGS');
+          if (!hasPendingSettings && settingsRes.data) {
             const s = settingsRes.data;
             set((state) => ({
               settings: {
@@ -430,6 +473,7 @@ export const useExpenseStore = create<ExpenseState>()(
                 theme: s.theme || 'default',
                 categoryEmojis: s.category_emojis || {},
                 notificationsEnabled: s.notifications_enabled || false,
+                userName: s.user_name || state.settings.userName,
                 currentStreak: calculateStreak(state.expenses)
               }
             }));
@@ -829,25 +873,28 @@ export const useExpenseStore = create<ExpenseState>()(
       
       updateSettings: (newSettings) => {
         set((state) => ({ settings: { ...state.settings, ...newSettings } }));
-        const { session, settings } = get();
+        const { session, settings, addPendingMutation, syncPendingMutations } = get();
         if (session) {
-          supabase.from('user_settings').upsert({
-            user_id: session.user.id,
-            monthly_income: settings.monthlyIncome,
-            currency: settings.currency,
-            dark_mode: settings.darkMode,
-            categories: settings.categories,
-            carry_forward: settings.carryForward,
-            category_budgets: settings.categoryBudgets,
-            quick_adds: settings.quickAdds,
-            privacy_mode: settings.privacyMode,
-            theme: settings.theme,
-            category_emojis: settings.categoryEmojis,
-            notifications_enabled: settings.notificationsEnabled,
-            updated_at: new Date().toISOString()
-          }).then(({ error }) => {
-            if (error) console.error('Failed to save settings:', error);
+          addPendingMutation({
+            type: 'UPDATE_SETTINGS',
+            payload: {
+              user_id: session.user.id,
+              monthly_income: settings.monthlyIncome,
+              currency: settings.currency,
+              dark_mode: settings.darkMode,
+              categories: settings.categories,
+              carry_forward: settings.carryForward,
+              category_budgets: settings.categoryBudgets,
+              quick_adds: settings.quickAdds,
+              privacy_mode: settings.privacyMode,
+              theme: settings.theme,
+              category_emojis: settings.categoryEmojis,
+              notifications_enabled: settings.notificationsEnabled,
+              user_name: settings.userName,
+              updated_at: new Date().toISOString()
+            }
           });
+          syncPendingMutations();
         }
       },
 
@@ -959,8 +1006,6 @@ export const useExpenseStore = create<ExpenseState>()(
 
       checkMonthRollover: () => set((state) => {
         const currentMonth = new Date().toISOString().slice(0, 7);
-        
-        let currentState = state;
         let newExpenses: Expense[] = [];
 
         if (state.lastActiveMonth !== currentMonth) {
@@ -971,58 +1016,71 @@ export const useExpenseStore = create<ExpenseState>()(
             const remaining = state.settings.monthlyIncome - lastMonthTotal - lastMonthBills;
             
             if (remaining !== 0) {
-              newExpenses.push({
-                id: crypto.randomUUID(),
-                amount: -remaining, 
-                description: remaining > 0 ? 'Previous Month Carry Forward' : 'Previous Month Overspend',
-                category: 'Other',
-                date: new Date().toISOString(),
-                notes: 'Automatically carried over'
-              });
+              const carryForwardId = generateDeterministicUUID('carry_forward', `${state.session?.user?.id || 'local'}:${currentMonth}`);
+              if (!state.expenses.some(e => e.id === carryForwardId)) {
+                newExpenses.push({
+                  id: carryForwardId,
+                  amount: -remaining, 
+                  description: remaining > 0 ? 'Previous Month Carry Forward' : 'Previous Month Overspend',
+                  category: 'Other',
+                  date: new Date().toISOString(),
+                  notes: 'Automatically carried over'
+                });
+              }
             }
           }
           
           state.bills.forEach(bill => {
             if (bill.autoDeduct) {
-              newExpenses.push({
-                id: crypto.randomUUID(),
-                amount: bill.amount,
-                description: `Auto-deduct: ${bill.title}`,
-                category: 'Bills',
-                date: new Date().toISOString(),
-                notes: 'Automatically deducted for the new month'
-              });
+              const autoDeductId = generateDeterministicUUID('auto_deduct', `${bill.id}:${currentMonth}`);
+              if (!state.expenses.some(e => e.id === autoDeductId)) {
+                newExpenses.push({
+                  id: autoDeductId,
+                  amount: bill.amount,
+                  description: `Auto-deduct: ${bill.title}`,
+                  category: bill.category || 'Bills',
+                  date: new Date().toISOString(),
+                  notes: 'Automatically deducted for the new month'
+                });
+              }
             }
           });
-          
-          currentState = {
-            ...state,
-            lastActiveMonth: currentMonth,
-            expenses: [...state.expenses, ...newExpenses]
-          };
         }
 
-        // --- Process recurring expenses ---
+        // --- Process recurring expenses idempotently ---
         const now = new Date();
         const generatedExpenses: Expense[] = [];
         const updatedExpenses: Expense[] = [];
 
-        currentState.expenses.forEach(expense => {
+        state.expenses.forEach(expense => {
           if (expense.recurrence && expense.recurrence !== 'none' && expense.next_occurrence) {
             let nextOccurDate = new Date(expense.next_occurrence);
             
             // Generate all occurrences that have passed
             while (nextOccurDate <= now) {
-              const clone: Expense = {
-                ...expense,
-                id: crypto.randomUUID(),
-                date: nextOccurDate.toISOString(),
-                recurrence: 'none',
-                next_occurrence: null,
-              };
-              generatedExpenses.push(clone);
+              const dateIso = nextOccurDate.toISOString();
+              const dateKey = dateIso.slice(0, 10);
+              const deterministicId = generateDeterministicUUID('recurring', `${expense.id}:${dateKey}`);
 
-              // Calculate next date
+              // Idempotency check: don't create duplicate if already exists locally
+              const alreadyExists = state.expenses.some(e => 
+                e.id === deterministicId || 
+                (e.recurring_source_id === expense.id && e.date.slice(0, 10) === dateKey)
+              );
+
+              if (!alreadyExists && !generatedExpenses.some(g => g.id === deterministicId)) {
+                const clone: Expense = {
+                  ...expense,
+                  id: deterministicId,
+                  recurring_source_id: expense.id,
+                  date: dateIso,
+                  recurrence: 'none',
+                  next_occurrence: null,
+                };
+                generatedExpenses.push(clone);
+              }
+
+              // Advance to next occurrence date
               if (expense.recurrence === 'daily') {
                 nextOccurDate.setDate(nextOccurDate.getDate() + 1);
               } else if (expense.recurrence === 'weekly') {
@@ -1038,59 +1096,79 @@ export const useExpenseStore = create<ExpenseState>()(
           }
         });
 
-        if (generatedExpenses.length > 0 || updatedExpenses.length > 0) {
-          const { session } = get();
-          
-          if (session && generatedExpenses.length > 0) {
-             // Bulk insert
-             supabase.from('expenses').insert(generatedExpenses.map(e => ({
+        const allNewExpenses = [...newExpenses, ...generatedExpenses];
+
+        // Queue all generated and updated expenses for offline/online sync
+        const { session, addPendingMutation, syncPendingMutations } = get();
+        if (session && allNewExpenses.length > 0) {
+          allNewExpenses.forEach(e => {
+            addPendingMutation({
+              type: 'INSERT_EXPENSE',
+              payload: {
                 id: e.id,
                 user_id: session.user.id,
                 amount: e.amount,
                 description: e.description,
                 category: e.category,
                 date: e.date,
-                notes: e.notes,
-                receipt_url: e.receipt_url,
+                notes: e.notes || null,
+                receipt_url: e.receipt_url || null,
                 recurrence: 'none',
-                next_occurrence: null
-             }))).then();
-          }
-
-          if (session && updatedExpenses.length > 0) {
-             // Update the original expenses with new next_occurrence
-             updatedExpenses.forEach(e => {
-               supabase.from('expenses').update({ next_occurrence: e.next_occurrence }).eq('id', e.id).then();
-             });
-          }
-
-          // Build final expenses array
-          let finalExpenses = [...currentState.expenses, ...generatedExpenses];
-          
-          // Apply updates
-          updatedExpenses.forEach(updatedE => {
-             finalExpenses = finalExpenses.map(e => e.id === updatedE.id ? updatedE : e);
+                next_occurrence: null,
+                recurring_source_id: e.recurring_source_id || null
+              }
+            });
           });
-
-          return { ...currentState, expenses: finalExpenses };
         }
 
-        return currentState;
+        if (session && updatedExpenses.length > 0) {
+          updatedExpenses.forEach(e => {
+            addPendingMutation({
+              type: 'UPDATE_EXPENSE',
+              payload: {
+                id: e.id,
+                next_occurrence: e.next_occurrence
+              }
+            });
+          });
+        }
+
+        if (session && (allNewExpenses.length > 0 || updatedExpenses.length > 0)) {
+          syncPendingMutations();
+        }
+
+        // Build updated state
+        let finalExpenses = [...state.expenses, ...allNewExpenses];
+        updatedExpenses.forEach(updatedE => {
+          finalExpenses = finalExpenses.map(e => e.id === updatedE.id ? updatedE : e);
+        });
+
+        return {
+          ...state,
+          lastActiveMonth: currentMonth,
+          expenses: finalExpenses
+        };
       }),
       
       eraseAllData: async () => {
         const { session } = get();
         if (session) {
-          await Promise.all([
-            supabase.from('expenses').delete().eq('user_id', session.user.id),
-            supabase.from('bills').delete().eq('user_id', session.user.id),
-            supabase.from('subscriptions').delete().eq('user_id', session.user.id),
-            supabase.from('budgets').delete().eq('user_id', session.user.id),
-            supabase.from('wishlist').delete().eq('user_id', session.user.id),
-            supabase.from('debts').delete().eq('user_id', session.user.id),
-            supabase.from('user_settings').delete().eq('user_id', session.user.id)
-          ]);
-          queryClient.removeQueries();
+          try {
+            await Promise.all([
+              supabase.from('expenses').delete().eq('user_id', session.user.id),
+              supabase.from('bills').delete().eq('user_id', session.user.id),
+              supabase.from('subscriptions').delete().eq('user_id', session.user.id),
+              supabase.from('budgets').delete().eq('user_id', session.user.id),
+              supabase.from('wishlist').delete().eq('user_id', session.user.id),
+              supabase.from('debts').delete().eq('user_id', session.user.id),
+              supabase.from('user_settings').delete().eq('user_id', session.user.id)
+            ]);
+            queryClient.removeQueries();
+            toast.success("All data erased successfully");
+          } catch (err: any) {
+            console.error("Failed to erase cloud data:", err);
+            toast.error("Failed to wipe cloud data. Please check your connection.");
+          }
         }
         set({
           expenses: [],
@@ -1112,7 +1190,12 @@ export const useExpenseStore = create<ExpenseState>()(
               { description: "Coffee", amount: 100, category: "Food", icon: "☕" },
               { description: "Fuel", amount: 500, category: "Fuel", icon: "🚗" },
               { description: "Grocery", amount: 200, category: "Grocery", icon: "🛒" }
-            ]
+            ],
+            privacyMode: true,
+            theme: 'default',
+            categoryEmojis: {},
+            userName: '',
+            soundEnabled: false
           }
         });
       }
