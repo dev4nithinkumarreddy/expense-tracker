@@ -20,12 +20,12 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: '/icon.png',
+            src: '/icon-192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/icon.png',
+            src: '/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
@@ -48,7 +48,7 @@ export default defineConfig({
             url: '/?action=add-expense',
             icons: [
               {
-                src: '/icon.png',
+                src: '/icon-192.png',
                 sizes: '192x192',
                 type: 'image/png'
               }
@@ -61,7 +61,7 @@ export default defineConfig({
             url: '/?action=today',
             icons: [
               {
-                src: '/icon.png',
+                src: '/icon-192.png',
                 sizes: '192x192',
                 type: 'image/png'
               }
@@ -74,7 +74,7 @@ export default defineConfig({
             url: '/?action=scan-receipt',
             icons: [
               {
-                src: '/icon.png',
+                src: '/icon-192.png',
                 sizes: '192x192',
                 type: 'image/png'
               }
