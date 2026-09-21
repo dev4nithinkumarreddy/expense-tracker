@@ -93,6 +93,18 @@ export async function checkIsAdmin(email?: string | null, userId?: string | null
  * Fetch platform analytics across all users
  */
 export async function fetchAdminAnalytics(): Promise<AdminAnalytics> {
+  // First try the Edge Function which runs with service role to bypass user RLS
+  try {
+    const { data, error } = await supabase.functions.invoke('push-notify', {
+      body: { action: 'get_analytics' }
+    });
+    if (!error && data && typeof data.totalUsers === 'number') {
+      return data as AdminAnalytics;
+    }
+  } catch (err) {
+    console.warn("Could not fetch analytics from Edge Function, falling back to direct query:", err);
+  }
+
   const [expensesRes, pushRes, userSettingsRes] = await Promise.all([
     supabase.from('expenses').select('id, user_id, amount, date'),
     supabase.from('push_subscriptions').select('id, user_id, user_agent'),

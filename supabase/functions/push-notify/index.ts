@@ -13,6 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
 const DEFAULT_CATCHPHRASES = [
@@ -45,6 +46,84 @@ serve(async (req) => {
       } catch {
         bodyData = {};
       }
+    }
+
+    // 0. Fetch platform analytics using service role (bypasses RLS)
+    if (bodyData.action === 'get_analytics') {
+      const [expensesRes, pushRes, userSettingsRes] = await Promise.all([
+        supabase.from('expenses').select('id, user_id, amount, date'),
+        supabase.from('push_subscriptions').select('id, user_id, user_agent'),
+        supabase.from('user_settings').select('user_id, updated_at')
+      ]);
+
+      const expenses = expensesRes.data || [];
+      const pushSubs = pushRes.data || [];
+      const userSettings = userSettingsRes.data || [];
+
+      const allUserIds = new Set<string>();
+      expenses.forEach((e: any) => e.user_id && allUserIds.add(e.user_id));
+      pushSubs.forEach((p: any) => p.user_id && allUserIds.add(p.user_id));
+      userSettings.forEach((u: any) => u.user_id && allUserIds.add(u.user_id));
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString();
+
+      const activeTodayIds = new Set<string>();
+      const activeThisWeekIds = new Set<string>();
+
+      expenses.forEach((e: any) => {
+        if (e.date) {
+          if (e.date.startsWith(todayStr)) activeTodayIds.add(e.user_id);
+          if (e.date >= sevenDaysAgoStr) activeThisWeekIds.add(e.user_id);
+        }
+      });
+
+      const totalPlatformSpend = expenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+
+      let mobilePwa = 0;
+      let desktop = 0;
+      let other = 0;
+
+      pushSubs.forEach((sub: any) => {
+        const ua = (sub.user_agent || '').toLowerCase();
+        if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
+          mobilePwa++;
+        } else if (ua.includes('windows') || ua.includes('macintosh') || ua.includes('linux')) {
+          desktop++;
+        } else {
+          other++;
+        }
+      });
+
+      const pushUsersSet = new Set(pushSubs.map((s: any) => s.user_id));
+
+      const recentUsers = Array.from(allUserIds).slice(0, 20).map(uid => {
+        const userExpenses = expenses.filter((e: any) => e.user_id === uid);
+        const lastExpense = userExpenses.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        
+        return {
+          userId: uid,
+          lastActive: lastExpense ? lastExpense.date : undefined,
+          expenseCount: userExpenses.length,
+          hasPush: pushUsersSet.has(uid)
+        };
+      });
+
+      return new Response(JSON.stringify({
+        totalUsers: allUserIds.size || (userSettings.length > 0 ? userSettings.length : 1),
+        activeToday: activeTodayIds.size,
+        activeThisWeek: activeThisWeekIds.size,
+        totalExpensesCount: expenses.length,
+        totalPlatformSpend,
+        totalPushSubscribers: pushSubs.length,
+        deviceBreakdown: { mobilePwa, desktop, other },
+        recentUsers
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
     // 1. Check if this is a scheduled cron worker dispatch

@@ -38,20 +38,20 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
-  const urlToOpen = event.notification.data.url;
+  const targetPath = event.notification.data?.url || '/';
+  const targetUrl = new URL(targetPath, self.location.origin).href;
   
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Check if there is already a window/tab open with the target URL
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        if (client.url.includes(urlToOpen) && 'focus' in client) {
+        if ('navigate' in client && 'focus' in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }
-      // If not, open a new window/tab
       if (self.clients.openWindow) {
-        return self.clients.openWindow(urlToOpen);
+        return self.clients.openWindow(targetUrl);
       }
     })
   );
