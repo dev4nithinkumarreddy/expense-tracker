@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
@@ -11,9 +11,24 @@ import { toast } from "sonner";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { playSuccessSound } from "../lib/sound";
 import { EmptyState } from "../components/ui/EmptyState";
+import { calculateCashflowSummary, getBillDueStatus, getSubscriptionDueStatus } from "../lib/cashflow";
 
 export default function Planned() {
   const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
+  const { settings, expenses, bills, subscriptions } = useExpenseStore();
+
+  const cashflow = useMemo(() => {
+    return calculateCashflowSummary(
+      settings.monthlyIncome,
+      expenses,
+      bills,
+      subscriptions,
+      new Date()
+    );
+  }, [settings.monthlyIncome, expenses, bills, subscriptions]);
+
+  const totalDeducted = cashflow.dueBillsAmount + cashflow.dueSubsAmount;
+  const upcomingTotal = cashflow.upcomingObligationsTotal;
 
   return (
     <div className="space-y-6 pb-24">
@@ -23,6 +38,35 @@ export default function Planned() {
           <p className="text-muted-foreground text-sm">Bills, Subscriptions, Wishlist & IOUs</p>
         </div>
       </header>
+
+      {/* Cashflow & Deductions Overview */}
+      <div className="grid grid-cols-2 gap-3.5">
+        <div className="p-4 rounded-3xl bg-card border border-border/70 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className="font-medium">Deducted So Far</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div className="text-xl font-bold text-foreground mt-1.5">
+            {formatCurrency(totalDeducted, settings.currency)}
+          </div>
+          <span className="text-[11px] text-muted-foreground mt-0.5">
+            Due date arrived this month
+          </span>
+        </div>
+
+        <div className="p-4 rounded-3xl bg-card border border-border/70 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className="font-medium">Upcoming Obligations</span>
+            <CalendarDays className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1.5">
+            {formatCurrency(upcomingTotal, settings.currency)}
+          </div>
+          <span className="text-[11px] text-muted-foreground mt-0.5">
+            Deducts from balance on due dates
+          </span>
+        </div>
+      </div>
 
       <SegmentedControl
         options={[
@@ -187,22 +231,35 @@ function SubscriptionsTab() {
             onAction={() => setIsAdding(true)}
           />
         ) : (
-          subscriptions.map(sub => (
-            <SwipeablePayRow key={sub.id} onPay={() => handleLogPayment(sub)} payLabel="Log Payment">
-              <div className="p-4 flex justify-between items-center pl-5 relative">
-                <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 rounded-l" />
-                <div className="space-y-1 min-w-0">
-                  <p className="font-semibold truncate">{sub.name}</p>
-                  <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    {formatCurrency(sub.amount, settings.currency)} 
-                    <span className="text-[10px] uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                      {sub.billing_cycle}
-                    </span>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Next bill: {new Date(sub.next_billing_date).toLocaleDateString()}
-                  </p>
-                  <div className="flex items-center gap-2 mt-3">
+          subscriptions.map(sub => {
+            const dueStatus = getSubscriptionDueStatus(sub);
+            return (
+              <SwipeablePayRow key={sub.id} onPay={() => handleLogPayment(sub)} payLabel="Log Payment">
+                <div className="p-4 flex justify-between items-center pl-5 relative">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 rounded-l" />
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold truncate">{sub.name}</p>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        dueStatus.badgeColor === 'emerald'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                          : dueStatus.badgeColor === 'amber'
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                          : 'bg-muted text-muted-foreground border-border/50'
+                      }`}>
+                        {dueStatus.label}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      {formatCurrency(sub.amount, settings.currency)} 
+                      <span className="text-[10px] uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                        {sub.billing_cycle}
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Next bill: {new Date(sub.next_billing_date).toLocaleDateString()}
+                    </p>
+                    <div className="flex items-center gap-2 mt-3">
                     <Button 
                       variant="secondary" 
                       size="sm" 
@@ -226,8 +283,8 @@ function SubscriptionsTab() {
                 </div>
               </div>
             </SwipeablePayRow>
-          ))
-        )}
+          );
+        }))}
       </div>
     </div>
   );
@@ -564,6 +621,7 @@ function BillsTab() {
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
+  const [newDueDay, setNewDueDay] = useState("5");
 
   const handleSave = () => {
     if (!newTitle || !newAmount) return;
@@ -572,10 +630,12 @@ function BillsTab() {
       title: newTitle,
       amount: parseFloat(newAmount),
       autoDeduct: true,
-      category: "Bills"
+      category: "Bills",
+      due_day: Math.min(31, Math.max(1, parseInt(newDueDay) || 1))
     });
     setNewTitle("");
     setNewAmount("");
+    setNewDueDay("5");
     setIsAdding(false);
   };
 
@@ -607,7 +667,7 @@ function BillsTab() {
             <h3 className="font-medium text-sm">Add New Bill</h3>
             <div className="space-y-3">
               <Input 
-                placeholder="Bill Name (e.g. Internet)" 
+                placeholder="Bill Name (e.g. Internet, Rent)" 
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
               />
@@ -617,6 +677,20 @@ function BillsTab() {
                 value={newAmount}
                 onChange={(e) => setNewAmount(e.target.value)}
               />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Due Day of the Month (1 - 31)</label>
+                <Input 
+                  type="number"
+                  min="1"
+                  max="31"
+                  placeholder="Day (e.g. 5 for 5th of each month)" 
+                  value={newDueDay}
+                  onChange={(e) => setNewDueDay(e.target.value)}
+                />
+                <p className="text-[10.5px] text-muted-foreground">
+                  Deducts from available balance on this day each month
+                </p>
+              </div>
               <div className="flex gap-2 justify-end pt-2">
                 <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancel</Button>
                 <Button size="sm" onClick={handleSave}>Save</Button>
@@ -637,46 +711,60 @@ function BillsTab() {
             onAction={() => setIsAdding(true)}
           />
         ) : (
-          bills.map(bill => (
-            <SwipeablePayRow key={bill.id} onPay={() => handlePayNow(bill)} payLabel="Pay Bill">
-              <div className="p-4 flex justify-between items-center">
-                <div className="space-y-1 min-w-0">
-                  <p className="font-semibold truncate">{bill.title}</p>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {formatCurrency(bill.amount, settings.currency)} / month
-                  </p>
-                  <div className="flex items-center gap-3 mt-3 flex-wrap">
-                    <button 
-                      onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted"}`} />
-                      Auto Deduct
-                    </button>
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
-                      className="h-7 text-xs px-2"
-                      onClick={() => handlePayNow(bill)}
-                    >
-                      Pay Now
+          bills.map(bill => {
+            const dueStatus = getBillDueStatus(bill);
+            return (
+              <SwipeablePayRow key={bill.id} onPay={() => handlePayNow(bill)} payLabel="Pay Bill">
+                <div className="p-4 flex justify-between items-center">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold truncate">{bill.title}</p>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        dueStatus.badgeColor === 'emerald'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                          : dueStatus.badgeColor === 'amber'
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                          : 'bg-muted text-muted-foreground border-border/50'
+                      }`}>
+                        {dueStatus.label}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {formatCurrency(bill.amount, settings.currency)} / month
+                    </p>
+                    <div className="flex items-center gap-3 mt-3 flex-wrap">
+                      <button 
+                        onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted"}`} />
+                        Auto Deduct
+                      </button>
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="h-7 text-xs px-2"
+                        onClick={() => handlePayNow(bill)}
+                      >
+                        Pay Now
+                      </Button>
+                      <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                        (or swipe right to pay)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-start h-full shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
+                      vibrate();
+                      if(confirm("Delete this bill?")) deleteBill(bill.id);
+                    }}>
+                      <Trash2 className="h-4 w-4" />
                     </Button>
-                    <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
-                      (or swipe right to pay)
-                    </span>
                   </div>
                 </div>
-                <div className="flex items-start h-full shrink-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
-                    vibrate();
-                    if(confirm("Delete this bill?")) deleteBill(bill.id);
-                  }}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </SwipeablePayRow>
-          ))
+              </SwipeablePayRow>
+            );
+          })
         )}
       </div>
     </div>

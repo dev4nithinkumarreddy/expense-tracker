@@ -21,7 +21,9 @@ import {
   TrendingUp, 
   TrendingDown, 
   PiggyBank, 
-  Calendar, 
+  CalendarDays,
+  ChevronDown,
+  ChevronUp,
   Sparkles, 
   ArrowUpRight,
   Flame,
@@ -39,6 +41,8 @@ import {
 } from "../lib/analytics";
 import { getExpenseLocalDate } from "../lib/streak";
 import { CategoryDetailModal } from "../components/CategoryDetailModal";
+import { MonthCalendarGrid } from "../components/analytics/MonthCalendarGrid";
+import { DateTransactionsInspector } from "../components/analytics/DateTransactionsInspector";
 import { vibrate } from "../lib/utils";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { playSuccessSound } from "../lib/sound";
@@ -54,6 +58,8 @@ export default function Analytics() {
   
   const [viewMode, setViewMode] = useState<'monthly' | 'trends'>('monthly');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
   const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
 
@@ -190,61 +196,114 @@ export default function Analytics() {
           />
         </div>
 
-        {/* Month Navigator */}
+        {/* Month Navigator with Interactive Calendar Toggle */}
         {viewMode === 'monthly' && (
-          <div className="flex items-center justify-between bg-secondary/30 p-1.5 rounded-xl border border-border/40">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 rounded-lg" 
-              onClick={() => {
-                vibrate(10);
-                setCurrentDate(subMonths(currentDate, 1));
-              }}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold">
-                {format(currentDate, 'MMMM yyyy')}
-              </span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between bg-card/80 dark:bg-card/60 backdrop-blur-xl p-1.5 rounded-2xl border border-border/50 shadow-xs">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 rounded-xl hover:bg-secondary/80 active:scale-95 transition-all" 
+                onClick={() => {
+                  vibrate(10);
+                  const newMonth = subMonths(currentDate, 1);
+                  setCurrentDate(newMonth);
+                  setSelectedDate(null);
+                }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  vibrate(10);
+                  setIsCalendarOpen(prev => !prev);
+                }}
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl hover:bg-secondary/70 active:scale-95 transition-all cursor-pointer group"
+                title="Tap to view interactive calendar inspector"
+              >
+                <div className="p-1 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+                  <CalendarDays className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-semibold tracking-tight">
+                  {format(currentDate, 'MMMM yyyy')}
+                </span>
+                {isCalendarOpen ? (
+                  <ChevronUp className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                )}
+              </button>
+
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 rounded-xl hover:bg-secondary/80 active:scale-95 transition-all" 
+                onClick={() => {
+                  vibrate(10);
+                  const newMonth = addMonths(currentDate, 1);
+                  setCurrentDate(newMonth);
+                  setSelectedDate(null);
+                }}
+                disabled={isCurrentMonthOrFuture}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 rounded-lg" 
-              onClick={() => {
-                vibrate(10);
-                setCurrentDate(addMonths(currentDate, 1));
-              }}
-              disabled={isCurrentMonthOrFuture}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+
+            {/* Interactive Apple Calendar Grid */}
+            {isCalendarOpen && (
+              <div className="animate-in fade-in-50 zoom-in-95 duration-200">
+                <MonthCalendarGrid
+                  currentMonthDate={currentDate}
+                  selectedDate={selectedDate}
+                  onSelectDate={(date) => {
+                    vibrate(12);
+                    setSelectedDate(date);
+                  }}
+                  expenses={expenses}
+                />
+              </div>
+            )}
+
+            {/* Date Transactions Inspector Drawer */}
+            {selectedDate && (
+              <div className="animate-in fade-in-50 slide-in-from-top-3 duration-200">
+                <DateTransactionsInspector
+                  selectedDate={selectedDate}
+                  onClose={() => setSelectedDate(null)}
+                  expenses={expenses}
+                  currency={settings.currency}
+                  onLogAgain={handleDrilldownLogAgain}
+                />
+              </div>
+            )}
           </div>
         )}
       </header>
 
-      {/* 4 Financial KPI Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* 4 Apple-Grade Financial KPI Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Spent */}
-        <Card className="border-border/60 bg-card/60 shadow-xs">
-          <CardHeader className="p-3.5 pb-1">
+        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-primary/30 transition-all group">
+          <CardHeader className="p-4 pb-1">
             <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
               <span>Total Spent</span>
-              <Flame className="w-3.5 h-3.5 text-orange-500" />
+              <div className="p-1.5 rounded-xl bg-orange-500/10 text-orange-500 group-hover:scale-110 transition-transform">
+                <Flame className="w-3.5 h-3.5" />
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3.5 pt-1">
-            <div className="text-xl font-bold tracking-tight">
+          <CardContent className="p-4 pt-1">
+            <div className="text-xl sm:text-2xl font-bold tracking-tight">
               {formatCurrency(kpis.totalExpenses, settings.currency)}
             </div>
-            <div className="flex items-center gap-1 mt-1 text-xs">
+            <div className="flex items-center gap-1 mt-1.5 text-xs">
               {kpis.percentChangeFromLastMonth !== 0 ? (
                 <>
                   {kpis.percentChangeFromLastMonth > 0 ? (
-                    <span className="text-destructive font-semibold flex items-center">
+                    <span className="text-rose-500 font-semibold flex items-center">
                       <TrendingUp className="w-3 h-3 mr-0.5" /> +{kpis.percentChangeFromLastMonth}%
                     </span>
                   ) : (
@@ -262,18 +321,20 @@ export default function Analytics() {
         </Card>
 
         {/* Net Savings & Rate */}
-        <Card className="border-border/60 bg-card/60 shadow-xs">
-          <CardHeader className="p-3.5 pb-1">
+        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-emerald-500/30 transition-all group">
+          <CardHeader className="p-4 pb-1">
             <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
               <span>Net Savings</span>
-              <PiggyBank className="w-3.5 h-3.5 text-emerald-500" />
+              <div className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
+                <PiggyBank className="w-3.5 h-3.5" />
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3.5 pt-1">
-            <div className={`text-xl font-bold tracking-tight ${kpis.netSavings < 0 ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
+          <CardContent className="p-4 pt-1">
+            <div className={`text-xl sm:text-2xl font-bold tracking-tight ${kpis.netSavings < 0 ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
               {formatCurrency(kpis.netSavings, settings.currency)}
             </div>
-            <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
               <span className={`font-semibold ${kpis.savingsRate < 0 ? 'text-destructive' : 'text-emerald-500'}`}>
                 {kpis.savingsRate}%
               </span>
@@ -283,30 +344,40 @@ export default function Analytics() {
         </Card>
 
         {/* Daily Burn Rate */}
-        <Card className="border-border/60 bg-card/60 shadow-xs">
-          <CardHeader className="p-3.5 pb-1">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Daily Average</CardTitle>
+        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-blue-500/30 transition-all group">
+          <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
+              <span>Daily Average</span>
+              <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-500 group-hover:scale-110 transition-transform">
+                <BarChart3 className="w-3.5 h-3.5" />
+              </div>
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-3.5 pt-1">
-            <div className="text-xl font-bold tracking-tight">
+          <CardContent className="p-4 pt-1">
+            <div className="text-xl sm:text-2xl font-bold tracking-tight">
               {formatCurrency(kpis.dailyAverage, settings.currency)}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1.5">
               Spent per day
             </p>
           </CardContent>
         </Card>
 
         {/* Month-End Projection */}
-        <Card className="border-border/60 bg-card/60 shadow-xs">
-          <CardHeader className="p-3.5 pb-1">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Month-End Forecast</CardTitle>
+        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-purple-500/30 transition-all group">
+          <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
+              <span>Forecast</span>
+              <div className="p-1.5 rounded-xl bg-purple-500/10 text-purple-500 group-hover:scale-110 transition-transform">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-3.5 pt-1">
-            <div className="text-xl font-bold tracking-tight text-primary">
+          <CardContent className="p-4 pt-1">
+            <div className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
               {formatCurrency(kpis.projectedMonthEnd, settings.currency)}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1.5">
               Projected monthly total
             </p>
           </CardContent>
@@ -323,7 +394,7 @@ export default function Analytics() {
         ) : (
           <div className="space-y-6">
             {/* Category Donut Breakdown Chart */}
-            <Card className="border-border/60 shadow-xs overflow-hidden">
+            <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
               <CardHeader className="pb-0">
                 <CardTitle className="text-base font-semibold">Category Breakdown</CardTitle>
                 <p className="text-xs text-muted-foreground">Tap or hover over slices to inspect category totals</p>
@@ -357,7 +428,7 @@ export default function Analytics() {
                       <Tooltip 
                         formatter={(value: any) => [formatCurrency(Number(value), settings.currency), 'Spent']}
                         contentStyle={{ 
-                          borderRadius: '8px', 
+                          borderRadius: '12px', 
                           border: 'none', 
                           boxShadow: '0 8px 16px -2px rgb(0 0 0 / 0.15)',
                           backgroundColor: 'hsl(var(--card))',
@@ -385,16 +456,16 @@ export default function Analytics() {
               </CardContent>
             </Card>
 
-            {/* Daily Spending Bar Chart */}
-            <Card className="border-border/60 shadow-xs">
+            {/* Daily Spending Bar Chart with Interactive Date Selector */}
+            <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
               <CardHeader className="pb-1 flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-semibold">Daily Spending Pattern</CardTitle>
-                  <p className="text-xs text-muted-foreground">Expenses tracked across the days of the month</p>
+                  <p className="text-xs text-muted-foreground">Expenses across the month • Tap any bar to inspect day</p>
                 </div>
                 {kpis.peakExpenseDay && (
                   <div className="text-right">
-                    <span className="text-[10px] font-medium bg-secondary px-2 py-1 rounded-md text-muted-foreground">
+                    <span className="text-[11px] font-medium bg-secondary/80 px-2.5 py-1 rounded-xl text-muted-foreground">
                       Peak: Day {kpis.peakExpenseDay.day} ({formatCurrency(kpis.peakExpenseDay.amount, settings.currency)})
                     </span>
                   </div>
@@ -403,7 +474,20 @@ export default function Analytics() {
               <CardContent className="pt-4">
                 <div className="h-[200px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dailyData} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
+                    <BarChart 
+                      data={dailyData} 
+                      margin={{ top: 10, right: 5, left: -20, bottom: 0 }}
+                      onClick={(state: any) => {
+                        if (state && state.activePayload && state.activePayload.length > 0) {
+                          const item = state.activePayload[0].payload as any;
+                          if (item && item.dateStr) {
+                            vibrate(10);
+                            const [y, m, d] = item.dateStr.split('-').map(Number);
+                            setSelectedDate(new Date(y, m - 1, d));
+                          }
+                        }
+                      }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
                       <XAxis 
                         dataKey="dayLabel" 
@@ -420,9 +504,9 @@ export default function Analytics() {
                       />
                       <Tooltip 
                         formatter={(value: any) => [formatCurrency(Number(value), settings.currency), 'Spent']}
-                        labelFormatter={(label) => `Day ${label}, ${format(currentDate, 'MMM yyyy')}`}
+                        labelFormatter={(label) => `Day ${label}, ${format(currentDate, 'MMM yyyy')} (Tap to inspect)`}
                         contentStyle={{ 
-                          borderRadius: '8px', 
+                          borderRadius: '12px', 
                           border: 'none', 
                           boxShadow: '0 8px 16px -2px rgb(0 0 0 / 0.15)',
                           backgroundColor: 'hsl(var(--card))',
@@ -432,9 +516,21 @@ export default function Analytics() {
                       />
                       <Bar 
                         dataKey="amount" 
-                        fill="hsl(var(--primary))" 
                         radius={[4, 4, 0, 0]} 
-                      />
+                        className="cursor-pointer"
+                      >
+                        {dailyData.map((entry) => {
+                          const isSelected = selectedDate ? format(selectedDate, 'yyyy-MM-dd') === entry.dateStr : false;
+                          return (
+                            <Cell
+                              key={`cell-bar-${entry.day}`}
+                              fill={isSelected ? 'hsl(var(--chart-2))' : 'hsl(var(--primary))'}
+                              opacity={selectedDate && !isSelected ? 0.55 : 1}
+                              className="transition-all hover:opacity-80"
+                            />
+                          );
+                        })}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -442,7 +538,7 @@ export default function Analytics() {
             </Card>
 
             {/* Category Breakdown & Budget Pacing List */}
-            <Card className="border-border/60 shadow-xs">
+            <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
                   <div>
@@ -531,7 +627,7 @@ export default function Analytics() {
 
             {/* Smart Financial Insights */}
             {smartInsights.length > 0 && (
-              <Card className="border-border/60 shadow-xs bg-primary/5 border-primary/20">
+              <Card className="rounded-3xl border-primary/25 bg-primary/5 dark:bg-primary/10 backdrop-blur-xl shadow-xs overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-primary" />
@@ -542,12 +638,12 @@ export default function Analytics() {
                   {smartInsights.map(insight => (
                     <div 
                       key={insight.id} 
-                      className={`p-3 rounded-xl border flex items-start gap-3 ${
+                      className={`p-3.5 rounded-2xl border flex items-start gap-3 transition-all ${
                         insight.type === 'warning' 
                           ? 'bg-destructive/10 border-destructive/20 text-foreground'
                           : insight.type === 'positive'
                             ? 'bg-emerald-500/10 border-emerald-500/20 text-foreground'
-                            : 'bg-background/80 border-border/60 text-foreground'
+                            : 'bg-card/80 border-border/60 text-foreground'
                       }`}
                     >
                       <span className="text-xl shrink-0 mt-0.5">{insight.icon}</span>
@@ -563,15 +659,15 @@ export default function Analytics() {
 
             {/* Smart Tags Section */}
             {tagData.length > 0 && (
-              <Card className="border-border/60 shadow-xs">
+              <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-semibold">Hashtag Breakdown</CardTitle>
                   <p className="text-xs text-muted-foreground">Spending organized by custom tags</p>
                 </CardHeader>
                 <CardContent className="space-y-2.5 pt-1">
                   {tagData.slice(0, 6).map(([tag, amount]) => (
-                    <div key={tag} className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                      <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md">
+                    <div key={tag} className="flex justify-between items-center p-2.5 rounded-2xl bg-secondary/40 border border-border/40">
+                      <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-xl">
                         {tag}
                       </span>
                       <span className="text-xs font-semibold">
@@ -589,19 +685,19 @@ export default function Analytics() {
         <div className="space-y-6">
           {/* 6-Month Summary Cards */}
           <div className="grid grid-cols-3 gap-3">
-            <Card className="p-3.5 border-border/60 bg-card/60 text-center">
+            <Card className="p-4 rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl text-center shadow-xs">
               <span className="text-[11px] font-medium text-muted-foreground block">6M Total Spend</span>
               <span className="text-base font-bold text-foreground mt-1 block">
                 {formatCurrency(sixMonthSummary.totalExp, settings.currency)}
               </span>
             </Card>
-            <Card className="p-3.5 border-border/60 bg-card/60 text-center">
+            <Card className="p-4 rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl text-center shadow-xs">
               <span className="text-[11px] font-medium text-muted-foreground block">Monthly Avg</span>
               <span className="text-base font-bold text-primary mt-1 block">
                 {formatCurrency(sixMonthSummary.avgExp, settings.currency)}
               </span>
             </Card>
-            <Card className="p-3.5 border-border/60 bg-card/60 text-center">
+            <Card className="p-4 rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl text-center shadow-xs">
               <span className="text-[11px] font-medium text-muted-foreground block">6M Net Savings</span>
               <span className={`text-base font-bold mt-1 block ${sixMonthSummary.totalSav < 0 ? 'text-destructive' : 'text-emerald-500'}`}>
                 {formatCurrency(sixMonthSummary.totalSav, settings.currency)}
@@ -610,7 +706,7 @@ export default function Analytics() {
           </div>
 
           {/* 6-Month Income vs Expense Bar Chart */}
-          <Card className="border-border/60 shadow-xs">
+          <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold">6-Month Cash Flow (Income vs Expenses)</CardTitle>
               <p className="text-xs text-muted-foreground">Historical monthly comparison over the past 6 months</p>
@@ -639,7 +735,7 @@ export default function Analytics() {
                       ]}
                       labelFormatter={(label) => `${label}`}
                       contentStyle={{ 
-                        borderRadius: '8px', 
+                        borderRadius: '12px', 
                         border: 'none', 
                         boxShadow: '0 8px 16px -2px rgb(0 0 0 / 0.15)',
                         backgroundColor: 'hsl(var(--card))',

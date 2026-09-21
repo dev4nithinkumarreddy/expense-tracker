@@ -80,6 +80,8 @@ export interface Bill {
   amount: number;
   autoDeduct: boolean;
   category: string;
+  due_day?: number;
+  due_date?: string;
 }
 
 export interface Settings {
@@ -347,7 +349,9 @@ export const useExpenseStore = create<ExpenseState>()(
               title: b.title,
               amount: b.amount,
               autoDeduct: b.auto_deduct,
-              category: b.category
+              category: b.category,
+              due_day: b.due_day ?? (b.due_date ? new Date(b.due_date).getDate() : 1),
+              due_date: b.due_date
             })) as Bill[];
             
             pendingMutations.forEach(mut => {
@@ -357,7 +361,9 @@ export const useExpenseStore = create<ExpenseState>()(
                   title: mut.payload.title,
                   amount: mut.payload.amount,
                   autoDeduct: mut.payload.auto_deduct,
-                  category: mut.payload.category
+                  category: mut.payload.category,
+                  due_day: mut.payload.due_day,
+                  due_date: mut.payload.due_date
                 });
               } else if (mut.type === 'UPDATE_BILL') {
                 mergedBills = mergedBills.map(b => b.id === mut.payload.id ? {
@@ -365,7 +371,9 @@ export const useExpenseStore = create<ExpenseState>()(
                   title: mut.payload.title ?? b.title,
                   amount: mut.payload.amount ?? b.amount,
                   autoDeduct: mut.payload.auto_deduct ?? b.autoDeduct,
-                  category: mut.payload.category ?? b.category
+                  category: mut.payload.category ?? b.category,
+                  due_day: mut.payload.due_day ?? b.due_day,
+                  due_date: mut.payload.due_date ?? b.due_date
                 } : b);
               } else if (mut.type === 'DELETE_BILL') {
                 mergedBills = mergedBills.filter(b => b.id !== mut.payload.id);
@@ -640,7 +648,9 @@ export const useExpenseStore = create<ExpenseState>()(
             title: newBill.title,
             amount: newBill.amount,
             auto_deduct: newBill.autoDeduct,
-            category: newBill.category
+            category: newBill.category,
+            due_day: newBill.due_day ?? 1,
+            due_date: newBill.due_date || null
           };
           addPendingMutation({ type: 'INSERT_BILL', payload });
           syncPendingMutations();
@@ -664,7 +674,9 @@ export const useExpenseStore = create<ExpenseState>()(
               title: bill.title,
               amount: bill.amount,
               auto_deduct: bill.autoDeduct,
-              category: bill.category
+              category: bill.category,
+              due_day: bill.due_day ?? 1,
+              due_date: bill.due_date || null
             };
             addPendingMutation({ type: 'UPDATE_BILL', payload });
             syncPendingMutations();

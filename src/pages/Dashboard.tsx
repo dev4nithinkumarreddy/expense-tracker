@@ -11,6 +11,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { calculateStreak } from "../lib/streak";
+import { calculateCashflowSummary } from "../lib/cashflow";
 import { motion, AnimatePresence } from "framer-motion";
 import { BudgetRing } from "../components/ui/BudgetRing";
 import { AnimatedNumber } from "../components/ui/AnimatedNumber";
@@ -102,17 +103,28 @@ export default function Dashboard() {
 
   const quickAdds = settings.quickAdds || [];
 
+  const cashflow = useMemo(() => {
+    return calculateCashflowSummary(
+      settings.monthlyIncome,
+      expenses,
+      bills,
+      subscriptions,
+      new Date()
+    );
+  }, [settings.monthlyIncome, expenses, bills, subscriptions]);
+
   const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
   const incomeRecords = currentMonthRecords.filter(e => e.category === 'Income');
   const currentMonthExpenses = currentMonthRecords.filter(e => e.category !== 'Income');
 
   const extraIncome = incomeRecords.reduce((sum, e) => sum + e.amount, 0);
-  const totalExpenses = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const totalBills = bills.reduce((sum, b) => sum + b.amount, 0);
+  const totalExpenses = cashflow.totalExpenses;
+  const totalDueObligations = cashflow.dueBillsAmount + cashflow.dueSubsAmount;
+  const upcomingObligations = cashflow.upcomingObligationsTotal;
   
-  const totalBudget = settings.monthlyIncome + extraIncome;
-  const remaining = totalBudget - totalBills - totalExpenses;
-  const budgetUsedPercent = Math.min(100, Math.round(((totalExpenses + totalBills) / totalBudget) * 100) || 0);
+  const totalBudget = cashflow.totalBudget;
+  const remaining = cashflow.availableBalance;
+  const budgetUsedPercent = Math.min(100, Math.round(((totalExpenses + totalDueObligations) / (totalBudget || 1)) * 100) || 0);
 
   const todayExpenses = currentMonthExpenses.filter(e => isToday(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
   const weekExpenses = currentMonthExpenses.filter(e => isThisWeek(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
@@ -361,13 +373,18 @@ export default function Dashboard() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-muted-foreground mb-1">Bills</p>
+                <p className="text-sm text-muted-foreground mb-1">Bills (Due)</p>
                 <p className="text-lg font-semibold display-number">
                   <AnimatedNumber
-                    value={totalBills}
+                    value={totalDueObligations}
                     formatFn={(val) => formatCurrency(val, settings.currency)}
                   />
                 </p>
+                {upcomingObligations > 0 && (
+                  <p className="text-[10.5px] text-muted-foreground mt-0.5" title="Upcoming bills & subscriptions due later this month">
+                    +{formatCurrency(upcomingObligations, settings.currency)} upcoming
+                  </p>
+                )}
               </div>
             </div>
             
