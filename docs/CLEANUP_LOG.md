@@ -249,4 +249,31 @@ anon key and URL in `sw.ts` are low-risk but will be cleaned up in Phase 1.
 - `npm run build`: Success (PWA service worker bundled with 0 warnings)
 
 ---
+
+## Phase 3 — Database & Type Layer Alignment
+**Date:** 2026-09-21
+
+### 3.1 Database Type Definitions Alignment (`src/types/database.types.ts`)
+- **Issue**: `database.types.ts` was missing almost half the application's tables (`subscriptions`, `debts`, `wishlist`, `push_subscriptions`, `automated_rules`, `scheduled_notifications`, `notification_logs`), and existing tables were missing columns (`recurring_source_id` on `expenses`, `due_day`/`due_date` on `bills`, and `privacy_mode`/`theme`/`category_emojis`/`notifications_enabled`/`user_name` on `user_settings`).
+- **Fix**:
+  - Re-wrote `database.types.ts` with complete and precise `Row`, `Insert`, and `Update` interfaces for all 13 production tables (`expenses`, `bills`, `budgets`, `user_settings`, `subscriptions`, `debts`, `wishlist`, `push_subscriptions`, `admin_users`, `automated_rules`, `scheduled_notifications`, `notification_logs`, `profiles`).
+  - Added compatibility with `@supabase/supabase-js`'s `GenericSchema` (`Relationships: []` on all tables, plus `Views`, `Functions`, `Enums`, and `CompositeTypes` namespaces), eliminating PostgREST fallback to `never`.
+
+### 3.2 Strongly Typed Supabase Client (`src/lib/supabase.ts`)
+- **Fix**: Updated client instantiation to `createClient<Database>(supabaseUrl, supabaseKey)`. All queries across the app now benefit from full TypeScript autocompletion and compile-time schema validation for table names, select projections, and mutation payloads.
+
+### 3.3 Store & Database Type Alignment (`src/store/useExpenseStore.ts`)
+- **Fix**:
+  - Aligned Zustand interfaces (`Expense`, `Bill`, `Budget`, `Settings`, `Debt`, `Subscription`) with database schema.
+  - Aligned data mapping in `fetchCloudData` for `bills` (`due_day` calculation and `due_date || undefined`), `budgets` (removed unsafe `(b: any)` cast), and `subscriptions`.
+  - Added pending mutation offline merge support for `subscriptions` in `fetchCloudData` (previously omitted).
+  - Strongly typed `s.category_budgets`, `s.category_emojis`, and `s.quick_adds` mappings from JSON.
+
+### Verification Results
+- `npx tsc --noEmit`: 0 errors
+- `npx oxlint .`: 0 errors (2 pre-existing non-blocking warnings)
+- `npx vitest run`: 7 passed test files, 50 passed tests
+- `npm run build`: Success (`tsc -b && vite build` passed in 2.60s with full PWA service worker injection)
+
+---
 <!-- Future phases appended below -->

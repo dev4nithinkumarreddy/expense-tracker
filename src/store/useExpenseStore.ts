@@ -359,7 +359,26 @@ export const useExpenseStore = create<ExpenseState>()(
           ]);
 
           if (subsRes && subsRes.data) {
-            set({ subscriptions: subsRes.data as Subscription[] });
+            const { pendingMutations } = get();
+            let mergedSubs: Subscription[] = subsRes.data.map(s => ({
+              id: s.id,
+              name: s.name,
+              amount: s.amount,
+              billing_cycle: (s.billing_cycle === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
+              next_billing_date: s.next_billing_date,
+              category: s.category
+            }));
+
+            pendingMutations.forEach(mut => {
+              if (mut.type === 'INSERT_SUBSCRIPTION') {
+                mergedSubs.push(mut.payload as Subscription);
+              } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
+                mergedSubs = mergedSubs.map(s => s.id === mut.payload.id ? { ...s, ...mut.payload } : s);
+              } else if (mut.type === 'DELETE_SUBSCRIPTION') {
+                mergedSubs = mergedSubs.filter(s => s.id !== mut.payload.id);
+              }
+            });
+            set({ subscriptions: mergedSubs });
           }
 
           if (expensesRes.data) {
@@ -385,15 +404,15 @@ export const useExpenseStore = create<ExpenseState>()(
           }
           if (billsRes.data) {
             const { pendingMutations } = get();
-            let mergedBills = billsRes.data.map(b => ({
+            let mergedBills: Bill[] = billsRes.data.map(b => ({
               id: b.id,
               title: b.title,
               amount: b.amount,
               autoDeduct: b.auto_deduct,
               category: b.category,
               due_day: b.due_day ?? (b.due_date ? new Date(b.due_date).getDate() : 1),
-              due_date: b.due_date
-            })) as Bill[];
+              due_date: b.due_date || undefined
+            }));
             
             pendingMutations.forEach(mut => {
               if (mut.type === 'INSERT_BILL') {
@@ -424,13 +443,13 @@ export const useExpenseStore = create<ExpenseState>()(
           }
           if (budgetsRes.data) {
             const { pendingMutations } = get();
-            let mergedBudgets = budgetsRes.data.map((b: any) => ({
+            let mergedBudgets: Budget[] = budgetsRes.data.map(b => ({
               id: b.id,
               category: b.category,
               monthlyLimit: b.monthly_limit,
               month: b.month,
               userId: b.user_id
-            })) as Budget[];
+            }));
             
             pendingMutations.forEach(mut => {
               if (mut.type === 'UPSERT_BUDGET') {
@@ -467,11 +486,11 @@ export const useExpenseStore = create<ExpenseState>()(
                 darkMode: s.dark_mode,
                 categories: s.categories || defaultCategories,
                 carryForward: s.carry_forward,
-                categoryBudgets: s.category_budgets || {},
-                quickAdds: s.quick_adds || [],
+                categoryBudgets: (s.category_budgets as Record<string, number>) || {},
+                quickAdds: (s.quick_adds as { description: string; amount: number; category: string; icon: string }[]) || [],
                 privacyMode: s.privacy_mode ?? true,
                 theme: s.theme || 'default',
-                categoryEmojis: s.category_emojis || {},
+                categoryEmojis: (s.category_emojis as Record<string, string>) || {},
                 notificationsEnabled: s.notifications_enabled || false,
                 userName: s.user_name || state.settings.userName,
                 currentStreak: calculateStreak(state.expenses)
