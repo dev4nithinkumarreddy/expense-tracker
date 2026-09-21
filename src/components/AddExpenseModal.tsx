@@ -4,7 +4,6 @@ import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { cn, vibrate } from "../lib/utils";
-import Tesseract from 'tesseract.js';
 import { format, parseISO, subDays } from "date-fns";
 import { playSuccessSound, playTapSound } from "../lib/sound";
 
@@ -109,6 +108,7 @@ export function AddExpenseModal({
       vibrate(15);
       
       try {
+        const { default: Tesseract } = await import('tesseract.js');
         const result = await Tesseract.recognize(file, 'eng');
         const text = result.data.text;
         
