@@ -1,57 +1,33 @@
-import { useExpenseStore, type Expense } from "../store/useExpenseStore";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Tooltip, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Legend 
-} from "recharts";
-import { useState, useMemo } from "react";
-import { format, subMonths, addMonths } from "date-fns";
+import { useState } from 'react';
+import { format, subMonths, addMonths } from 'date-fns';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  TrendingUp, 
-  TrendingDown, 
-  PiggyBank, 
   CalendarDays,
   ChevronDown,
   ChevronUp,
-  Sparkles, 
-  ArrowUpRight,
-  Flame,
   PieChart as PieIcon,
   BarChart3
-} from "lucide-react";
-import { Button } from "../components/ui/button";
-import { formatCurrency } from "../lib/formatCurrency";
-import { 
-  calculateMonthKPIs, 
-  calculateMultiMonthTrends, 
-  calculateDailySpend, 
-  calculateCategoryBreakdown, 
-  generateSmartInsights 
-} from "../lib/analytics";
-import { getExpenseLocalDate } from "../lib/streak";
-import { CategoryDetailModal } from "../components/CategoryDetailModal";
-import { MonthCalendarGrid } from "../components/analytics/MonthCalendarGrid";
-import { DateTransactionsInspector } from "../components/analytics/DateTransactionsInspector";
-import { vibrate } from "../lib/utils";
-import { SegmentedControl } from "../components/ui/SegmentedControl";
-import { playSuccessSound } from "../lib/sound";
-import { toast } from "sonner";
-
-const COLORS = [
-  'hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 
-  'hsl(var(--chart-5))', 'hsl(var(--chart-6))', 'hsl(var(--chart-7))', 'hsl(var(--chart-8))'
-];
+} from 'lucide-react';
+import { useExpenseStore, type Expense } from '../store/useExpenseStore';
+import { Card } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { MonthCalendarGrid } from '../components/analytics/MonthCalendarGrid';
+import { DateTransactionsInspector } from '../components/analytics/DateTransactionsInspector';
+import { CategoryDetailModal } from '../components/CategoryDetailModal';
+import { AnalyticsKpiCards } from '../components/analytics/AnalyticsKpiCards';
+import { CategoryDonutCard } from '../components/analytics/CategoryDonutCard';
+import { DailySpendingBarCard } from '../components/analytics/DailySpendingBarCard';
+import { CategoryPacingList } from '../components/analytics/CategoryPacingList';
+import { SmartInsightsCard } from '../components/analytics/SmartInsightsCard';
+import { SmartTagsCard } from '../components/analytics/SmartTagsCard';
+import { SixMonthTrendsView } from '../components/analytics/SixMonthTrendsView';
+import { useAnalyticsData } from '../hooks/useAnalyticsData';
+import { formatCurrency } from '../lib/formatCurrency';
+import { vibrate } from '../lib/utils';
+import { playSuccessSound } from '../lib/sound';
+import { toast } from 'sonner';
 
 export default function Analytics() {
   const { expenses, settings, budgets, addExpense, deleteExpense } = useExpenseStore();
@@ -60,83 +36,21 @@ export default function Analytics() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
   const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
 
-  const selectedMonthStr = format(currentDate, 'yyyy-MM');
-  const monthDisplayLabel = format(currentDate, 'MMMM yyyy');
-
-  // Month KPIs
-  const kpis = useMemo(() => {
-    return calculateMonthKPIs(expenses, settings.monthlyIncome, currentDate);
-  }, [expenses, settings.monthlyIncome, currentDate]);
-
-  // Category Breakdown with Budget Pacing
-  const categoryData = useMemo(() => {
-    return calculateCategoryBreakdown(expenses, budgets, selectedMonthStr);
-  }, [expenses, budgets, selectedMonthStr]);
-
-  // Daily Spending Chart Data
-  const dailyData = useMemo(() => {
-    return calculateDailySpend(expenses, currentDate);
-  }, [expenses, currentDate]);
-
-  // Multi-Month Trend Data (Last 6 months)
-  const sixMonthTrends = useMemo(() => {
-    return calculateMultiMonthTrends(expenses, settings.monthlyIncome, currentDate, 6);
-  }, [expenses, settings.monthlyIncome, currentDate]);
-
-  // Smart Financial Insights
-  const smartInsights = useMemo(() => {
-    return generateSmartInsights(kpis, categoryData, settings.currency);
-  }, [kpis, categoryData, settings.currency]);
-
-  // Extract Smart Tags for selected month
-  const tagData = useMemo(() => {
-    const map: Record<string, number> = {};
-    expenses.forEach(e => {
-      if (getExpenseLocalDate(e.date).startsWith(selectedMonthStr) && e.category !== 'Income' && e.amount > 0) {
-        const tags = e.description.match(/#[\w-]+/g);
-        if (tags) {
-          tags.forEach(t => {
-            const cleanTag = t.toLowerCase();
-            map[cleanTag] = (map[cleanTag] || 0) + e.amount;
-          });
-        }
-      }
-    });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [expenses, selectedMonthStr]);
-
-  // Expenses filtered for category drill-down
-  const drilldownExpenses = useMemo(() => {
-    if (!selectedCategoryForDrilldown) return [];
-    return expenses.filter(e => 
-      getExpenseLocalDate(e.date).startsWith(selectedMonthStr) &&
-      e.category === selectedCategoryForDrilldown &&
-      e.amount > 0
-    );
-  }, [expenses, selectedMonthStr, selectedCategoryForDrilldown]);
-
-  // Previous month spend for the selected category (for MoM comparison)
-  const previousMonthStr = format(subMonths(currentDate, 1), 'yyyy-MM');
-  const previousMonthCategorySpend = useMemo(() => {
-    if (!selectedCategoryForDrilldown) return 0;
-    return expenses
-      .filter(e => 
-        getExpenseLocalDate(e.date).startsWith(previousMonthStr) && 
-        e.category === selectedCategoryForDrilldown && 
-        e.amount > 0
-      )
-      .reduce((sum, e) => sum + e.amount, 0);
-  }, [expenses, previousMonthStr, selectedCategoryForDrilldown]);
-
-  // Category budget for drill-down
-  const selectedCategoryBudget = useMemo(() => {
-    if (!selectedCategoryForDrilldown) return undefined;
-    const catBudget = budgets.find(b => b.month === selectedMonthStr && b.category === selectedCategoryForDrilldown);
-    return catBudget?.monthlyLimit || settings.categoryBudgets?.[selectedCategoryForDrilldown];
-  }, [budgets, selectedMonthStr, selectedCategoryForDrilldown, settings.categoryBudgets]);
+  const {
+    monthDisplayLabel,
+    kpis,
+    categoryData,
+    dailyData,
+    sixMonthTrends,
+    smartInsights,
+    tagData,
+    drilldownExpenses,
+    previousMonthCategorySpend,
+    selectedCategoryBudget,
+    sixMonthSummary
+  } = useAnalyticsData(expenses, settings, budgets, currentDate, selectedCategoryForDrilldown);
 
   const handleDrilldownLogAgain = async (expense: Expense) => {
     vibrate(20);
@@ -160,18 +74,6 @@ export default function Analytics() {
     });
   };
 
-  // Active slice in Donut Chart
-  const activeCategory = activeCategoryIndex !== null ? categoryData[activeCategoryIndex] : null;
-
-  // 6-Month Summary Aggregates
-  const sixMonthSummary = useMemo(() => {
-    const totalExp = sixMonthTrends.reduce((sum, item) => sum + item.expenses, 0);
-    const totalInc = sixMonthTrends.reduce((sum, item) => sum + item.income, 0);
-    const avgExp = Math.round(totalExp / (sixMonthTrends.length || 1));
-    const totalSav = totalInc - totalExp;
-    return { totalExp, avgExp, totalSav };
-  }, [sixMonthTrends]);
-
   const isCurrentMonthOrFuture = currentDate >= new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
   return (
@@ -191,7 +93,7 @@ export default function Analytics() {
               { label: "6M Trends", value: "trends", icon: <BarChart3 className="w-3.5 h-3.5" /> }
             ]}
             value={viewMode}
-            onChange={(val) => setViewMode(val as any)}
+            onChange={(val) => setViewMode(val as 'monthly' | 'trends')}
             className="text-xs"
           />
         </div>
@@ -252,7 +154,7 @@ export default function Analytics() {
               </Button>
             </div>
 
-            {/* Interactive Apple Calendar Grid */}
+            {/* Interactive Calendar Grid */}
             {isCalendarOpen && (
               <div className="animate-in fade-in-50 zoom-in-95 duration-200">
                 <MonthCalendarGrid
@@ -283,106 +185,8 @@ export default function Analytics() {
         )}
       </header>
 
-      {/* 4 Apple-Grade Financial KPI Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Spent */}
-        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-primary/30 transition-all group">
-          <CardHeader className="p-4 pb-1">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-              <span>Total Spent</span>
-              <div className="p-1.5 rounded-xl bg-orange-500/10 text-orange-500 group-hover:scale-110 transition-transform">
-                <Flame className="w-3.5 h-3.5" />
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1">
-            <div className="text-xl sm:text-2xl font-bold tracking-tight">
-              {formatCurrency(kpis.totalExpenses, settings.currency)}
-            </div>
-            <div className="flex items-center gap-1 mt-1.5 text-xs">
-              {kpis.percentChangeFromLastMonth !== 0 ? (
-                <>
-                  {kpis.percentChangeFromLastMonth > 0 ? (
-                    <span className="text-rose-500 font-semibold flex items-center">
-                      <TrendingUp className="w-3 h-3 mr-0.5" /> +{kpis.percentChangeFromLastMonth}%
-                    </span>
-                  ) : (
-                    <span className="text-emerald-500 font-semibold flex items-center">
-                      <TrendingDown className="w-3 h-3 mr-0.5" /> {kpis.percentChangeFromLastMonth}%
-                    </span>
-                  )}
-                  <span className="text-muted-foreground/80 text-[11px]">vs last mo</span>
-                </>
-              ) : (
-                <span className="text-muted-foreground/70 text-[11px]">No change vs last mo</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Net Savings & Rate */}
-        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-emerald-500/30 transition-all group">
-          <CardHeader className="p-4 pb-1">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-              <span>Net Savings</span>
-              <div className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
-                <PiggyBank className="w-3.5 h-3.5" />
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1">
-            <div className={`text-xl sm:text-2xl font-bold tracking-tight ${kpis.netSavings < 0 ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
-              {formatCurrency(kpis.netSavings, settings.currency)}
-            </div>
-            <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
-              <span className={`font-semibold ${kpis.savingsRate < 0 ? 'text-destructive' : 'text-emerald-500'}`}>
-                {kpis.savingsRate}%
-              </span>
-              <span className="text-muted-foreground/80 text-[11px]">savings rate</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Daily Burn Rate */}
-        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-blue-500/30 transition-all group">
-          <CardHeader className="p-4 pb-1">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-              <span>Daily Average</span>
-              <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-500 group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-3.5 h-3.5" />
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1">
-            <div className="text-xl sm:text-2xl font-bold tracking-tight">
-              {formatCurrency(kpis.dailyAverage, settings.currency)}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1.5">
-              Spent per day
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Month-End Projection */}
-        <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs hover:border-purple-500/30 transition-all group">
-          <CardHeader className="p-4 pb-1">
-            <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-              <span>Forecast</span>
-              <div className="p-1.5 rounded-xl bg-purple-500/10 text-purple-500 group-hover:scale-110 transition-transform">
-                <Sparkles className="w-3.5 h-3.5" />
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1">
-            <div className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
-              {formatCurrency(kpis.projectedMonthEnd, settings.currency)}
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1.5">
-              Projected monthly total
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* 4 Financial KPI Stat Cards */}
+      <AnalyticsKpiCards kpis={kpis} currency={settings.currency} />
 
       {/* Main Content Area */}
       {viewMode === 'monthly' ? (
@@ -394,369 +198,45 @@ export default function Analytics() {
         ) : (
           <div className="space-y-6">
             {/* Category Donut Breakdown Chart */}
-            <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
-              <CardHeader className="pb-0">
-                <CardTitle className="text-base font-semibold">Category Breakdown</CardTitle>
-                <p className="text-xs text-muted-foreground">Tap or hover over slices to inspect category totals</p>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <div className="relative h-[250px] w-full flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        innerRadius={68}
-                        outerRadius={92}
-                        paddingAngle={3}
-                        dataKey="value"
-                        stroke="none"
-                        onMouseEnter={(_, index) => setActiveCategoryIndex(index)}
-                        onMouseLeave={() => setActiveCategoryIndex(null)}
-                        onClick={(_, index) => {
-                          vibrate(10);
-                          setSelectedCategoryForDrilldown(categoryData[index].name);
-                        }}
-                      >
-                        {categoryData.map((_, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={COLORS[index % COLORS.length]} 
-                            className="cursor-pointer transition-all hover:opacity-85"
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        formatter={(value: any) => [formatCurrency(Number(value), settings.currency), 'Spent']}
-                        contentStyle={{ 
-                          borderRadius: '12px', 
-                          border: 'none', 
-                          boxShadow: '0 8px 16px -2px rgb(0 0 0 / 0.15)',
-                          backgroundColor: 'hsl(var(--card))',
-                          color: 'hsl(var(--foreground))'
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-
-                  {/* Dynamic Donut Center Metric */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                    <span className="text-xs text-muted-foreground font-medium truncate max-w-[120px]">
-                      {activeCategory ? activeCategory.name : "Total Spent"}
-                    </span>
-                    <span className="text-lg font-bold text-foreground mt-0.5">
-                      {formatCurrency(activeCategory ? activeCategory.value : kpis.totalExpenses, settings.currency)}
-                    </span>
-                    {activeCategory && (
-                      <span className="text-[11px] font-semibold text-primary mt-0.5">
-                        {activeCategory.percentage}% of total
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <CategoryDonutCard
+              categoryData={categoryData}
+              currency={settings.currency}
+              totalExpenses={kpis.totalExpenses}
+              onSelectCategory={(catName) => setSelectedCategoryForDrilldown(catName)}
+            />
 
             {/* Daily Spending Bar Chart with Interactive Date Selector */}
-            <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
-              <CardHeader className="pb-1 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-semibold">Daily Spending Pattern</CardTitle>
-                  <p className="text-xs text-muted-foreground">Expenses across the month • Tap any bar to inspect day</p>
-                </div>
-                {kpis.peakExpenseDay && (
-                  <div className="text-right">
-                    <span className="text-[11px] font-medium bg-secondary/80 px-2.5 py-1 rounded-xl text-muted-foreground">
-                      Peak: Day {kpis.peakExpenseDay.day} ({formatCurrency(kpis.peakExpenseDay.amount, settings.currency)})
-                    </span>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="h-[200px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart 
-                      data={dailyData} 
-                      margin={{ top: 10, right: 5, left: -20, bottom: 0 }}
-                      onClick={(state: any) => {
-                        if (state && state.activePayload && state.activePayload.length > 0) {
-                          const item = state.activePayload[0].payload as any;
-                          if (item && item.dateStr) {
-                            vibrate(10);
-                            const [y, m, d] = item.dateStr.split('-').map(Number);
-                            setSelectedDate(new Date(y, m - 1, d));
-                          }
-                        }
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                      <XAxis 
-                        dataKey="dayLabel" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                        interval={2}
-                      />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                        tickFormatter={(v) => `${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
-                      />
-                      <Tooltip 
-                        formatter={(value: any) => [formatCurrency(Number(value), settings.currency), 'Spent']}
-                        labelFormatter={(label) => `Day ${label}, ${format(currentDate, 'MMM yyyy')} (Tap to inspect)`}
-                        contentStyle={{ 
-                          borderRadius: '12px', 
-                          border: 'none', 
-                          boxShadow: '0 8px 16px -2px rgb(0 0 0 / 0.15)',
-                          backgroundColor: 'hsl(var(--card))',
-                          color: 'hsl(var(--foreground))'
-                        }}
-                        cursor={{ fill: 'hsl(var(--secondary))', opacity: 0.5 }}
-                      />
-                      <Bar 
-                        dataKey="amount" 
-                        radius={[4, 4, 0, 0]} 
-                        className="cursor-pointer"
-                      >
-                        {dailyData.map((entry) => {
-                          const isSelected = selectedDate ? format(selectedDate, 'yyyy-MM-dd') === entry.dateStr : false;
-                          return (
-                            <Cell
-                              key={`cell-bar-${entry.day}`}
-                              fill={isSelected ? 'hsl(var(--chart-2))' : 'hsl(var(--primary))'}
-                              opacity={selectedDate && !isSelected ? 0.55 : 1}
-                              className="transition-all hover:opacity-80"
-                            />
-                          );
-                        })}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+            <DailySpendingBarCard
+              dailyData={dailyData}
+              kpis={kpis}
+              currentDate={currentDate}
+              selectedDate={selectedDate}
+              currency={settings.currency}
+              onSelectDate={(date) => setSelectedDate(date)}
+            />
 
             {/* Category Breakdown & Budget Pacing List */}
-            <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle className="text-base font-semibold">Categories & Budget Pacing</CardTitle>
-                    <p className="text-xs text-muted-foreground">Tap any category to view individual transactions</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground font-medium">
-                    {categoryData.length} categories
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-2">
-                {categoryData.map((cat, idx) => {
-                  const color = COLORS[idx % COLORS.length];
-                  const isBudgeted = cat.budgetLimit && cat.budgetLimit > 0;
-                  const isOverBudget = cat.budgetUsedPercent && cat.budgetUsedPercent > 100;
-                  const isNearBudget = cat.budgetUsedPercent && cat.budgetUsedPercent >= 80 && !isOverBudget;
-
-                  return (
-                    <div 
-                      key={cat.name}
-                      onClick={() => {
-                        vibrate(10);
-                        setSelectedCategoryForDrilldown(cat.name);
-                      }}
-                      className="group p-2.5 rounded-xl bg-secondary/30 hover:bg-secondary/60 border border-border/40 transition-all cursor-pointer space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-9 h-9 rounded-2xl flex items-center justify-center text-base bg-secondary/80 border border-border/60 shadow-xs shrink-0 transition-transform group-hover:scale-105"
-                            style={{ 
-                              boxShadow: `inset 0 0 0 1.5px ${color}40`,
-                              backgroundColor: `${color}15`
-                            }}
-                          >
-                            {settings.categoryEmojis?.[cat.name] || cat.name.substring(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-sm text-foreground truncate">{cat.name}</span>
-                              <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                            {isBudgeted && (
-                              <p className="text-[11px] text-muted-foreground">
-                                Limit: {formatCurrency(cat.budgetLimit!, settings.currency)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="text-sm font-semibold">{formatCurrency(cat.value, settings.currency)}</span>
-                            <span className="text-xs text-muted-foreground w-7 text-right">{cat.percentage}%</span>
-                          </div>
-                          {isBudgeted && (
-                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                              isOverBudget 
-                                ? 'bg-destructive/15 text-destructive font-semibold' 
-                                : isNearBudget 
-                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400' 
-                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                            }`}>
-                              {cat.budgetUsedPercent}% used
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="w-full bg-secondary/80 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ 
-                            width: `${Math.min(100, isBudgeted ? (cat.budgetUsedPercent || 0) : cat.percentage)}%`,
-                            backgroundColor: isOverBudget ? 'hsl(var(--destructive))' : isNearBudget ? '#f59e0b' : color
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
+            <CategoryPacingList
+              categoryData={categoryData}
+              currency={settings.currency}
+              categoryEmojis={settings.categoryEmojis}
+              onSelectCategory={(catName) => setSelectedCategoryForDrilldown(catName)}
+            />
 
             {/* Smart Financial Insights */}
-            {smartInsights.length > 0 && (
-              <Card className="rounded-3xl border-primary/25 bg-primary/5 dark:bg-primary/10 backdrop-blur-xl shadow-xs overflow-hidden">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary" />
-                    Smart Financial Insights
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2.5 pt-1">
-                  {smartInsights.map(insight => (
-                    <div 
-                      key={insight.id} 
-                      className={`p-3.5 rounded-2xl border flex items-start gap-3 transition-all ${
-                        insight.type === 'warning' 
-                          ? 'bg-destructive/10 border-destructive/20 text-foreground'
-                          : insight.type === 'positive'
-                            ? 'bg-emerald-500/10 border-emerald-500/20 text-foreground'
-                            : 'bg-card/80 border-border/60 text-foreground'
-                      }`}
-                    >
-                      <span className="text-xl shrink-0 mt-0.5">{insight.icon}</span>
-                      <div>
-                        <p className="text-xs font-bold">{insight.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{insight.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+            <SmartInsightsCard smartInsights={smartInsights} />
 
             {/* Smart Tags Section */}
-            {tagData.length > 0 && (
-              <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">Hashtag Breakdown</CardTitle>
-                  <p className="text-xs text-muted-foreground">Spending organized by custom tags</p>
-                </CardHeader>
-                <CardContent className="space-y-2.5 pt-1">
-                  {tagData.slice(0, 6).map(([tag, amount]) => (
-                    <div key={tag} className="flex justify-between items-center p-2.5 rounded-2xl bg-secondary/40 border border-border/40">
-                      <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-xl">
-                        {tag}
-                      </span>
-                      <span className="text-xs font-semibold">
-                        {formatCurrency(amount, settings.currency)}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+            <SmartTagsCard tagData={tagData} currency={settings.currency} />
           </div>
         )
       ) : (
         /* 6-Month Macro Trend View */
-        <div className="space-y-6">
-          {/* 6-Month Summary Cards */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="p-4 rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl text-center shadow-xs">
-              <span className="text-[11px] font-medium text-muted-foreground block">6M Total Spend</span>
-              <span className="text-base font-bold text-foreground mt-1 block">
-                {formatCurrency(sixMonthSummary.totalExp, settings.currency)}
-              </span>
-            </Card>
-            <Card className="p-4 rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl text-center shadow-xs">
-              <span className="text-[11px] font-medium text-muted-foreground block">Monthly Avg</span>
-              <span className="text-base font-bold text-primary mt-1 block">
-                {formatCurrency(sixMonthSummary.avgExp, settings.currency)}
-              </span>
-            </Card>
-            <Card className="p-4 rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl text-center shadow-xs">
-              <span className="text-[11px] font-medium text-muted-foreground block">6M Net Savings</span>
-              <span className={`text-base font-bold mt-1 block ${sixMonthSummary.totalSav < 0 ? 'text-destructive' : 'text-emerald-500'}`}>
-                {formatCurrency(sixMonthSummary.totalSav, settings.currency)}
-              </span>
-            </Card>
-          </div>
-
-          {/* 6-Month Income vs Expense Bar Chart */}
-          <Card className="rounded-3xl border-border/50 bg-card/75 backdrop-blur-xl shadow-xs overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold">6-Month Cash Flow (Income vs Expenses)</CardTitle>
-              <p className="text-xs text-muted-foreground">Historical monthly comparison over the past 6 months</p>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sixMonthTrends} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                    <XAxis 
-                      dataKey="monthLabel" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                      tickFormatter={(v) => `${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
-                    />
-                    <Tooltip 
-                      formatter={(value: any, name: any) => [
-                        formatCurrency(Number(value), settings.currency), 
-                        name === 'income' ? 'Income' : 'Expenses'
-                      ]}
-                      labelFormatter={(label) => `${label}`}
-                      contentStyle={{ 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        boxShadow: '0 8px 16px -2px rgb(0 0 0 / 0.15)',
-                        backgroundColor: 'hsl(var(--card))',
-                        color: 'hsl(var(--foreground))'
-                      }}
-                    />
-                    <Legend 
-                      verticalAlign="top" 
-                      align="right"
-                      iconType="circle"
-                      iconSize={8}
-                      formatter={(value) => <span className="text-xs capitalize font-medium text-foreground">{value}</span>}
-                    />
-                    <Bar dataKey="income" fill="hsl(var(--chart-2))" name="income" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="expenses" fill="hsl(var(--chart-1))" name="expenses" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <SixMonthTrendsView
+          sixMonthTrends={sixMonthTrends}
+          sixMonthSummary={sixMonthSummary}
+          currency={settings.currency}
+        />
       )}
 
       {/* Category Detail Modal */}
