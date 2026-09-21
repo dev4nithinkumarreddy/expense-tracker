@@ -97,12 +97,7 @@ export default function Dashboard() {
     return null;
   }, [subscriptions, dismissedAlertId]);
 
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
-
-  const quickAdds = settings.quickAdds || [];
-
+  // Must stay above the early return so this hook is called unconditionally
   const cashflow = useMemo(() => {
     return calculateCashflowSummary(
       settings.monthlyIncome,
@@ -112,6 +107,12 @@ export default function Dashboard() {
       new Date()
     );
   }, [settings.monthlyIncome, expenses, bills, subscriptions]);
+
+  const quickAdds = settings.quickAdds || [];
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
   const incomeRecords = currentMonthRecords.filter(e => e.category === 'Income');
