@@ -1,10 +1,11 @@
 import type { StateCreator } from 'zustand';
 import type { ExpenseState, AccountSlice, Account } from '../types';
 import { toast } from 'sonner';
+import { calculateCashflowSummary } from '../../lib/cashflow';
 
 const DEFAULT_ACCOUNTS: Account[] = [
-  { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 25000, currency: '₹', color: '#007AFF', icon: '🏦' },
-  { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 2500, currency: '₹', color: '#34C759', icon: '💵' },
+  { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
+  { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
   { id: 'acc-card-1', name: 'Credit Card', type: 'credit_card', balance: 0, credit_limit: 100000, statement_day: 15, due_day: 5, currency: '₹', color: '#AF52DE', icon: '💳' },
 ];
 
@@ -126,5 +127,71 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
     });
 
     toast.success(`Transferred ${fromAcc.currency || '₹'}${amount} to ${toAcc.name}`);
+  },
+
+  syncAccountWithBalance: (accountId) => {
+    const { accounts, settings, expenses, bills, subscriptions } = get();
+    const summary = calculateCashflowSummary(
+      settings.monthlyIncome,
+      expenses,
+      bills,
+      subscriptions,
+      new Date()
+    );
+    const remaining = summary.availableBalance;
+    const targetAcc = accountId 
+      ? accounts.find((a) => a.id === accountId)
+      : accounts.find((a) => a.type === 'bank') || accounts[0];
+
+    if (!targetAcc) return;
+
+    set((state) => ({
+      accounts: state.accounts.map((acc) => {
+        if (acc.id === targetAcc.id) {
+          return { ...acc, balance: remaining };
+        }
+        // If cash has the placeholder 2500, reset it to 0
+        if (acc.type === 'cash' && acc.balance === 2500) {
+          return { ...acc, balance: 0 };
+        }
+        return acc;
+      }),
+    }));
+
+    toast.success(`Synced ${targetAcc.name} to ${targetAcc.currency || settings.currency}${remaining}`);
+  },
+
+  reconcileAccountsWithBudget: () => {
+    const { accounts, settings, expenses, bills, subscriptions } = get();
+    if (!accounts || accounts.length === 0) return;
+
+    const bankAcc = accounts.find((a) => a.type === 'bank' || a.id === 'acc-bank-1');
+    const cashAcc = accounts.find((a) => a.type === 'cash' || a.id === 'acc-cash-1');
+    
+    // Check if accounts still hold the initial dummy template values (25000 bank / 2500 cash)
+    const hasDummyValues = (bankAcc && bankAcc.balance === 25000) || (cashAcc && cashAcc.balance === 2500);
+    
+    if (hasDummyValues) {
+      const summary = calculateCashflowSummary(
+        settings.monthlyIncome,
+        expenses,
+        bills,
+        subscriptions,
+        new Date()
+      );
+      const remaining = summary.availableBalance;
+
+      set((state) => ({
+        accounts: state.accounts.map((acc) => {
+          if (acc.id === bankAcc?.id) {
+            return { ...acc, balance: remaining };
+          }
+          if (acc.id === cashAcc?.id && acc.balance === 2500) {
+            return { ...acc, balance: 0 };
+          }
+          return acc;
+        }),
+      }));
+    }
   },
 });

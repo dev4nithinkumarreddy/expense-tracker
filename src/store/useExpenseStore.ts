@@ -45,6 +45,18 @@ export const useExpenseStore = create<ExpenseState>()(
     {
       name: 'expense-tracker-storage',
       storage: indexedDBStorage,
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.reconcileAccountsWithBudget?.();
+        }
+      },
     }
   )
 );
+
+// Proactively run reconciliation immediately on initial load
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    useExpenseStore.getState().reconcileAccountsWithBudget?.();
+  }, 0);
+}

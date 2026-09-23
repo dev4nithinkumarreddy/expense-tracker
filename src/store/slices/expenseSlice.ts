@@ -21,10 +21,16 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       const newStreak = calculateStreak(updatedExpenses);
       let updatedAccounts = state.accounts;
       if (newExpense.account_id && state.accounts && newExpense.category !== 'Transfer') {
+        const isIncome = newExpense.category === 'Income';
         updatedAccounts = state.accounts.map(acc => {
           if (acc.id === newExpense.account_id) {
-            const delta = acc.type === 'credit_card' ? newExpense.amount : -newExpense.amount;
-            return { ...acc, balance: acc.balance + delta };
+            if (acc.type === 'credit_card') {
+              const delta = isIncome ? -newExpense.amount : newExpense.amount;
+              return { ...acc, balance: acc.balance + delta };
+            } else {
+              const delta = isIncome ? newExpense.amount : -newExpense.amount;
+              return { ...acc, balance: acc.balance + delta };
+            }
           }
           return acc;
         });
@@ -112,10 +118,16 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       const updatedExpenses = state.expenses.filter(e => e.id !== id);
       let updatedAccounts = state.accounts;
       if (expenseToDelete.account_id && state.accounts && expenseToDelete.category !== 'Transfer') {
+        const isIncome = expenseToDelete.category === 'Income';
         updatedAccounts = state.accounts.map(acc => {
           if (acc.id === expenseToDelete.account_id) {
-            const delta = acc.type === 'credit_card' ? -expenseToDelete.amount : expenseToDelete.amount;
-            return { ...acc, balance: acc.balance + delta };
+            if (acc.type === 'credit_card') {
+              const delta = isIncome ? expenseToDelete.amount : -expenseToDelete.amount;
+              return { ...acc, balance: acc.balance + delta };
+            } else {
+              const delta = isIncome ? -expenseToDelete.amount : expenseToDelete.amount;
+              return { ...acc, balance: acc.balance + delta };
+            }
           }
           return acc;
         });
@@ -158,10 +170,16 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     set((state) => {
       let updatedAccounts = state.accounts;
       if (restoredExpense.account_id && state.accounts && restoredExpense.category !== 'Transfer') {
+        const isIncome = restoredExpense.category === 'Income';
         updatedAccounts = state.accounts.map(acc => {
           if (acc.id === restoredExpense.account_id) {
-            const delta = acc.type === 'credit_card' ? restoredExpense.amount : -restoredExpense.amount;
-            return { ...acc, balance: acc.balance + delta };
+            if (acc.type === 'credit_card') {
+              const delta = isIncome ? -restoredExpense.amount : restoredExpense.amount;
+              return { ...acc, balance: acc.balance + delta };
+            } else {
+              const delta = isIncome ? restoredExpense.amount : -restoredExpense.amount;
+              return { ...acc, balance: acc.balance + delta };
+            }
           }
           return acc;
         });

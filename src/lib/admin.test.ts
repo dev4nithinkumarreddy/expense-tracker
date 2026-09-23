@@ -1,5 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { calculateRemainingTime } from './admin';
+
+vi.mock('./supabase', () => ({
+  supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        ilike: vi.fn(() => Promise.resolve({ data: [], error: null })),
+      })),
+    })),
+  },
+}));
 
 describe('Admin Helper Functions', () => {
   describe('calculateRemainingTime', () => {

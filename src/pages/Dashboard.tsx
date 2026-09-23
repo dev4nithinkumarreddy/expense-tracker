@@ -99,6 +99,10 @@ export default function Dashboard() {
     }
   }, [session]);
 
+  useEffect(() => {
+    useExpenseStore.getState().reconcileAccountsWithBudget?.();
+  }, []);
+
   const displayName = useMemo(() => {
     if (settings.userName?.trim()) return settings.userName.trim();
     const fullName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name;
@@ -246,11 +250,13 @@ export default function Dashboard() {
   const handleAddIncome = () => {
     if (!incomeSource || !incomeAmount) return;
     vibrate();
+    const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
     addExpense({
       amount: parseFloat(incomeAmount),
       description: incomeSource,
       category: "Income",
-      date: new Date().toISOString()
+      date: new Date().toISOString(),
+      account_id: defaultAccount || undefined,
     });
     setIncomeSource("");
     setIncomeAmount("");

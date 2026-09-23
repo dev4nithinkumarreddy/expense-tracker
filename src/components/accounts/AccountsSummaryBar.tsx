@@ -14,17 +14,27 @@ import {
   X, 
   Check, 
   HelpCircle,
-  Sparkles
+  Sparkles,
+  Pencil
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 
 export function AccountsSummaryBar() {
-  const { accounts = [], settings, transferFunds, addAccount } = useExpenseStore();
+  const { 
+    accounts = [], 
+    settings, 
+    transferFunds, 
+    addAccount, 
+    updateAccount,
+    syncAccountWithBalance 
+  } = useExpenseStore();
   
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editBalanceValue, setEditBalanceValue] = useState('');
 
   // Transfer state
   const [fromAccountId, setFromAccountId] = useState<string>('');
@@ -111,6 +121,29 @@ export function AccountsSummaryBar() {
     setIsAddAccountOpen(false);
   };
 
+  const handleOpenEditBalance = (acc: Account, e: React.MouseEvent) => {
+    e.stopPropagation();
+    vibrate(10);
+    playTapSound();
+    setEditingAccount(acc);
+    setEditBalanceValue(String(acc.balance));
+  };
+
+  const handleSaveEditBalance = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAccount) return;
+    const val = parseFloat(editBalanceValue);
+    if (isNaN(val)) {
+      toast.error('Please enter a valid balance amount');
+      return;
+    }
+    vibrate(15);
+    if (settings.soundEnabled) playSuccessSound();
+    updateAccount(editingAccount.id, { balance: val });
+    toast.success(`${editingAccount.name} balance updated to ${formatCurrency(val, editingAccount.currency || settings.currency)}`);
+    setEditingAccount(null);
+  };
+
   const getAccountIcon = (acc: Account) => {
     if (acc.icon) return <span className="text-base select-none">{acc.icon}</span>;
     switch (acc.type) {
@@ -137,7 +170,7 @@ export function AccountsSummaryBar() {
                 playTapSound();
                 setIsGuideOpen(true);
               }}
-              className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded-full"
+              className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded-full cursor-pointer"
               title="How Accounts & Balances Work"
               aria-label="How Accounts & Balances Work"
             >
@@ -153,6 +186,21 @@ export function AccountsSummaryBar() {
         </div>
 
         <div className="flex items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              vibrate(12);
+              playTapSound();
+              syncAccountWithBalance();
+            }}
+            className="h-8 px-2.5 rounded-xl text-xs gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 shadow-2xs cursor-pointer text-primary"
+            title="Sync Bank balance to match your remaining monthly budget"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Sync with Budget</span>
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
@@ -180,7 +228,7 @@ export function AccountsSummaryBar() {
         </div>
       </div>
 
-      {/* Responsive Inset Grouped Accounts Grid (No Clipping, Perfect Symmetry) */}
+      {/* Responsive Inset Grouped Accounts Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         {accounts.map((acc) => {
           const isCard = acc.type === 'credit_card';
@@ -208,9 +256,20 @@ export function AccountsSummaryBar() {
                     {acc.name}
                   </span>
                 </div>
-                <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md bg-background/60 text-muted-foreground border border-border/40 shrink-0">
-                  {acc.type === 'credit_card' ? 'Credit' : acc.type}
-                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md bg-background/60 text-muted-foreground border border-border/40">
+                    {acc.type === 'credit_card' ? 'Credit' : acc.type}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleOpenEditBalance(acc, e)}
+                    className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors"
+                    title={`Edit ${acc.name} balance`}
+                    aria-label={`Edit ${acc.name} balance`}
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Account Balance */}
@@ -263,6 +322,70 @@ export function AccountsSummaryBar() {
         })}
       </div>
 
+      {/* Edit Balance Modal */}
+      <AnimatePresence>
+        {editingAccount && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingAccount(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-xs rounded-3xl bg-card border border-border/60 shadow-2xl p-5 space-y-4 z-10"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Edit Balance</h3>
+                    <p className="text-[11px] text-muted-foreground">{editingAccount.name}</p>
+                  </div>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 rounded-full text-muted-foreground cursor-pointer"
+                  onClick={() => setEditingAccount(null)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <form onSubmit={handleSaveEditBalance} className="space-y-3.5">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {editingAccount.type === 'credit_card' ? 'Current Owed Balance' : 'Current Real Balance'} ({settings.currency})
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    autoFocus
+                    required
+                    placeholder="0.00"
+                    value={editBalanceValue}
+                    onChange={(e) => setEditBalanceValue(e.target.value)}
+                    className="w-full text-base font-bold rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                <Button type="submit" className="w-full rounded-xl gap-2 font-semibold cursor-pointer">
+                  <Check className="w-4 h-4" />
+                  Save Balance
+                </Button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Quick Guide Modal: How Accounts & Balances Work */}
       <AnimatePresence>
         {isGuideOpen && (
@@ -313,7 +436,7 @@ export function AccountsSummaryBar() {
                     • <strong className="text-foreground">Monthly Budget Remaining</strong> (e.g. ₹402) is your self-imposed monthly spending limit. It tells you: <em>"How much can I spend before I hit my budget goal for this month?"</em>
                   </p>
                   <p className="text-muted-foreground">
-                    • <strong className="text-foreground">Liquid Accounts</strong> (e.g. ₹27,500) is the real money you actually possess across your Bank and Cash wallets minus credit card debt.
+                    • <strong className="text-foreground">Liquid Accounts</strong> (e.g. ₹402) is the real money you actually possess across your Bank and Cash wallets minus credit card debt.
                   </p>
                 </div>
 

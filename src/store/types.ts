@@ -174,6 +174,8 @@ export interface AccountSlice {
   updateAccount: (id: string, account: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
   transferFunds: (fromId: string, toId: string, amount: number, notes?: string) => Promise<void>;
+  syncAccountWithBalance: (accountId?: string) => void;
+  reconcileAccountsWithBudget: () => void;
 }
 
 export interface SettingsSlice {
