@@ -288,7 +288,7 @@ export function AccountsSummaryBar() {
 
               {/* Footer row */}
               <div className="mt-2 pt-2 border-t border-border/30 flex items-center justify-between text-[10px] text-muted-foreground">
-                {isCard && acc.credit_limit ? (
+                {isCard && acc.credit_limit && acc.credit_limit > 0 ? (
                   <>
                     <span>Available Credit:</span>
                     <span className="font-semibold text-foreground">
@@ -299,6 +299,11 @@ export function AccountsSummaryBar() {
                             acc.currency || settings.currency
                           )}
                     </span>
+                  </>
+                ) : isCard ? (
+                  <>
+                    <span>Credit Line</span>
+                    <span className="text-purple-500 font-medium">Revolving</span>
                   </>
                 ) : acc.type === 'bank' ? (
                   <>

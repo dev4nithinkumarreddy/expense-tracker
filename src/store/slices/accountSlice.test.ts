@@ -124,4 +124,45 @@ describe('accountSlice', () => {
     const card = state.accounts.find((a) => a.id === 'acc-card');
     expect(card?.balance).toBe(1700); // 500 + 1200
   });
+
+  it('increases bank account balance when logging an income transaction', async () => {
+    const store = useExpenseStore.getState();
+    await store.addExpense({
+      amount: 5000,
+      description: 'Freelance bonus',
+      category: 'Income',
+      date: new Date().toISOString(),
+      account_id: 'acc-bank',
+    });
+
+    const state = useExpenseStore.getState();
+    const bank = state.accounts.find((a) => a.id === 'acc-bank');
+    expect(bank?.balance).toBe(15000); // 10000 + 5000
+  });
+
+  it('reconciles dummy placeholder accounts with real remaining budget', () => {
+    useExpenseStore.setState({
+      settings: { monthlyIncome: 15000, currency: '₹' } as any,
+      expenses: [
+        { id: 'e1', amount: 14600, description: 'Rent', category: 'Bills', date: new Date().toISOString() },
+      ],
+      bills: [],
+      subscriptions: [],
+      accounts: [
+        { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 25000, currency: '₹' },
+        { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 2500, currency: '₹' },
+      ],
+    });
+
+    const store = useExpenseStore.getState();
+    store.reconcileAccountsWithBudget();
+
+    const state = useExpenseStore.getState();
+    const bank = state.accounts.find((a) => a.id === 'acc-bank-1');
+    const cash = state.accounts.find((a) => a.id === 'acc-cash-1');
+
+    // 15000 - 14600 = 400
+    expect(bank?.balance).toBe(400);
+    expect(cash?.balance).toBe(0);
+  });
 });

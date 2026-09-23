@@ -1,16 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import { calculateRemainingTime } from './admin';
 
-vi.mock('./supabase', () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
-        ilike: vi.fn(() => Promise.resolve({ data: [], error: null })),
-      })),
+vi.mock('./supabase', () => {
+  const queryResult = {
+    eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
+    ilike: vi.fn(() => ({
+      maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
     })),
-  },
-}));
+    maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+  };
+  return {
+    supabase: {
+      from: vi.fn(() => ({
+        select: vi.fn(() => queryResult),
+      })),
+    },
+  };
+});
 
 describe('Admin Helper Functions', () => {
   describe('calculateRemainingTime', () => {
