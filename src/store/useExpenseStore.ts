@@ -7,6 +7,7 @@ import { createBudgetSlice } from './slices/budgetSlice';
 import { createDebtSlice } from './slices/debtSlice';
 import { createSubscriptionSlice } from './slices/subscriptionSlice';
 import { createWishlistSlice } from './slices/wishlistSlice';
+import { createAccountSlice } from './slices/accountSlice';
 import { createSettingsSlice } from './slices/settingsSlice';
 import { createSyncSlice } from './slices/syncSlice';
 
@@ -17,6 +18,7 @@ export type {
   WishlistItem,
   Debt,
   Subscription,
+  Account,
   MutationType,
   PendingMutation,
   Bill,
@@ -36,6 +38,7 @@ export const useExpenseStore = create<ExpenseState>()(
       ...createDebtSlice(...a),
       ...createSubscriptionSlice(...a),
       ...createWishlistSlice(...a),
+      ...createAccountSlice(...a),
       ...createSettingsSlice(...a),
       ...createSyncSlice(...a),
     }),

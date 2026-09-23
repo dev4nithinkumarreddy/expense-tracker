@@ -11,6 +11,8 @@ export interface Expense {
   recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
   next_occurrence?: string | null;
   recurring_source_id?: string | null;
+  account_id?: string | null;
+  transfer_account_id?: string | null;
 }
 
 export interface DeletedExpense {
@@ -33,6 +35,8 @@ export interface WishlistItem {
   category?: string;
   is_purchased: boolean;
   created_at: string;
+  cooling_ends_at?: string | null;
+  is_impulse_locked?: boolean;
 }
 
 export interface Debt {
@@ -55,13 +59,27 @@ export interface Subscription {
   category: string;
 }
 
+export interface Account {
+  id: string;
+  name: string;
+  type: 'bank' | 'cash' | 'credit_card' | 'savings';
+  balance: number;
+  currency?: string;
+  color?: string;
+  icon?: string;
+  credit_limit?: number;
+  statement_day?: number;
+  due_day?: number;
+}
+
 export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE' 
   | 'INSERT_BILL' | 'UPDATE_BILL' | 'DELETE_BILL' 
   | 'UPSERT_BUDGET' | 'DELETE_BUDGET'
   | 'INSERT_WISHLIST_ITEM' | 'UPDATE_WISHLIST_ITEM' | 'DELETE_WISHLIST_ITEM'
   | 'INSERT_DEBT' | 'UPDATE_DEBT' | 'DELETE_DEBT'
   | 'INSERT_SUBSCRIPTION' | 'UPDATE_SUBSCRIPTION' | 'DELETE_SUBSCRIPTION'
-  | 'UPDATE_SETTINGS';
+  | 'UPDATE_SETTINGS'
+  | 'INSERT_ACCOUNT' | 'UPDATE_ACCOUNT' | 'DELETE_ACCOUNT';
 
 export interface PendingMutation {
   id: string;
@@ -95,6 +113,9 @@ export interface Settings {
   lastLogDate?: string;
   userName?: string;
   soundEnabled?: boolean;
+  appLockEnabled?: boolean;
+  appLockPin?: string;
+  appLockBiometrics?: boolean;
 }
 
 export const defaultCategories = [
@@ -147,6 +168,14 @@ export interface WishlistSlice {
   deleteWishlistItem: (id: string) => void;
 }
 
+export interface AccountSlice {
+  accounts: Account[];
+  addAccount: (account: Omit<Account, 'id'>) => Promise<string>;
+  updateAccount: (id: string, account: Partial<Account>) => void;
+  deleteAccount: (id: string) => void;
+  transferFunds: (fromId: string, toId: string, amount: number, notes?: string) => Promise<void>;
+}
+
 export interface SettingsSlice {
   settings: Settings;
   updateSettings: (settings: Partial<Settings>) => void;
@@ -181,5 +210,6 @@ export type ExpenseState = ExpenseSlice &
   DebtSlice &
   SubscriptionSlice &
   WishlistSlice &
+  AccountSlice &
   SettingsSlice &
   SyncSlice;

@@ -15,6 +15,7 @@ import { calculateCashflowSummary } from "../lib/cashflow";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { detectAnomalies } from "../lib/anomalyDetector";
 import { SafeToSpendCard } from "../components/dashboard/SafeToSpendCard";
+import { AccountsSummaryBar } from "../components/accounts/AccountsSummaryBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { BudgetRing } from "../components/ui/BudgetRing";
 import { AnimatedNumber } from "../components/ui/AnimatedNumber";
@@ -533,6 +534,9 @@ export default function Dashboard() {
           currency={settings.currency}
           totalMonthlyBudget={settings.monthlyIncome}
         />
+
+        {/* Multi-Account & Net-Worth Summary */}
+        <AccountsSummaryBar />
 
       {/* Income Modal */}
       {isIncomeModalOpen && (

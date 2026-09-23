@@ -49,7 +49,7 @@ export function AddExpenseModal({
   onClose: () => void;
   expenseToEdit?: Expense | null;
 }) {
-  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan, addDebt } = useExpenseStore();
+  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan, addDebt, accounts = [] } = useExpenseStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [amount, setAmount] = useState("");
@@ -57,6 +57,7 @@ export function AddExpenseModal({
   const [category, setCategory] = useState(() => settings.categories[0] || "Other");
   const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState("");
+  const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(() => accounts[0]?.id);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -85,6 +86,7 @@ export function AddExpenseModal({
         setNotes(expenseToEdit.notes || "");
         setReceiptFile(null);
         setRecurrence(expenseToEdit.recurrence || 'none');
+        setSelectedAccountId(expenseToEdit.account_id || accounts[0]?.id);
       } else {
         setAmount("");
         
@@ -103,9 +105,10 @@ export function AddExpenseModal({
         setNotes("");
         setReceiptFile(null);
         setRecurrence('none');
+        setSelectedAccountId(accounts[0]?.id);
       }
     }
-  }, [isOpen, expenseToEdit, settings.categories]);
+  }, [isOpen, expenseToEdit, settings.categories, accounts]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -243,7 +246,8 @@ export function AddExpenseModal({
       notes: notes.trim(),
       receipt_url,
       recurrence,
-      next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null
+      next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null,
+      account_id: selectedAccountId || null,
     };
 
     if (isSplitting && splitFriends.trim()) {
@@ -537,6 +541,48 @@ export function AddExpenseModal({
                     })}
                   </div>
                 </div>
+
+                {/* Account Selection Row */}
+                {accounts && accounts.length > 0 && (
+                  <div className="p-3 px-3.5 space-y-2 border-t border-border/25">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
+                      {selectedAccountId && (
+                        <span className="text-[11px] font-medium text-primary">
+                          {accounts.find(a => a.id === selectedAccountId)?.name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
+                      {accounts.map((acc) => {
+                        const isSelected = selectedAccountId === acc.id;
+                        return (
+                          <button
+                            key={acc.id}
+                            type="button"
+                            onClick={() => {
+                              vibrate(8);
+                              playTapSound();
+                              setSelectedAccountId(acc.id);
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none",
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
+                                : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
+                            )}
+                          >
+                            <span>{acc.icon || (acc.type === 'credit_card' ? '💳' : acc.type === 'cash' ? '💵' : '🏦')}</span>
+                            <span>{acc.name}</span>
+                            <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
+                              ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
               </div>
 

@@ -19,8 +19,19 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     set((state) => {
       const updatedExpenses = [...state.expenses, newExpense];
       const newStreak = calculateStreak(updatedExpenses);
+      let updatedAccounts = state.accounts;
+      if (newExpense.account_id && state.accounts && newExpense.category !== 'Transfer') {
+        updatedAccounts = state.accounts.map(acc => {
+          if (acc.id === newExpense.account_id) {
+            const delta = acc.type === 'credit_card' ? newExpense.amount : -newExpense.amount;
+            return { ...acc, balance: acc.balance + delta };
+          }
+          return acc;
+        });
+      }
       return { 
         expenses: updatedExpenses,
+        accounts: updatedAccounts,
         settings: { ...state.settings, lastLogDate: today, currentStreak: newStreak }
       };
     });
@@ -41,7 +52,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
         notes: newExpense.notes,
         receipt_url: newExpense.receipt_url,
         recurrence: newExpense.recurrence || 'none',
-        next_occurrence: newExpense.next_occurrence || null
+        next_occurrence: newExpense.next_occurrence || null,
+        account_id: newExpense.account_id || null,
+        transfer_account_id: newExpense.transfer_account_id || null
       };
       addPendingMutation({ type: 'INSERT_EXPENSE', payload });
       syncPendingMutations();
@@ -74,7 +87,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
           notes: expense.notes,
           receipt_url: expense.receipt_url,
           recurrence: expense.recurrence,
-          next_occurrence: expense.next_occurrence
+          next_occurrence: expense.next_occurrence,
+          account_id: expense.account_id || null,
+          transfer_account_id: expense.transfer_account_id || null
         };
         addPendingMutation({ type: 'UPDATE_EXPENSE', payload });
         syncPendingMutations();
@@ -95,8 +110,19 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
 
     set((state) => {
       const updatedExpenses = state.expenses.filter(e => e.id !== id);
+      let updatedAccounts = state.accounts;
+      if (expenseToDelete.account_id && state.accounts && expenseToDelete.category !== 'Transfer') {
+        updatedAccounts = state.accounts.map(acc => {
+          if (acc.id === expenseToDelete.account_id) {
+            const delta = acc.type === 'credit_card' ? -expenseToDelete.amount : expenseToDelete.amount;
+            return { ...acc, balance: acc.balance + delta };
+          }
+          return acc;
+        });
+      }
       return {
         expenses: updatedExpenses,
+        accounts: updatedAccounts,
         recentlyDeleted: newRecentlyDeleted,
         settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
       };
@@ -129,11 +155,24 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     const updatedRecentlyDeleted = recentlyDeleted.filter(d => d.expense.id !== id);
     const updatedExpenses = [...expenses, restoredExpense];
 
-    set((state) => ({
-      expenses: updatedExpenses,
-      recentlyDeleted: updatedRecentlyDeleted,
-      settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
-    }));
+    set((state) => {
+      let updatedAccounts = state.accounts;
+      if (restoredExpense.account_id && state.accounts && restoredExpense.category !== 'Transfer') {
+        updatedAccounts = state.accounts.map(acc => {
+          if (acc.id === restoredExpense.account_id) {
+            const delta = acc.type === 'credit_card' ? restoredExpense.amount : -restoredExpense.amount;
+            return { ...acc, balance: acc.balance + delta };
+          }
+          return acc;
+        });
+      }
+      return {
+        expenses: updatedExpenses,
+        accounts: updatedAccounts,
+        recentlyDeleted: updatedRecentlyDeleted,
+        settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
+      };
+    });
 
     if (session) {
       queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
@@ -149,7 +188,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
         notes: restoredExpense.notes,
         receipt_url: restoredExpense.receipt_url,
         recurrence: restoredExpense.recurrence || 'none',
-        next_occurrence: restoredExpense.next_occurrence || null
+        next_occurrence: restoredExpense.next_occurrence || null,
+        account_id: restoredExpense.account_id || null,
+        transfer_account_id: restoredExpense.transfer_account_id || null
       };
       addPendingMutation({ type: 'INSERT_EXPENSE', payload });
       syncPendingMutations();

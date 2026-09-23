@@ -132,6 +132,15 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           } else if (mut.type === 'UPDATE_SETTINGS') {
             const res = await supabase.from('user_settings').upsert(mut.payload);
             error = res.error;
+          } else if (mut.type === 'INSERT_ACCOUNT') {
+            const res = await (supabase.from('accounts' as any).upsert(mut.payload) as any);
+            error = res.error;
+          } else if (mut.type === 'UPDATE_ACCOUNT') {
+            const res = await (supabase.from('accounts' as any).update(mut.payload).eq('id', mut.payload.id) as any);
+            error = res.error;
+          } else if (mut.type === 'DELETE_ACCOUNT') {
+            const res = await (supabase.from('accounts' as any).delete().eq('id', mut.payload.id) as any);
+            error = res.error;
           }
 
           if (!error) {
