@@ -17,6 +17,8 @@ import { LoadingScreen } from "./components/ui/LoadingScreen";
 import { isThisMonth, isToday, parseISO } from "date-fns";
 import { formatCurrency } from "./lib/formatCurrency";
 
+import { SecurityLockOverlay } from "./components/ui/SecurityLockOverlay";
+
 export default function App() {
   const { settings, checkMonthRollover, setSession, session, fetchCloudData, syncPendingMutations, isModalOpen, setModalOpen } = useExpenseStore();
   const [loading, setLoading] = useState(true);
@@ -138,6 +140,7 @@ export default function App() {
             <AddExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
             <ReloadPrompt />
             <Toaster theme={settings.darkMode ? "dark" : "light"} position="bottom-center" />
+            <SecurityLockOverlay />
             <BottomNav />
             <VercelAnalytics />
           </div>

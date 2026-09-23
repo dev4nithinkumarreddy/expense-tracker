@@ -7,7 +7,8 @@ import {
   ChevronDown,
   ChevronUp,
   PieChart as PieIcon,
-  BarChart3
+  BarChart3,
+  Printer
 } from 'lucide-react';
 import { useExpenseStore, type Expense } from '../store/useExpenseStore';
 import { Card } from '../components/ui/card';
@@ -23,6 +24,7 @@ import { CategoryPacingList } from '../components/analytics/CategoryPacingList';
 import { FinancialHealthSection } from '../components/analytics/FinancialHealthSection';
 import { BadgeCabinet } from '../components/analytics/BadgeCabinet';
 import { StoryWrappedModal } from '../components/analytics/StoryWrappedModal';
+import { PrintableStatementModal } from '../components/analytics/PrintableStatementModal';
 import { SmartInsightsCard } from '../components/analytics/SmartInsightsCard';
 import { SmartTagsCard } from '../components/analytics/SmartTagsCard';
 import { SixMonthTrendsView } from '../components/analytics/SixMonthTrendsView';
@@ -41,6 +43,7 @@ export default function Analytics() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
   const [isStoryOpen, setIsStoryOpen] = useState(false);
+  const [isStatementOpen, setIsStatementOpen] = useState(false);
 
   const {
     monthDisplayLabel,
@@ -90,16 +93,33 @@ export default function Analytics() {
             <p className="text-muted-foreground text-sm">Financial health & intelligence</p>
           </div>
 
-          {/* Monthly / Trends Toggle */}
-          <SegmentedControl
-            options={[
-              { label: "Monthly", value: "monthly", icon: <PieIcon className="w-3.5 h-3.5" /> },
-              { label: "6M Trends", value: "trends", icon: <BarChart3 className="w-3.5 h-3.5" /> }
-            ]}
-            value={viewMode}
-            onChange={(val) => setViewMode(val as 'monthly' | 'trends')}
-            className="text-xs"
-          />
+          {/* Header Controls */}
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-xl bg-card/60 backdrop-blur-md border-border/50 text-muted-foreground hover:text-foreground shadow-2xs"
+              onClick={() => {
+                vibrate(10);
+                setIsStatementOpen(true);
+              }}
+              title="Print Financial Statement / Save PDF"
+              aria-label="Print Statement"
+            >
+              <Printer className="w-3.5 h-3.5" />
+            </Button>
+
+            {/* Monthly / Trends Toggle */}
+            <SegmentedControl
+              options={[
+                { label: "Monthly", value: "monthly", icon: <PieIcon className="w-3.5 h-3.5" /> },
+                { label: "6M Trends", value: "trends", icon: <BarChart3 className="w-3.5 h-3.5" /> }
+              ]}
+              value={viewMode}
+              onChange={(val) => setViewMode(val as 'monthly' | 'trends')}
+              className="text-xs"
+            />
+          </div>
         </div>
 
         {/* Story Wrapped Trigger Card */}
@@ -303,6 +323,13 @@ export default function Analytics() {
         isOpen={isStoryOpen}
         onClose={() => setIsStoryOpen(false)}
         period="month"
+      />
+
+      {/* Printable Statement Modal */}
+      <PrintableStatementModal
+        isOpen={isStatementOpen}
+        onClose={() => setIsStatementOpen(false)}
+        initialMonth={currentDate}
       />
     </div>
   );
