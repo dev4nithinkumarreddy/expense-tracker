@@ -49,7 +49,7 @@ export function useAnalyticsData(
   const tagData = useMemo(() => {
     const map: Record<string, number> = {};
     expenses.forEach(e => {
-      if (getExpenseLocalDate(e.date).startsWith(selectedMonthStr) && e.category !== 'Income' && e.amount > 0) {
+      if (getExpenseLocalDate(e.date).startsWith(selectedMonthStr) && e.category !== 'Income' && e.category !== 'Transfer' && e.amount > 0) {
         const tags = e.description.match(/#[\w-]+/g);
         if (tags) {
           tags.forEach(t => {

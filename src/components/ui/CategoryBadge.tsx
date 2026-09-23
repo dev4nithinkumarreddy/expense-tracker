@@ -135,6 +135,12 @@ const CATEGORY_STYLES: Record<string, { bg: string; text: string; border: string
     border: 'border-blue-500/25',
     emoji: '📚',
   },
+  Transfer: {
+    bg: 'bg-sky-500/10 dark:bg-sky-500/15',
+    text: 'text-sky-700 dark:text-sky-400 font-semibold',
+    border: 'border-sky-500/25',
+    emoji: '⇄',
+  },
   Other: {
     bg: 'bg-zinc-500/10 dark:bg-zinc-500/15',
     text: 'text-zinc-700 dark:text-zinc-400',

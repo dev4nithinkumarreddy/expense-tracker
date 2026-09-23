@@ -32,7 +32,7 @@ export function calculateFinancialHealth(
   const targetMonth = selectedMonthStr || new Date().toISOString().slice(0, 7);
 
   const monthExpenses = expenses.filter(
-    (e) => e.date.startsWith(targetMonth) && e.category !== 'Income' && e.amount > 0
+    (e) => e.date.startsWith(targetMonth) && e.category !== 'Income' && e.category !== 'Transfer' && e.amount > 0
   );
 
   let needsAmount = 0;

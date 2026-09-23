@@ -23,7 +23,7 @@ export function detectAnomalies(
   // 1. Detect Category Outliers / Spikes (single expense > 3x category average)
   const categoryTotals: Record<string, { sum: number; count: number }> = {};
   expenses.forEach((e) => {
-    if (e.category !== 'Income' && e.amount > 0) {
+    if (e.category !== 'Income' && e.category !== 'Transfer' && e.amount > 0) {
       if (!categoryTotals[e.category]) {
         categoryTotals[e.category] = { sum: 0, count: 0 };
       }

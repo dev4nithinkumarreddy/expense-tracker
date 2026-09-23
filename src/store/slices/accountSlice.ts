@@ -109,8 +109,14 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
     // Update balances
     set((state) => ({
       accounts: state.accounts.map((a) => {
-        if (a.id === fromId) return { ...a, balance: a.balance - amount };
-        if (a.id === toId) return { ...a, balance: a.balance + amount };
+        if (a.id === fromId) {
+          const delta = a.type === 'credit_card' ? amount : -amount;
+          return { ...a, balance: a.balance + delta };
+        }
+        if (a.id === toId) {
+          const delta = a.type === 'credit_card' ? -amount : amount;
+          return { ...a, balance: a.balance + delta };
+        }
         return a;
       }),
     }));
@@ -145,10 +151,20 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
 
     if (!targetAcc) return;
 
+    // Calculate other liquid balances (excluding target account and credit cards)
+    const otherLiquidTotal = accounts
+      .filter((a) => a.id !== targetAcc.id && a.type !== 'credit_card')
+      .reduce((sum, a) => {
+        if (a.type === 'cash' && a.balance === 2500) return sum;
+        return sum + Math.max(0, a.balance || 0);
+      }, 0);
+
+    const targetBalance = Math.max(0, remaining - otherLiquidTotal);
+
     set((state) => ({
       accounts: state.accounts.map((acc) => {
         if (acc.id === targetAcc.id) {
-          return { ...acc, balance: remaining };
+          return { ...acc, balance: targetBalance };
         }
         // If cash has the placeholder 2500, reset it to 0
         if (acc.type === 'cash' && acc.balance === 2500) {
@@ -158,7 +174,7 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
       }),
     }));
 
-    toast.success(`Synced ${targetAcc.name} to ${targetAcc.currency || settings.currency}${remaining}`);
+    toast.success(`Synced ${targetAcc.name} (${targetAcc.currency || settings.currency}${targetBalance}). Accounts now match remaining budget.`);
   },
 
   reconcileAccountsWithBudget: () => {

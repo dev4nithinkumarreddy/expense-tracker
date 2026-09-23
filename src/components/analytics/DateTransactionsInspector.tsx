@@ -34,7 +34,7 @@ export function DateTransactionsInspector({
 
   const dateKey = format(selectedDate, 'yyyy-MM-dd');
   const dayExpenses = expenses.filter(
-    (e) => getExpenseLocalDate(e.date) === dateKey && e.category !== 'Income' && e.amount > 0
+    (e) => getExpenseLocalDate(e.date) === dateKey && e.category !== 'Income' && e.category !== 'Transfer' && e.amount > 0
   );
 
   const dayTotal = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);

@@ -61,9 +61,9 @@ export function calculateMonthKPIs(
 ): MonthKPIs {
   const selectedMonthStr = format(selectedDate, 'yyyy-MM');
 
-  // Filter positive expenses (ignore negative carry-overs) using local date
+  // Filter positive expenses (ignore negative carry-overs and transfers) using local date
   const currentMonthExpenses = expenses.filter(e => {
-    if (!e || !e.date || e.category === 'Income' || e.amount <= 0) return false;
+    if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
     return getExpenseLocalDate(e.date).startsWith(selectedMonthStr);
   });
   const totalExpenses = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -97,7 +97,7 @@ export function calculateMonthKPIs(
   const lastMonthStr = format(lastMonthDate, 'yyyy-MM');
   const lastMonthExpenses = expenses
     .filter(e => {
-      if (!e || !e.date || e.category === 'Income' || e.amount <= 0) return false;
+      if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
       return getExpenseLocalDate(e.date).startsWith(lastMonthStr);
     })
     .reduce((sum, e) => sum + e.amount, 0);
@@ -163,7 +163,7 @@ export function calculateMultiMonthTrends(
 
     const mExpenses = expenses
       .filter(e => {
-        if (!e || !e.date || e.category === 'Income' || e.amount <= 0) return false;
+        if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
         return getExpenseLocalDate(e.date).startsWith(mKey);
       })
       .reduce((sum, e) => sum + e.amount, 0);
@@ -200,7 +200,7 @@ export function calculateDailySpend(
   const dailyMap: Record<number, number> = {};
 
   expenses.forEach(e => {
-    if (!e || !e.date || e.category === 'Income' || e.amount <= 0) return;
+    if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return;
     const localDate = getExpenseLocalDate(e.date);
     if (localDate.startsWith(selectedMonthStr)) {
       const parts = localDate.split('-');
@@ -234,7 +234,7 @@ export function calculateCategoryBreakdown(
   selectedMonthStr: string
 ): CategoryBreakdownItem[] {
   const currentMonthExpenses = expenses.filter(e => {
-    if (!e || !e.date || e.category === 'Income' || e.amount <= 0) return false;
+    if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
     return getExpenseLocalDate(e.date).startsWith(selectedMonthStr);
   });
 

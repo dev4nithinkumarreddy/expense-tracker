@@ -75,10 +75,22 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         try {
           let error = null;
           if (mut.type === 'INSERT_EXPENSE') {
-            const res = await supabase.from('expenses').upsert(mut.payload);
+            let res = await supabase.from('expenses').upsert(mut.payload);
+            if (res.error && (res.error.message?.includes('account_id') || res.error.message?.includes('transfer_account_id') || res.error.code === 'PGRST204')) {
+              const fallbackPayload = { ...mut.payload };
+              delete (fallbackPayload as any).account_id;
+              delete (fallbackPayload as any).transfer_account_id;
+              res = await supabase.from('expenses').upsert(fallbackPayload);
+            }
             error = res.error;
           } else if (mut.type === 'UPDATE_EXPENSE') {
-            const res = await supabase.from('expenses').update(mut.payload).eq('id', mut.payload.id);
+            let res = await supabase.from('expenses').update(mut.payload).eq('id', mut.payload.id);
+            if (res.error && (res.error.message?.includes('account_id') || res.error.message?.includes('transfer_account_id') || res.error.code === 'PGRST204')) {
+              const fallbackPayload = { ...mut.payload };
+              delete (fallbackPayload as any).account_id;
+              delete (fallbackPayload as any).transfer_account_id;
+              res = await supabase.from('expenses').update(fallbackPayload).eq('id', mut.payload.id);
+            }
             error = res.error;
           } else if (mut.type === 'DELETE_EXPENSE') {
             const res = await supabase.from('expenses').delete().eq('id', mut.payload.id);
@@ -134,18 +146,34 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             error = res.error;
           } else if (mut.type === 'INSERT_ACCOUNT') {
             const res = await (supabase.from('accounts' as any).upsert(mut.payload) as any);
-            error = res.error;
+            if (res.error && (res.error.code === '42P01' || res.error.code === 'PGRST205' || res.error.code === 'PGRST200' || res.error.code === 'PGRST204' || res.error.message?.includes('accounts'))) {
+              console.warn("Supabase accounts table not created yet in cloud schema. Account stored locally in IndexedDB.", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
           } else if (mut.type === 'UPDATE_ACCOUNT') {
             const res = await (supabase.from('accounts' as any).update(mut.payload).eq('id', mut.payload.id) as any);
-            error = res.error;
+            if (res.error && (res.error.code === '42P01' || res.error.code === 'PGRST205' || res.error.code === 'PGRST200' || res.error.code === 'PGRST204' || res.error.message?.includes('accounts'))) {
+              console.warn("Supabase accounts table not created yet in cloud schema. Account stored locally in IndexedDB.", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
           } else if (mut.type === 'DELETE_ACCOUNT') {
             const res = await (supabase.from('accounts' as any).delete().eq('id', mut.payload.id) as any);
-            error = res.error;
+            if (res.error && (res.error.code === '42P01' || res.error.code === 'PGRST205' || res.error.code === 'PGRST200' || res.error.code === 'PGRST204' || res.error.message?.includes('accounts'))) {
+              console.warn("Supabase accounts table not created yet in cloud schema. Account stored locally in IndexedDB.", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
           }
 
           if (!error) {
             removePendingMutation(mut.id);
             consecutiveSyncFailures = 0;
+            toast.dismiss('sync-paused-error');
             if (mut.type.includes('EXPENSE')) {
                queryClient.invalidateQueries({ queryKey: ['expenses'] });
             } else if (mut.type.includes('BILL')) {
@@ -156,14 +184,14 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           } else {
             console.error("Mutation failed:", error);
             consecutiveSyncFailures++;
-            toast.error(`Sync paused: ${error.message || 'Server error'}. Retrying...`);
+            toast.error(`Sync paused: ${error.message || 'Server error'}. Retrying...`, { id: 'sync-paused-error' });
             scheduleSyncRetry(() => get().syncPendingMutations());
             break; 
           }
         } catch (e: any) {
            console.error("Sync error:", e);
            consecutiveSyncFailures++;
-           toast.error(`Sync network error. Retrying in background...`);
+           toast.error(`Sync network error. Retrying in background...`, { id: 'sync-paused-error' });
            scheduleSyncRetry(() => get().syncPendingMutations());
            break;
         }

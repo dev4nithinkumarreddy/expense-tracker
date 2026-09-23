@@ -41,7 +41,7 @@ export function calculateCashflowSummary(
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   const totalExpenses = currentMonthRecords
-    .filter(e => e.category !== 'Income')
+    .filter(e => e.category !== 'Income' && e.category !== 'Transfer')
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   const totalBudget = (Number(monthlyIncome) || 0) + extraIncome;

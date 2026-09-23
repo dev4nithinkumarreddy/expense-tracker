@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
-import { Pencil, Trash2, Image as ImageIcon, CopyPlus } from 'lucide-react';
+import { Pencil, Trash2, Image as ImageIcon, CopyPlus, ArrowRightLeft } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { cn, vibrate } from '../lib/utils';
 import { formatCurrency } from '../lib/formatCurrency';
@@ -140,15 +140,24 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
         onDragEnd={handleDragEnd}
         className={cn(
           "relative flex justify-between items-center p-3.5 bg-card/95 backdrop-blur-md h-full w-full touch-pan-y cursor-grab active:cursor-grabbing",
-          isIncome && "border-green-500/30 bg-green-500/5"
+          isIncome && "border-green-500/30 bg-green-500/5",
+          expense.category === 'Transfer' && "border-sky-500/30 bg-sky-500/5"
         )}
       >
         <div className="flex items-center gap-3">
           <div className={cn(
             "w-10 h-10 rounded-2xl flex items-center justify-center text-sm shrink-0 shadow-xs", 
-            isIncome ? "bg-green-500/15 text-green-600 font-bold" : "bg-primary/10 text-primary font-semibold"
+            isIncome ? "bg-green-500/15 text-green-600 font-bold" :
+            expense.category === 'Transfer' ? "bg-sky-500/15 text-sky-600" :
+            "bg-primary/10 text-primary font-semibold"
           )}>
-            {isIncome ? "$" : (settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase())}
+            {expense.category === 'Transfer' ? (
+              <ArrowRightLeft className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+            ) : isIncome ? (
+              "$"
+            ) : (
+              settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase()
+            )}
           </div>
           <div className="overflow-hidden">
             <div className="flex items-center gap-2">
@@ -191,7 +200,7 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2.5 pl-2 shrink-0">
-          {!isIncome && (
+          {!isIncome && expense.category !== 'Transfer' && (
             <button
               type="button"
               onClick={handleLogAgain}
@@ -205,9 +214,11 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
 
           <span className={cn(
             "font-semibold text-sm whitespace-nowrap display-number", 
-            isIncome ? "text-green-600" : ""
+            isIncome ? "text-green-600" :
+            expense.category === 'Transfer' ? "text-sky-600 dark:text-sky-400" :
+            ""
           )}>
-            {isIncome ? "+" : ""}{formatCurrency(expense.amount, settings.currency)}
+            {expense.category === 'Transfer' ? "⇄ " : isIncome ? "+" : ""}{formatCurrency(expense.amount, settings.currency)}
           </span>
 
           {/* Desktop Hover Actions */}

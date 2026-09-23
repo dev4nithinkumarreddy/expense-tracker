@@ -8,7 +8,7 @@ export function AmbientBackground() {
 
   const healthState = useMemo(() => {
     const currentMonthExpenses = expenses.filter(
-      (e) => isThisMonth(parseISO(e.date)) && e.category !== 'Income'
+      (e) => isThisMonth(parseISO(e.date)) && e.category !== 'Income' && e.category !== 'Transfer'
     );
     const incomeRecords = expenses.filter(
       (e) => isThisMonth(parseISO(e.date)) && e.category === 'Income'

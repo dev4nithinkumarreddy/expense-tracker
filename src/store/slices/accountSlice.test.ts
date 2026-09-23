@@ -165,4 +165,60 @@ describe('accountSlice', () => {
     expect(bank?.balance).toBe(400);
     expect(cash?.balance).toBe(0);
   });
+
+  it('reverts account balances when a transfer transaction is deleted', async () => {
+    const store = useExpenseStore.getState();
+    await store.transferFunds('acc-bank', 'acc-cash', 1000, 'ATM cash');
+
+    let state = useExpenseStore.getState();
+    expect(state.accounts.find((a) => a.id === 'acc-bank')?.balance).toBe(9000);
+    expect(state.accounts.find((a) => a.id === 'acc-cash')?.balance).toBe(3000);
+
+    const transferExp = state.expenses[0];
+    expect(transferExp).toBeDefined();
+
+    store.deleteExpense(transferExp.id);
+
+    state = useExpenseStore.getState();
+    // Bank should get 1000 back, cash should lose 1000
+    expect(state.accounts.find((a) => a.id === 'acc-bank')?.balance).toBe(10000);
+    expect(state.accounts.find((a) => a.id === 'acc-cash')?.balance).toBe(2000);
+  });
+
+  it('reduces credit card debt when transferring from bank to credit card', async () => {
+    const store = useExpenseStore.getState();
+    // Initial: bank 10000, credit card balance 500 (debt)
+    await store.transferFunds('acc-bank', 'acc-card', 300, 'Card payment');
+
+    const state = useExpenseStore.getState();
+    expect(state.accounts.find((a) => a.id === 'acc-bank')?.balance).toBe(9700); // 10000 - 300
+    expect(state.accounts.find((a) => a.id === 'acc-card')?.balance).toBe(200); // 500 - 300
+  });
+
+  it('syncs primary bank balance so combined liquid funds (Bank + Cash) match remaining budget', () => {
+    useExpenseStore.setState({
+      settings: { monthlyIncome: 10000, currency: '₹' } as any,
+      expenses: [
+        { id: 'e1', amount: 9600, description: 'Groceries', category: 'Food', date: new Date().toISOString() },
+      ],
+      bills: [],
+      subscriptions: [],
+      accounts: [
+        { id: 'acc-bank', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹' },
+        { id: 'acc-cash', name: 'Cash', type: 'cash', balance: 100, currency: '₹' },
+      ],
+    });
+
+    const store = useExpenseStore.getState();
+    // Available remaining = 10000 - 9600 = 400
+    // With 100 already in cash, bank should reconcile to 300 so total = 400
+    store.syncAccountWithBalance('acc-bank');
+
+    const state = useExpenseStore.getState();
+    const bank = state.accounts.find((a) => a.id === 'acc-bank');
+    const cash = state.accounts.find((a) => a.id === 'acc-cash');
+    expect(bank?.balance).toBe(300);
+    expect(cash?.balance).toBe(100);
+    expect((bank?.balance ?? 0) + (cash?.balance ?? 0)).toBe(400);
+  });
 });

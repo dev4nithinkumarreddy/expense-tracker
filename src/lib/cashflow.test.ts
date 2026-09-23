@@ -107,4 +107,32 @@ describe('cashflow calculation', () => {
     expect(futureStatus.isDue).toBe(false);
     expect(futureStatus.daysRemaining).toBe(13);
   });
+
+  it('does NOT deduct Transfer transactions from available balance or count them in totalExpenses', () => {
+    const expensesWithTransfer: Expense[] = [
+      ...mockExpenses, // 500 Food
+      {
+        id: 'trans-1',
+        amount: 2000,
+        description: 'Transfer: Main Bank → Cash Wallet',
+        category: 'Transfer',
+        date: '2026-09-12T12:00:00Z',
+        account_id: 'acc-bank-1',
+        transfer_account_id: 'acc-cash-1',
+      },
+    ];
+
+    const summary = calculateCashflowSummary(
+      50000,
+      expensesWithTransfer,
+      mockBills,
+      mockSubs,
+      referenceDate
+    );
+
+    // Total expenses should remain 500 (Transfer excluded)
+    expect(summary.totalExpenses).toBe(500);
+    // Available balance should NOT be reduced by the 2000 transfer
+    expect(summary.availableBalance).toBe(47300);
+  });
 });

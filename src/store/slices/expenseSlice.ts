@@ -117,7 +117,19 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     set((state) => {
       const updatedExpenses = state.expenses.filter(e => e.id !== id);
       let updatedAccounts = state.accounts;
-      if (expenseToDelete.account_id && state.accounts && expenseToDelete.category !== 'Transfer') {
+      if (expenseToDelete.category === 'Transfer' && expenseToDelete.account_id && expenseToDelete.transfer_account_id && state.accounts) {
+        updatedAccounts = state.accounts.map(acc => {
+          if (acc.id === expenseToDelete.account_id) {
+            const delta = acc.type === 'credit_card' ? -expenseToDelete.amount : expenseToDelete.amount;
+            return { ...acc, balance: acc.balance + delta };
+          }
+          if (acc.id === expenseToDelete.transfer_account_id) {
+            const delta = acc.type === 'credit_card' ? expenseToDelete.amount : -expenseToDelete.amount;
+            return { ...acc, balance: acc.balance + delta };
+          }
+          return acc;
+        });
+      } else if (expenseToDelete.account_id && state.accounts && expenseToDelete.category !== 'Transfer') {
         const isIncome = expenseToDelete.category === 'Income';
         updatedAccounts = state.accounts.map(acc => {
           if (acc.id === expenseToDelete.account_id) {
@@ -169,7 +181,19 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
 
     set((state) => {
       let updatedAccounts = state.accounts;
-      if (restoredExpense.account_id && state.accounts && restoredExpense.category !== 'Transfer') {
+      if (restoredExpense.category === 'Transfer' && restoredExpense.account_id && restoredExpense.transfer_account_id && state.accounts) {
+        updatedAccounts = state.accounts.map(acc => {
+          if (acc.id === restoredExpense.account_id) {
+            const delta = acc.type === 'credit_card' ? restoredExpense.amount : -restoredExpense.amount;
+            return { ...acc, balance: acc.balance + delta };
+          }
+          if (acc.id === restoredExpense.transfer_account_id) {
+            const delta = acc.type === 'credit_card' ? -restoredExpense.amount : restoredExpense.amount;
+            return { ...acc, balance: acc.balance + delta };
+          }
+          return acc;
+        });
+      } else if (restoredExpense.account_id && state.accounts && restoredExpense.category !== 'Transfer') {
         const isIncome = restoredExpense.category === 'Income';
         updatedAccounts = state.accounts.map(acc => {
           if (acc.id === restoredExpense.account_id) {

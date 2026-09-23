@@ -162,7 +162,7 @@ export default function Dashboard() {
 
   const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
   const incomeRecords = currentMonthRecords.filter(e => e.category === 'Income');
-  const currentMonthExpenses = currentMonthRecords.filter(e => e.category !== 'Income');
+  const currentMonthExpenses = currentMonthRecords.filter(e => e.category !== 'Income' && e.category !== 'Transfer');
 
   const extraIncome = incomeRecords.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = cashflow.totalExpenses;

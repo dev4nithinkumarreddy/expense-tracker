@@ -92,7 +92,7 @@ export default function App() {
         setTimeout(() => {
           const storeState = useExpenseStore.getState();
           const todayExpenses = storeState.expenses
-            .filter(e => isThisMonth(parseISO(e.date)) && isToday(parseISO(e.date)) && e.category !== 'Income')
+            .filter(e => isThisMonth(parseISO(e.date)) && isToday(parseISO(e.date)) && e.category !== 'Income' && e.category !== 'Transfer')
             .reduce((sum, e) => sum + e.amount, 0);
           toast.info(`Today's Spend: ${formatCurrency(todayExpenses, storeState.settings.currency)}`, {
             description: "Here's your spending summary for today."
