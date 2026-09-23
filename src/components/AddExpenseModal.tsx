@@ -1,11 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
-import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag } from "lucide-react";
+import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, Sparkles, ClipboardPaste, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { cn, vibrate } from "../lib/utils";
 import { format, parseISO, subDays } from "date-fns";
 import { playSuccessSound, playTapSound } from "../lib/sound";
+import { toast } from "sonner";
+import { formatCurrency } from "../lib/formatCurrency";
+import { parseNLPExpense } from "../lib/nlpExpenseParser";
+import { parseBankSMS } from "../lib/smsParser";
 
 const DEFAULT_CATEGORY_EMOJIS: Record<string, string> = {
   Food: '🍔',
@@ -45,7 +49,7 @@ export function AddExpenseModal({
   onClose: () => void;
   expenseToEdit?: Expense | null;
 }) {
-  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan } = useExpenseStore();
+  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan, addDebt } = useExpenseStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [amount, setAmount] = useState("");
@@ -57,6 +61,9 @@ export function AddExpenseModal({
   const [uploading, setUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+  const [smartInput, setSmartInput] = useState("");
+  const [isSplitting, setIsSplitting] = useState(false);
+  const [splitFriends, setSplitFriends] = useState("");
 
   useEffect(() => {
     if (isOpen && shouldTriggerScan) {
@@ -134,6 +141,55 @@ export function AddExpenseModal({
     }
   };
 
+  const handleApplyNLP = (text: string) => {
+    if (!text.trim()) return;
+    const parsed = parseNLPExpense(text, settings.categories);
+    if (parsed.amount) setAmount(String(parsed.amount));
+    if (parsed.description) setDescription(parsed.description);
+    if (parsed.category) setCategory(parsed.category);
+    if (parsed.date) setDate(parsed.date);
+    if (parsed.tags.length > 0) {
+      setNotes((prev) => (prev ? `${prev} ${parsed.tags.join(' ')}` : parsed.tags.join(' ')));
+    }
+    toast.success('Auto-filled from smart input!');
+    vibrate(12);
+  };
+
+  const handlePasteSMS = async () => {
+    try {
+      const clipText = await navigator.clipboard.readText();
+      if (!clipText || !clipText.trim()) {
+        toast.error('Clipboard is empty');
+        return;
+      }
+      const parsed = parseBankSMS(clipText, settings.categories);
+      if (!parsed || !parsed.amount) {
+        const nlp = parseNLPExpense(clipText, settings.categories);
+        if (nlp.amount) {
+          setAmount(String(nlp.amount));
+          if (nlp.description) setDescription(nlp.description);
+          if (nlp.category) setCategory(nlp.category);
+          toast.success('Parsed from clipboard!');
+          vibrate(12);
+          return;
+        }
+        toast.error('No transaction detected in clipboard text');
+        return;
+      }
+      setAmount(String(parsed.amount));
+      setDescription(parsed.merchant);
+      setCategory(parsed.category);
+      setDate(parsed.date);
+      if (parsed.accountName) {
+        setNotes((prev) => (prev ? `${prev} | ${parsed.accountName}` : `Via ${parsed.accountName}`));
+      }
+      toast.success(`Parsed ${parsed.merchant} (${formatCurrency(parsed.amount, settings.currency)})`);
+      vibrate(15);
+    } catch {
+      toast.error('Please allow clipboard permission to paste SMS');
+    }
+  };
+
   const parsedAmount = parseFloat(amount);
   const isValid = !isNaN(parsedAmount) && parsedAmount > 0 && description.trim().length > 0;
 
@@ -190,10 +246,50 @@ export function AddExpenseModal({
       next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null
     };
 
-    if (expenseToEdit) {
-      updateExpense(expenseToEdit.id, expenseData);
+    if (isSplitting && splitFriends.trim()) {
+      const friendList = splitFriends.split(',').map((f) => f.trim()).filter(Boolean);
+      if (friendList.length > 0) {
+        const totalPeople = friendList.length + 1;
+        const myShare = Math.round((parsedAmount / totalPeople) * 100) / 100;
+        const friendShare = Math.round((parsedAmount / totalPeople) * 100) / 100;
+
+        const myExpenseData = {
+          ...expenseData,
+          amount: myShare,
+          notes: `${notes ? notes + ' | ' : ''}Split ${formatCurrency(parsedAmount, settings.currency)} (${totalPeople} ways)`,
+        };
+
+        if (expenseToEdit) {
+          updateExpense(expenseToEdit.id, myExpenseData);
+        } else {
+          addExpense(myExpenseData);
+        }
+
+        friendList.forEach((friend) => {
+          addDebt({
+            person_name: friend,
+            amount: friendShare,
+            type: 'lent',
+            status: 'pending',
+            date: isoDate,
+            notes: `Share of ${description} (${formatCurrency(parsedAmount, settings.currency)} total)`,
+          });
+        });
+
+        toast.success(`Logged your share (${formatCurrency(myShare, settings.currency)}) & created ${friendList.length} IOU${friendList.length > 1 ? 's' : ''}!`);
+      } else {
+        if (expenseToEdit) {
+          updateExpense(expenseToEdit.id, expenseData);
+        } else {
+          addExpense(expenseData);
+        }
+      }
     } else {
-      addExpense(expenseData);
+      if (expenseToEdit) {
+        updateExpense(expenseToEdit.id, expenseData);
+      } else {
+        addExpense(expenseData);
+      }
     }
 
     if (settings.soundEnabled) {
@@ -279,6 +375,42 @@ export function AddExpenseModal({
             {/* Scrollable Form Body */}
             <div className="p-5 pt-1 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
 
+              {/* Smart NLP & SMS Magic Bar */}
+              <div className="flex items-center gap-2 bg-secondary/50 dark:bg-card/50 rounded-2xl p-1.5 px-3 border border-border/50 backdrop-blur-xs">
+                <Sparkles className="w-4 h-4 text-primary shrink-0 animate-pulse" />
+                <input
+                  type="text"
+                  placeholder="Magic input: e.g. 'Coffee 150 #work' or 'Uber 350 yesterday'"
+                  value={smartInput}
+                  onChange={(e) => setSmartInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleApplyNLP(smartInput);
+                    }
+                  }}
+                  className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                />
+                {smartInput && (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyNLP(smartInput)}
+                    className="text-[11px] font-semibold text-primary px-2.5 py-1 rounded-xl bg-primary/15 hover:bg-primary/25 transition-colors cursor-pointer"
+                  >
+                    Parse
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePasteSMS}
+                  title="Paste bank SMS or transaction text from clipboard"
+                  className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg bg-background/60 hover:bg-background border border-border/40 transition-all shrink-0 cursor-pointer"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden xs:inline">Paste SMS</span>
+                </button>
+              </div>
+
               {/* 1. Hero Amount Display */}
               <div className="flex flex-col items-center justify-center pt-2 pb-2">
                 <div className="flex items-baseline justify-center gap-1.5 w-full">
@@ -338,6 +470,17 @@ export function AddExpenseModal({
                       className="w-full bg-transparent text-sm font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
                     />
                   </div>
+
+                  {/* Paste Bank SMS Quick Button */}
+                  <button
+                    type="button"
+                    onClick={handlePasteSMS}
+                    className="relative overflow-hidden w-9 h-9 rounded-xl border border-border/60 hover:bg-secondary active:scale-95 flex items-center justify-center shrink-0 cursor-pointer transition-all text-muted-foreground hover:text-foreground bg-background/50"
+                    title="Paste Bank/UPI SMS from Clipboard"
+                    aria-label="Paste SMS from Clipboard"
+                  >
+                    <ClipboardPaste className="w-4 h-4 text-primary" />
+                  </button>
 
                   {/* Camera / Receipt Scan Button */}
                   <label 
@@ -513,6 +656,68 @@ export function AddExpenseModal({
                   </div>
                 </div>
 
+              </div>
+
+              {/* Bill Splitter Section */}
+              <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 p-3 px-3.5 space-y-2.5 backdrop-blur-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">Split with Friends</p>
+                      <p className="text-[10px] text-muted-foreground">Auto-creates IOUs to collect from friends</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(10);
+                      setIsSplitting(!isSplitting);
+                    }}
+                    className={cn(
+                      "px-3 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
+                      isSplitting
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                        : "bg-background/60 text-muted-foreground border-border/50 hover:text-foreground"
+                    )}
+                  >
+                    {isSplitting ? "Enabled" : "Off"}
+                  </button>
+                </div>
+
+                {isSplitting && (
+                  <div className="space-y-2 pt-1 border-t border-border/30 animate-in fade-in slide-in-from-top-1">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                        Friend Names (comma-separated)
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="e.g. Alex, Rahul, Sam"
+                        value={splitFriends}
+                        onChange={(e) => setSplitFriends(e.target.value)}
+                        className="w-full bg-background/80 rounded-xl px-3 py-1.5 text-xs font-medium border border-border/50 focus:outline-none focus:border-primary text-foreground"
+                      />
+                    </div>
+
+                    {parsedAmount > 0 && splitFriends.trim() && (
+                      <div className="p-2 px-2.5 rounded-xl bg-primary/10 text-primary text-xs flex justify-between items-center font-medium">
+                        <span>
+                          {splitFriends.split(',').filter((f) => f.trim()).length + 1} ways split:
+                        </span>
+                        <span className="font-bold">
+                          {formatCurrency(
+                            parsedAmount / (splitFriends.split(',').filter((f) => f.trim()).length + 1),
+                            settings.currency
+                          )}{' '}
+                          each
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 4. Scanning / Attached Receipt Card */}

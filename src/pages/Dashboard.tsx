@@ -6,12 +6,13 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { calculateStreak } from "../lib/streak";
 import { calculateCashflowSummary } from "../lib/cashflow";
+import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { motion, AnimatePresence } from "framer-motion";
 import { BudgetRing } from "../components/ui/BudgetRing";
 import { AnimatedNumber } from "../components/ui/AnimatedNumber";
@@ -53,6 +54,36 @@ export default function Dashboard() {
   const [incomeAmount, setIncomeAmount] = useState("");
   const [dismissedAlertId, setDismissedAlertId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [dashboardSmartInput, setDashboardSmartInput] = useState("");
+
+  const handleDashboardSmartSubmit = async () => {
+    if (!dashboardSmartInput.trim()) return;
+    const parsed = parseNLPExpense(dashboardSmartInput, settings.categories);
+    if (!parsed.amount) {
+      toast.error('Could not detect an amount. E.g. "Coffee 150"');
+      return;
+    }
+    vibrate(20);
+    if (settings.soundEnabled) playSuccessSound();
+    const newId = await addExpense({
+      amount: parsed.amount,
+      description: parsed.description,
+      category: parsed.category || settings.categories[0] || 'Other',
+      date: parsed.date ? new Date(`${parsed.date}T12:00:00.000Z`).toISOString() : new Date().toISOString(),
+      notes: parsed.tags.length > 0 ? parsed.tags.join(' ') : undefined,
+    });
+    setDashboardSmartInput('');
+    toast.success(`Logged ${parsed.description} (${formatCurrency(parsed.amount, settings.currency)})`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          vibrate(15);
+          deleteExpense(newId);
+          toast.info(`Undone: ${parsed.description} removed`);
+        },
+      },
+    });
+  };
 
   useEffect(() => {
     if (session?.user?.email || session?.user?.id) {
@@ -268,6 +299,33 @@ export default function Dashboard() {
               <SettingsIcon className="w-4 h-4" />
             </Link>
           </div>
+        </div>
+
+        {/* Smart Quick-Log Magic Bar */}
+        <div className="flex items-center gap-2 bg-card/85 dark:bg-card/75 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl p-1.5 px-3.5 shadow-xs transition-all focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary">
+          <Sparkles className="w-4 h-4 text-primary shrink-0 animate-pulse" />
+          <input
+            type="text"
+            placeholder="Smart log: 'Coffee 150', 'Uber 300 #travel', 'Grocery 800 yesterday'..."
+            value={dashboardSmartInput}
+            onChange={(e) => setDashboardSmartInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleDashboardSmartSubmit();
+              }
+            }}
+            className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+          />
+          {dashboardSmartInput && (
+            <Button
+              size="sm"
+              className="h-7 text-xs px-2.5 rounded-xl font-medium cursor-pointer"
+              onClick={handleDashboardSmartSubmit}
+            >
+              Log
+            </Button>
+          )}
         </div>
 
         {/* Upcoming Due Date Pill */}
