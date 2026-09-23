@@ -20,6 +20,7 @@ import { AnalyticsKpiCards } from '../components/analytics/AnalyticsKpiCards';
 import { CategoryDonutCard } from '../components/analytics/CategoryDonutCard';
 import { DailySpendingBarCard } from '../components/analytics/DailySpendingBarCard';
 import { CategoryPacingList } from '../components/analytics/CategoryPacingList';
+import { FinancialHealthSection } from '../components/analytics/FinancialHealthSection';
 import { SmartInsightsCard } from '../components/analytics/SmartInsightsCard';
 import { SmartTagsCard } from '../components/analytics/SmartTagsCard';
 import { SixMonthTrendsView } from '../components/analytics/SixMonthTrendsView';
@@ -221,6 +222,14 @@ export default function Analytics() {
               currency={settings.currency}
               categoryEmojis={settings.categoryEmojis}
               onSelectCategory={(catName) => setSelectedCategoryForDrilldown(catName)}
+            />
+
+            {/* 50/30/20 Wealth Breakdown & Health Score */}
+            <FinancialHealthSection
+              monthlyIncome={settings.monthlyIncome}
+              expenses={expenses}
+              currency={settings.currency}
+              selectedMonthStr={format(currentDate, 'yyyy-MM')}
             />
 
             {/* Smart Financial Insights */}

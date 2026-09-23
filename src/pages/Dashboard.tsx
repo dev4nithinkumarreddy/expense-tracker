@@ -6,13 +6,15 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles, AlertTriangle } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { calculateStreak } from "../lib/streak";
 import { calculateCashflowSummary } from "../lib/cashflow";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
+import { detectAnomalies } from "../lib/anomalyDetector";
+import { SafeToSpendCard } from "../components/dashboard/SafeToSpendCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { BudgetRing } from "../components/ui/BudgetRing";
 import { AnimatedNumber } from "../components/ui/AnimatedNumber";
@@ -53,6 +55,7 @@ export default function Dashboard() {
   const [incomeSource, setIncomeSource] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [dismissedAlertId, setDismissedAlertId] = useState<string | null>(null);
+  const [dismissedAnomalyId, setDismissedAnomalyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [dashboardSmartInput, setDashboardSmartInput] = useState("");
 
@@ -127,6 +130,11 @@ export default function Dashboard() {
     }
     return null;
   }, [subscriptions, dismissedAlertId]);
+
+  const activeAnomaly = useMemo(() => {
+    const list = detectAnomalies(expenses, subscriptions, bills);
+    return list.find((a) => a.id !== dismissedAnomalyId) || null;
+  }, [expenses, subscriptions, bills, dismissedAnomalyId]);
 
   // Must stay above the early return so this hook is called unconditionally
   const cashflow = useMemo(() => {
@@ -389,6 +397,46 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
+        {/* Spending Anomaly Alert Pill */}
+        <AnimatePresence>
+          {activeAnomaly && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+              className="flex items-center justify-between gap-3 p-3 px-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 backdrop-blur-md shadow-xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">
+                    {activeAnomaly.title}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {activeAnomaly.description}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-full shrink-0 cursor-pointer"
+                onClick={() => {
+                  vibrate(10);
+                  setDismissedAnomalyId(activeAnomaly.id);
+                }}
+                aria-label="Dismiss anomaly alert"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Main Stats Card */}
         <Card className={cn(
           "border shadow-xl overflow-hidden relative rounded-3xl backdrop-blur-2xl transition-all duration-500",
@@ -477,6 +525,14 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Dynamic Safe-to-Spend Runway */}
+        <SafeToSpendCard
+          availableBalance={remaining}
+          upcomingObligations={upcomingObligations}
+          currency={settings.currency}
+          totalMonthlyBudget={settings.monthlyIncome}
+        />
 
       {/* Income Modal */}
       {isIncomeModalOpen && (
