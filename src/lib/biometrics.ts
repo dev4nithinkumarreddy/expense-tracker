@@ -49,7 +49,7 @@ export async function authenticateWithBiometrics(): Promise<boolean> {
     });
 
     return !!credential;
-  } catch (err: any) {
+  } catch {
     // If user cancelled or device not configured, return false gracefully
     return false;
   }
