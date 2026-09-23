@@ -291,30 +291,58 @@ function SubscriptionsTab() {
 }
 
 function WishlistTab() {
-  const { wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem, settings, addExpense } = useExpenseStore();
+  const { wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem, addExpense, settings } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
+  const [enableCoolingLock, setEnableCoolingLock] = useState(true);
+  const [reflectingItem, setReflectingItem] = useState<any | null>(null);
 
   const handleSave = () => {
-    if (!newName) return;
-    vibrate();
+    if (!newName.trim()) return;
+    vibrate(10);
+    const coolingEnds = enableCoolingLock
+      ? new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString()
+      : null;
+
     addWishlistItem({
-      item_name: newName,
+      item_name: newName.trim(),
       estimated_amount: newAmount ? parseFloat(newAmount) : undefined,
-      category: "Shopping"
+      category: "Shopping",
+      cooling_ends_at: coolingEnds,
+      is_impulse_locked: enableCoolingLock,
     });
+
     setNewName("");
     setNewAmount("");
     setIsAdding(false);
+    toast.success(
+      enableCoolingLock
+        ? `Added "${newName}" with a 72-hour reflection lock 🔒`
+        : `Added "${newName}" to wishlist`
+    );
   };
 
-  const handlePurchase = (item: any) => {
+  const handleAttemptPurchase = (item: any) => {
+    vibrate(10);
+    const now = new Date();
+    const isLocked = item.is_impulse_locked && item.cooling_ends_at && new Date(item.cooling_ends_at) > now;
+    if (isLocked) {
+      setReflectingItem(item);
+      return;
+    }
+    proceedWithPurchase(item);
+  };
+
+  const proceedWithPurchase = (item: any) => {
     if (confirm(`Mark "${item.item_name}" as purchased and log as an expense?`)) {
-      vibrate();
-      const actualCostStr = prompt(`Enter final cost for ${item.item_name}:`, item.estimated_amount?.toString() || "0");
+      vibrate(15);
+      const actualCostStr = prompt(
+        `Enter final cost for ${item.item_name}:`,
+        item.estimated_amount?.toString() || "0"
+      );
       if (actualCostStr === null) return;
-      
+
       const actualCost = parseFloat(actualCostStr);
       if (isNaN(actualCost)) return;
 
@@ -323,25 +351,40 @@ function WishlistTab() {
         description: `Purchased: ${item.item_name}`,
         category: item.category || "Shopping",
         date: new Date().toISOString(),
-        notes: "Logged from Wishlist"
+        notes: "Logged from Wishlist",
       });
-      
+
       updateWishlistItem(item.id, { is_purchased: true });
+      toast.success(`Purchased "${item.item_name}"!`);
+      setReflectingItem(null);
     }
   };
 
-  const pendingItems = wishlistItems.filter(i => !i.is_purchased);
-  const completedItems = wishlistItems.filter(i => i.is_purchased);
+  const handleAvoidImpulse = (item: any) => {
+    vibrate(20);
+    deleteWishlistItem(item.id);
+    setReflectingItem(null);
+    toast.success(
+      `🎉 Masterful discipline! You avoided an impulse buy and saved ${
+        item.estimated_amount ? formatCurrency(item.estimated_amount, settings.currency) : 'money'
+      }!`,
+      { duration: 4000 }
+    );
+  };
 
+  const pendingItems = wishlistItems.filter((i) => !i.is_purchased);
+  const completedItems = wishlistItems.filter((i) => i.is_purchased);
   const totalEstimated = pendingItems.reduce((acc, curr) => acc + (curr.estimated_amount || 0), 0);
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-left-4">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-semibold">Wishlist</h2>
+          <h2 className="text-lg font-semibold">Wishlist & Goals</h2>
           {totalEstimated > 0 && (
-             <p className="text-xs text-muted-foreground">Est. Total: {formatCurrency(totalEstimated, settings.currency)}</p>
+            <p className="text-xs text-muted-foreground">
+              Est. Total: {formatCurrency(totalEstimated, settings.currency)}
+            </p>
           )}
         </div>
         <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">
@@ -354,62 +397,191 @@ function WishlistTab() {
           <CardContent className="p-4 space-y-4">
             <h3 className="font-medium text-sm">Add to Wishlist</h3>
             <div className="space-y-3">
-              <Input 
-                placeholder="Item Name (e.g. New Headphones)" 
+              <Input
+                placeholder="Item Name (e.g. Sony WH-1000XM5)"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
               />
-              <Input 
-                type="number" 
-                placeholder="Estimated Amount (Optional)" 
+              <Input
+                type="number"
+                placeholder="Estimated Amount (Optional)"
                 value={newAmount}
                 onChange={(e) => setNewAmount(e.target.value)}
               />
+
+              {/* 72h Cooling off checkbox */}
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-secondary/40 border border-border/50 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={enableCoolingLock}
+                  onChange={(e) => setEnableCoolingLock(e.target.checked)}
+                  className="rounded text-primary focus:ring-primary w-4 h-4"
+                />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <span>🔒 72-Hour Cooling-Off Lock</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/15 text-primary">Recommended</span>
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Pauses immediate buying impulse so you can reflect before spending
+                  </p>
+                </div>
+              </label>
+
               <div className="flex gap-2 justify-end pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancel</Button>
-                <Button size="sm" onClick={handleSave}>Save</Button>
+                <Button variant="ghost" size="sm" onClick={() => setIsAdding(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSave}>
+                  Save to Wishlist
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* Wishlist Items List */}
       <div className="space-y-3">
         {pendingItems.length === 0 && !isAdding ? (
           <EmptyState
             icon={<ShoppingBag className="w-6 h-6" />}
             title="Your wishlist is empty"
-            description="Save purchases you're planning for, estimate costs, and track goals."
+            description="Save purchases you're planning for, estimate costs, and curb impulse spending."
             compact
             actionLabel="+ Add Item"
             onAction={() => setIsAdding(true)}
           />
         ) : (
-          pendingItems.map(item => (
-            <Card key={item.id} className="overflow-hidden border-l-4 border-l-orange-500">
-              <CardContent className="p-3 flex items-center justify-between">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <button onClick={() => handlePurchase(item)} className="shrink-0 text-muted-foreground hover:text-primary transition-colors">
-                     <div className="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center" />
-                  </button>
-                  <div className="truncate">
-                    <p className="font-medium truncate">{item.item_name}</p>
-                    {item.estimated_amount ? (
-                      <p className="text-xs text-muted-foreground">Est. {formatCurrency(item.estimated_amount, settings.currency)}</p>
-                    ) : null}
+          pendingItems.map((item) => {
+            const now = new Date();
+            const isLocked =
+              item.is_impulse_locked &&
+              item.cooling_ends_at &&
+              new Date(item.cooling_ends_at) > now;
+
+            const remainingMs = item.cooling_ends_at
+              ? new Date(item.cooling_ends_at).getTime() - now.getTime()
+              : 0;
+            const remainingHours = Math.max(0, Math.floor(remainingMs / (1000 * 60 * 60)));
+            const remainingMins = Math.max(0, Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)));
+
+            return (
+              <Card
+                key={item.id}
+                className={`overflow-hidden border-l-4 transition-all ${
+                  isLocked ? 'border-l-amber-500 bg-amber-500/[0.03]' : 'border-l-emerald-500'
+                }`}
+              >
+                <CardContent className="p-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 overflow-hidden min-w-0">
+                    <button
+                      onClick={() => handleAttemptPurchase(item)}
+                      title={isLocked ? "In 72h reflection period" : "Mark as purchased"}
+                      className="shrink-0 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                    >
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        isLocked ? 'border-amber-500 text-amber-500' : 'border-muted-foreground'
+                      }`}>
+                        {isLocked && <span className="text-[10px]">🔒</span>}
+                      </div>
+                    </button>
+
+                    <div className="truncate">
+                      <p className="font-medium truncate text-sm text-foreground">{item.item_name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {item.estimated_amount ? (
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            Est. {formatCurrency(item.estimated_amount, settings.currency)}
+                          </span>
+                        ) : null}
+
+                        {isLocked ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-medium border border-amber-500/25">
+                            ⏳ {remainingHours}h {remainingMins}m cooling
+                          </span>
+                        ) : item.is_impulse_locked ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/25">
+                            ✅ Cooled off
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
-                  onClick={() => deleteWishlistItem(item.id)}
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* 1-tap impulse avoidance button */}
+                    {isLocked && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAvoidImpulse(item)}
+                        title="I decided not to buy this!"
+                        className="text-[11px] h-7 px-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-medium rounded-lg"
+                      >
+                        Don't Need It
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10 shrink-0 h-8 w-8"
+                      onClick={() => deleteWishlistItem(item.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
+
+        {/* Reflection Intervention Modal */}
+        {reflectingItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              onClick={() => setReflectingItem(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <div className="relative w-full max-w-sm rounded-3xl bg-card border border-border shadow-2xl p-5 space-y-4 z-10 text-center animate-in fade-in zoom-in-95">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-500 mx-auto flex items-center justify-center text-2xl">
+                ⏳
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-foreground">72-Hour Impulse Lock</h3>
+                <p className="text-xs text-muted-foreground mt-1 px-2">
+                  You locked <span className="font-semibold text-foreground">{reflectingItem.item_name}</span> to pause the urge. Do you genuinely still need this?
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <Button
+                  onClick={() => handleAvoidImpulse(reflectingItem)}
+                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  🎉 I Don't Need It (Save {reflectingItem.estimated_amount ? formatCurrency(reflectingItem.estimated_amount, settings.currency) : 'Money'}!)
                 </Button>
-              </CardContent>
-            </Card>
-          ))
+
+                <Button
+                  variant="outline"
+                  onClick={() => setReflectingItem(null)}
+                  className="w-full rounded-xl text-xs"
+                >
+                  Keep Waiting (Cooling Off)
+                </Button>
+
+                <button
+                  onClick={() => proceedWithPurchase(reflectingItem)}
+                  className="w-full text-[11px] text-muted-foreground hover:text-foreground pt-1 underline cursor-pointer"
+                >
+                  I really need this now (Override)
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {completedItems.length > 0 && (

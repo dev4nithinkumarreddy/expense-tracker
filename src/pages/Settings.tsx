@@ -12,6 +12,7 @@ import { vibrate } from "../lib/utils";
 import { playSuccessSound, playTapSound, playDeleteSound } from "../lib/sound";
 import { RecentlyDeletedModal } from "../components/RecentlyDeletedModal";
 import { checkIsAdmin } from "../lib/admin";
+import { BadgeCabinet } from "../components/analytics/BadgeCabinet";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
 interface CategoryRowItemProps {
@@ -265,6 +266,14 @@ export default function Settings() {
             )}
           </div>
         )}
+
+        <div>
+          <Card className="rounded-3xl border border-border/60 bg-card/85 backdrop-blur-xl shadow-xs overflow-hidden">
+            <CardContent className="p-4 sm:p-5">
+              <BadgeCabinet />
+            </CardContent>
+          </Card>
+        </div>
 
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Preferences</h3>

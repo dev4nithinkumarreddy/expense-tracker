@@ -21,6 +21,8 @@ import { CategoryDonutCard } from '../components/analytics/CategoryDonutCard';
 import { DailySpendingBarCard } from '../components/analytics/DailySpendingBarCard';
 import { CategoryPacingList } from '../components/analytics/CategoryPacingList';
 import { FinancialHealthSection } from '../components/analytics/FinancialHealthSection';
+import { BadgeCabinet } from '../components/analytics/BadgeCabinet';
+import { StoryWrappedModal } from '../components/analytics/StoryWrappedModal';
 import { SmartInsightsCard } from '../components/analytics/SmartInsightsCard';
 import { SmartTagsCard } from '../components/analytics/SmartTagsCard';
 import { SixMonthTrendsView } from '../components/analytics/SixMonthTrendsView';
@@ -38,6 +40,7 @@ export default function Analytics() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
+  const [isStoryOpen, setIsStoryOpen] = useState(false);
 
   const {
     monthDisplayLabel,
@@ -97,6 +100,31 @@ export default function Analytics() {
             onChange={(val) => setViewMode(val as 'monthly' | 'trends')}
             className="text-xs"
           />
+        </div>
+
+        {/* Story Wrapped Trigger Card */}
+        <div 
+          onClick={() => {
+            vibrate(12);
+            setIsStoryOpen(true);
+          }}
+          className="cursor-pointer p-3.5 px-4 rounded-3xl bg-gradient-to-r from-primary/15 via-purple-500/10 to-pink-500/15 border border-primary/25 hover:border-primary/45 transition-all flex items-center justify-between shadow-xs active:scale-[0.99] select-none"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-primary/20 text-primary flex items-center justify-center text-lg shadow-inner">
+              ✨
+            </div>
+            <div>
+              <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <span>Monthly Story Wrapped</span>
+                <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground font-semibold">New</span>
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Your spending highlights, category champion & financial persona
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </div>
 
         {/* Month Navigator with Interactive Calendar Toggle */}
@@ -232,6 +260,11 @@ export default function Analytics() {
               selectedMonthStr={format(currentDate, 'yyyy-MM')}
             />
 
+            {/* Achievements & Milestones Trophy Cabinet */}
+            <div className="pt-2">
+              <BadgeCabinet />
+            </div>
+
             {/* Smart Financial Insights */}
             <SmartInsightsCard smartInsights={smartInsights} />
 
@@ -264,6 +297,13 @@ export default function Analytics() {
           onLogAgain={handleDrilldownLogAgain}
         />
       )}
+
+      {/* Fullscreen Story Wrapped Modal */}
+      <StoryWrappedModal
+        isOpen={isStoryOpen}
+        onClose={() => setIsStoryOpen(false)}
+        period="month"
+      />
     </div>
   );
 }
