@@ -69,12 +69,14 @@ export default function Dashboard() {
     }
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
+    const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
     const newId = await addExpense({
       amount: parsed.amount,
       description: parsed.description,
       category: parsed.category || settings.categories[0] || 'Other',
       date: parsed.date ? new Date(`${parsed.date}T12:00:00.000Z`).toISOString() : new Date().toISOString(),
       notes: parsed.tags.length > 0 ? parsed.tags.join(' ') : undefined,
+      account_id: defaultAccount || undefined,
     });
     setDashboardSmartInput('');
     toast.success(`Logged ${parsed.description} (${formatCurrency(parsed.amount, settings.currency)})`, {
@@ -368,12 +370,14 @@ export default function Dashboard() {
                   onClick={() => {
                     vibrate(20);
                     if (settings.soundEnabled) playSuccessSound();
+                    const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
                     addExpense({
                       amount: upcomingAlert.amount,
                       description: `${upcomingAlert.name} Payment`,
                       category: upcomingAlert.category,
                       date: new Date().toISOString(),
-                      notes: "Paid via Upcoming Due Alert"
+                      notes: "Paid via Upcoming Due Alert",
+                      account_id: defaultAccount || undefined,
                     });
                     toast.success(`${upcomingAlert.name} marked as paid!`);
                     setDismissedAlertId(upcomingAlert.id);
@@ -438,7 +442,7 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Main Stats Card */}
+        {/* Main Stats Card with Integrated Daily Safe-to-Spend Runway */}
         <Card className={cn(
           "border shadow-xl overflow-hidden relative rounded-3xl backdrop-blur-2xl transition-all duration-500",
           "border-t border-white/40 dark:border-white/20",
@@ -457,14 +461,14 @@ export default function Dashboard() {
           />
           {/* Subtle inner sheen */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent dark:from-white/5 pointer-events-none" />
-          <CardContent className="p-6 relative z-10">
-            <div className="grid grid-cols-2 gap-4 mb-6">
+          <CardContent className="p-5 sm:p-6 relative z-10 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
-                  Budget
+                  Monthly Budget
                   <button 
                     onClick={() => { vibrate(15); setIsIncomeModalOpen(true); }}
-                    className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground active:scale-90 rounded-full flex items-center justify-center transition-all duration-100"
+                    className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground active:scale-90 rounded-full flex items-center justify-center transition-all duration-100 cursor-pointer"
                     aria-label="Add Extra Income"
                   >
                     <Plus className="w-3 h-3" />
@@ -498,7 +502,7 @@ export default function Dashboard() {
             
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Remaining</p>
+                <p className="text-sm text-muted-foreground mb-1">Remaining Budget</p>
                 <h2 className={cn("text-3xl font-bold display-number tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
                   <AnimatedNumber
                     value={remaining}
@@ -520,20 +524,23 @@ export default function Dashboard() {
             </div>
 
             {isOverBudget && (
-              <p className="text-xs text-destructive mt-3 font-medium flex items-center">
+              <p className="text-xs text-destructive mt-1 font-medium flex items-center">
                 ⚠️ You exceeded your monthly budget.
               </p>
             )}
+
+            {/* Seamless Integrated Safe-to-Spend Daily Runway */}
+            <div className="pt-3.5 border-t border-border/40 dark:border-white/10">
+              <SafeToSpendCard
+                availableBalance={remaining}
+                upcomingObligations={upcomingObligations}
+                currency={settings.currency}
+                totalMonthlyBudget={settings.monthlyIncome}
+                variant="embedded"
+              />
+            </div>
           </CardContent>
         </Card>
-
-        {/* Dynamic Safe-to-Spend Runway */}
-        <SafeToSpendCard
-          availableBalance={remaining}
-          upcomingObligations={upcomingObligations}
-          currency={settings.currency}
-          totalMonthlyBudget={settings.monthlyIncome}
-        />
 
         {/* Multi-Account & Net-Worth Summary */}
         <AccountsSummaryBar />
@@ -744,11 +751,13 @@ export default function Dashboard() {
                 transition={{ type: "spring", stiffness: 500, damping: 24 }}
                 onClick={() => {
                   vibrate(15);
+                  const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
                   addExpense({
                     amount: qa.amount,
                     description: qa.description,
                     category: qa.category,
                     date: new Date().toISOString(),
+                    account_id: defaultAccount || undefined,
                   });
                 }}
                 className="flex items-center gap-2.5 bg-card/85 hover:bg-card border border-white/20 dark:border-white/10 px-4 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-colors shadow-xs select-none"
@@ -827,12 +836,14 @@ export default function Dashboard() {
                     onClick={async () => {
                       vibrate(20);
                       if (settings.soundEnabled) playSuccessSound();
+                      const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
                       const newId = await addExpense({
                         amount: expense.amount,
                         description: expense.description,
                         category: expense.category,
                         date: new Date().toISOString(),
-                        notes: expense.notes
+                        notes: expense.notes,
+                        account_id: expense.account_id || defaultAccount || undefined,
                       });
                       toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
                         action: {
