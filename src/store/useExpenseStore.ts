@@ -25,6 +25,8 @@ export type {
 } from './types';
 export { defaultCategories } from './types';
 
+import { indexedDBStorage } from '../lib/storage';
+
 export const useExpenseStore = create<ExpenseState>()(
   persist(
     (...a) => ({
@@ -39,6 +41,7 @@ export const useExpenseStore = create<ExpenseState>()(
     }),
     {
       name: 'expense-tracker-storage',
+      storage: indexedDBStorage,
     }
   )
 );

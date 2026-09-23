@@ -17,6 +17,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "framer-motion": "^13.1.1",
+    "idb-keyval": "^6.3.0",
     "lucide-react": "^1.24.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -45,4 +46,3 @@
     "vitest": "^4.1.10"
   }
 }
-
