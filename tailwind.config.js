@@ -67,6 +67,18 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      spacing: {
+        '4.5': '1.125rem',
+        '5.5': '1.375rem',
+        '6.5': '1.625rem',
+        '7.5': '1.875rem',
+        '8.5': '2.125rem',
+        '9.5': '2.375rem',
+      },
+      boxShadow: {
+        '2xs': '0 1px 2px 0 rgb(0 0 0 / 0.04)',
+        'xs': '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04)',
+      },
     },
   },
   plugins: [],
