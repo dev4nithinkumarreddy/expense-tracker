@@ -535,18 +535,55 @@ export default function Settings() {
                 )}
               </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Color Theme</span>
-                <select
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={settings.theme || 'default'}
-                  onChange={(e) => updateSettings({ theme: e.target.value })}
-                >
-                  <option value="default">Ocean Blue</option>
-                  <option value="emerald">Emerald Green</option>
-                  <option value="rose">Sunset Rose</option>
-                  <option value="violet">Royal Violet</option>
-                </select>
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Color Theme</span>
+                  <span className="text-[11px] font-semibold text-primary capitalize">
+                    {settings.theme === 'emerald'
+                      ? 'Emerald Mint'
+                      : settings.theme === 'rose'
+                      ? 'Sunset Rose'
+                      : settings.theme === 'violet'
+                      ? 'Royal Violet'
+                      : settings.theme === 'amber'
+                      ? 'Amber Sunset'
+                      : 'Ocean Blue'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    { id: 'default', label: 'Ocean', gradient: 'from-blue-500 to-cyan-500' },
+                    { id: 'emerald', label: 'Emerald', gradient: 'from-emerald-500 to-teal-500' },
+                    { id: 'rose', label: 'Rose', gradient: 'from-rose-500 to-pink-500' },
+                    { id: 'violet', label: 'Violet', gradient: 'from-violet-500 to-purple-500' },
+                    { id: 'amber', label: 'Amber', gradient: 'from-amber-500 to-orange-500' },
+                  ].map((themeItem) => {
+                    const isSelected = (settings.theme || 'default') === themeItem.id;
+                    return (
+                      <button
+                        key={themeItem.id}
+                        type="button"
+                        onClick={() => {
+                          vibrate(12);
+                          if (settings.soundEnabled) playTapSound();
+                          updateSettings({ theme: themeItem.id });
+                        }}
+                        className={`flex flex-col items-center gap-1.5 p-2 rounded-2xl border transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-primary/10 border-primary shadow-xs scale-[1.02]'
+                            : 'bg-secondary/50 hover:bg-secondary border-border/60 opacity-80 hover:opacity-100'
+                        }`}
+                      >
+                        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${themeItem.gradient} flex items-center justify-center shadow-xs ring-2 ring-white/40 dark:ring-white/15`}>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                        </div>
+                        <span className={`text-[10px] font-bold tracking-tight ${isSelected ? 'text-primary' : 'text-muted-foreground'}`}>
+                          {themeItem.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex justify-between items-center">

@@ -155,34 +155,39 @@ export function AccountsSummaryBar() {
   };
 
   return (
-    <div className="rounded-3xl border border-white/20 dark:border-white/10 bg-card/85 dark:bg-card/75 backdrop-blur-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
+    <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-card/92 dark:bg-card/78 backdrop-blur-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
       {/* Header Bar */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Accounts & Net Worth
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                vibrate(10);
-                playTapSound();
-                setIsGuideOpen(true);
-              }}
-              className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded-full cursor-pointer"
-              title="How Accounts & Balances Work"
-              aria-label="How Accounts & Balances Work"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-primary/80" />
-            </button>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-indigo-500/12 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-[0_2px_8px_rgba(99,102,241,0.12)]">
+            <Building2 className="w-4 h-4" />
           </div>
-          <p className="text-lg sm:text-xl font-bold tracking-tight text-foreground display-number">
-            {settings.privacyMode ? '••••••' : formatCurrency(netWorth, settings.currency)}
-            <span className="text-[11px] font-normal text-muted-foreground ml-1.5">
-              liquid wealth
-            </span>
-          </p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] sm:text-sm font-bold tracking-tight text-foreground">
+                Accounts & Net Worth
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  vibrate(10);
+                  playTapSound();
+                  setIsGuideOpen(true);
+                }}
+                className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded-full cursor-pointer"
+                title="How Accounts & Balances Work"
+                aria-label="How Accounts & Balances Work"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-primary/80" />
+              </button>
+            </div>
+            <p className="text-lg sm:text-xl font-extrabold tracking-tight text-foreground display-number leading-tight">
+              {settings.privacyMode ? '••••••' : formatCurrency(netWorth, settings.currency)}
+              <span className="text-[11px] font-semibold text-muted-foreground ml-1.5">
+                liquid wealth
+              </span>
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -194,11 +199,11 @@ export function AccountsSummaryBar() {
               playTapSound();
               syncAccountWithBalance();
             }}
-            className="h-8 px-2 sm:px-2.5 rounded-xl text-xs gap-1 sm:gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 shadow-2xs cursor-pointer text-primary"
+            className="h-8 px-2.5 sm:px-3 rounded-full text-xs font-semibold gap-1 sm:gap-1.5 bg-primary/10 hover:bg-primary/18 border-primary/25 shadow-2xs cursor-pointer text-primary"
             title="Sync Bank balance to match your remaining monthly budget"
           >
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">Sync with Budget</span>
+            <span className="hidden sm:inline">Sync Budget</span>
             <span className="sm:hidden">Sync</span>
           </Button>
 
@@ -206,7 +211,7 @@ export function AccountsSummaryBar() {
             size="sm"
             variant="outline"
             onClick={() => handleOpenTransfer()}
-            className="h-8 px-2 sm:px-2.5 rounded-xl text-xs gap-1 sm:gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 shadow-2xs cursor-pointer"
+            className="h-8 px-2.5 sm:px-3 rounded-full text-xs font-semibold gap-1 sm:gap-1.5 bg-secondary/70 hover:bg-secondary border-border/70 shadow-2xs cursor-pointer text-foreground"
           >
             <ArrowRightLeft className="w-3.5 h-3.5 text-primary shrink-0" />
             <span>Transfer</span>
@@ -220,10 +225,10 @@ export function AccountsSummaryBar() {
               playTapSound();
               setIsAddAccountOpen(true);
             }}
-            className="h-8 px-2 sm:px-2.5 rounded-xl text-xs gap-1 sm:gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 text-muted-foreground hover:text-foreground shadow-2xs cursor-pointer"
+            className="h-8 px-2.5 rounded-full text-xs font-semibold gap-1 bg-secondary/70 hover:bg-secondary border-border/70 text-foreground shadow-2xs cursor-pointer"
             aria-label="Add Account"
           >
-            <Plus className="w-3.5 h-3.5 shrink-0" />
+            <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
             <span>Add</span>
           </Button>
         </div>
@@ -233,6 +238,7 @@ export function AccountsSummaryBar() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
         {accounts.map((acc) => {
           const isCard = acc.type === 'credit_card';
+          const isCash = acc.type === 'cash';
           return (
             <motion.div
               key={acc.id}
@@ -240,32 +246,39 @@ export function AccountsSummaryBar() {
               transition={{ type: "spring", stiffness: 450, damping: 28 }}
               onClick={() => handleOpenTransfer(acc.id)}
               className={cn(
-                "p-3 sm:p-3.5 rounded-2xl border backdrop-blur-xl relative overflow-hidden transition-all shadow-xs cursor-pointer flex flex-col justify-between min-h-[96px]",
+                "p-3 sm:p-3.5 rounded-2xl border backdrop-blur-xl relative overflow-hidden transition-all shadow-xs cursor-pointer flex flex-col justify-between min-h-[100px]",
                 isCard
-                  ? "bg-gradient-to-br from-purple-500/10 via-card/90 to-card/95 border-purple-500/25 dark:border-purple-400/20 hover:border-purple-500/40"
-                  : acc.type === "cash"
-                  ? "bg-gradient-to-br from-emerald-500/10 via-card/90 to-card/95 border-emerald-500/25 dark:border-emerald-400/20 hover:border-emerald-500/40"
-                  : "bg-gradient-to-br from-blue-500/10 via-card/90 to-card/95 border-blue-500/25 dark:border-blue-400/20 hover:border-blue-500/40"
+                  ? "bg-gradient-to-br from-purple-500/12 via-card/92 to-card/96 border-purple-500/30 dark:border-purple-400/25 hover:border-purple-500/45"
+                  : isCash
+                  ? "bg-gradient-to-br from-emerald-500/12 via-card/92 to-card/96 border-emerald-500/30 dark:border-emerald-400/25 hover:border-emerald-500/45"
+                  : "bg-gradient-to-br from-blue-500/12 via-card/92 to-card/96 border-blue-500/30 dark:border-blue-400/25 hover:border-blue-500/45"
               )}
             >
               {/* Account Header */}
               <div className="flex items-center justify-between gap-1.5 mb-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-xl bg-background/80 flex items-center justify-center shadow-2xs shrink-0">
+                  <div className="w-7 h-7 rounded-xl bg-background/90 border border-border/60 flex items-center justify-center shadow-2xs shrink-0">
                     {getAccountIcon(acc)}
                   </div>
-                  <span className="text-xs font-semibold truncate text-foreground leading-tight">
+                  <span className="text-xs font-bold truncate text-foreground leading-tight">
                     {acc.name}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md bg-background/60 text-muted-foreground border border-border/40">
-                    {acc.type === 'credit_card' ? 'Credit' : acc.type}
+                  <span className={cn(
+                    "text-[9.5px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border",
+                    isCard
+                      ? "bg-purple-500/12 text-purple-700 dark:text-purple-300 border-purple-500/25"
+                      : isCash
+                      ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-500/25"
+                      : "bg-blue-500/12 text-blue-700 dark:text-blue-300 border-blue-500/25"
+                  )}>
+                    {isCard ? 'Credit' : acc.type}
                   </span>
                   <button
                     type="button"
                     onClick={(e) => handleOpenEditBalance(acc, e)}
-                    className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 transition-colors"
+                    className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-background/90 transition-colors border border-transparent hover:border-border/50"
                     title={`Edit ${acc.name} balance`}
                     aria-label={`Edit ${acc.name} balance`}
                   >

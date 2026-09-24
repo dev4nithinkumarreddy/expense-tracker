@@ -6,7 +6,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Wallet } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -24,6 +24,7 @@ import { playSuccessSound } from "../lib/sound";
 import { toast } from "sonner";
 import { CategoryBadge } from "../components/ui/CategoryBadge";
 import { EmptyState } from "../components/ui/EmptyState";
+import { SectionHeader } from "../components/ui/SectionHeader";
 import { checkIsAdmin } from "../lib/admin";
 
 const DashboardSkeleton = () => (
@@ -465,48 +466,56 @@ export default function Dashboard() {
         {/* Main Stats Card with Integrated Daily Safe-to-Spend Runway */}
         <Card className={cn(
           "border shadow-xl overflow-hidden relative rounded-3xl backdrop-blur-2xl transition-all duration-500",
-          "border-t border-white/40 dark:border-white/20",
+          "border-t border-white/50 dark:border-white/20",
           isOverBudget 
-            ? "bg-destructive/10 border-destructive/25 shadow-destructive/10" 
+            ? "bg-destructive/10 border-destructive/30 shadow-destructive/10" 
             : budgetUsedPercent >= 75
-            ? "bg-amber-500/10 border-amber-500/25 shadow-amber-500/10"
-            : "bg-card/85 dark:bg-card/65 border-white/20 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.4)]"
+            ? "bg-amber-500/10 border-amber-500/30 shadow-amber-500/10"
+            : "bg-card/92 dark:bg-card/75 border-border/80 dark:border-white/12 shadow-[0_12px_36px_rgba(15,23,42,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)]"
         )}>
           {/* Dynamic Ambient Rim Bloom */}
           <div 
             className={cn(
               "absolute -top-14 -right-14 w-52 h-52 rounded-full blur-3xl pointer-events-none transition-colors duration-1000",
-              isOverBudget ? "bg-rose-500/30" : budgetUsedPercent >= 75 ? "bg-amber-500/25" : "bg-primary/20"
+              isOverBudget ? "bg-rose-500/30" : budgetUsedPercent >= 75 ? "bg-amber-500/25" : "bg-primary/22"
             )} 
           />
           {/* Subtle inner sheen */}
-          <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent dark:from-white/5 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent dark:from-white/5 pointer-events-none" />
           <CardContent className="p-4 sm:p-6 relative z-10 space-y-4 sm:space-y-5">
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-1 flex items-center gap-1.5">
-                  <span>Monthly Budget</span>
+              <div className="min-w-0 p-2.5 rounded-2xl bg-secondary/45 dark:bg-secondary/35 border border-border/50">
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5 truncate">
+                    <Wallet className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span>Monthly Budget</span>
+                  </span>
                   <button 
                     onClick={() => { vibrate(15); setIsIncomeModalOpen(true); }}
-                    className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground active:scale-90 rounded-full flex items-center justify-center transition-all duration-100 cursor-pointer shrink-0"
+                    className="w-5 h-5 bg-primary/15 hover:bg-primary text-primary hover:text-primary-foreground active:scale-90 rounded-full flex items-center justify-center transition-all duration-100 cursor-pointer shrink-0 border border-primary/25"
                     aria-label="Add Extra Income"
                     title="Add Extra Income"
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3 h-3 stroke-[2.5]" />
                   </button>
-                </p>
+                </div>
                 <div className="text-lg sm:text-xl font-bold flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 display-number leading-tight">
                   <AnimatedNumber
                     value={settings.monthlyIncome}
                     formatFn={(val) => formatCurrency(val, settings.currency, settings.privacyMode)}
                   />
                   {!settings.privacyMode && extraIncome > 0 && (
-                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 font-bold">
+                      +{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}
+                    </span>
                   )}
                 </div>
               </div>
-              <div className="text-right min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Bills (Due)</p>
+              <div className="text-right min-w-0 p-2.5 rounded-2xl bg-secondary/45 dark:bg-secondary/35 border border-border/50">
+                <p className="text-[11px] font-semibold text-muted-foreground mb-1 flex items-center justify-end gap-1.5">
+                  <CalendarClock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Bills (Due)</span>
+                </p>
                 <p className="text-lg sm:text-xl font-bold display-number leading-tight">
                   <AnimatedNumber
                     value={totalDueObligations}
@@ -514,44 +523,59 @@ export default function Dashboard() {
                   />
                 </p>
                 {upcomingObligations > 0 && (
-                  <p className="text-[10.5px] text-muted-foreground mt-0.5 truncate" title="Upcoming bills & subscriptions due later this month">
+                  <p className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400 mt-0.5 truncate" title="Upcoming bills & subscriptions due later this month">
                     +{formatCurrency(upcomingObligations, settings.currency)} upcoming
                   </p>
                 )}
               </div>
             </div>
             
-            <div className="flex justify-between items-center gap-3">
+            <div className="flex justify-between items-center gap-3 pt-1">
               <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Remaining Budget</p>
-                <h2 className={cn("text-2xl sm:text-3xl font-bold display-number tracking-tight leading-tight truncate", isOverBudget ? "text-destructive" : "text-primary")}>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-xs sm:text-sm font-semibold text-muted-foreground">Remaining Budget</p>
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-bold border leading-none",
+                    isOverBudget
+                      ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
+                      : budgetUsedPercent >= 75
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/25"
+                      : "bg-primary/12 text-primary border-primary/25"
+                  )}>
+                    {100 - budgetUsedPercent}% left
+                  </span>
+                </div>
+                <h2 className={cn("text-2xl sm:text-3xl font-extrabold display-number tracking-tight leading-tight truncate", isOverBudget ? "text-destructive" : "text-primary")}>
                   <AnimatedNumber
                     value={remaining}
                     formatFn={(val) => formatCurrency(val, settings.currency)}
                   />
                 </h2>
-                <p className="text-xs text-muted-foreground mt-1 truncate">
-                  Spent: <span className="font-semibold text-foreground"><AnimatedNumber value={totalExpenses} formatFn={(val) => formatCurrency(val, settings.currency)} /></span>
+                <p className="text-xs text-muted-foreground mt-1 truncate flex items-center gap-1.5">
+                  <span>Spent so far:</span>
+                  <span className="font-bold text-foreground display-number">
+                    <AnimatedNumber value={totalExpenses} formatFn={(val) => formatCurrency(val, settings.currency)} />
+                  </span>
                 </p>
               </div>
               <div className="shrink-0 flex items-center justify-center">
                 <BudgetRing
                   value={budgetUsedPercent}
-                  size={76}
-                  strokeWidth={7.5}
+                  size={78}
+                  strokeWidth={8}
                   isOverBudget={isOverBudget}
                 />
               </div>
             </div>
 
             {isOverBudget && (
-              <p className="text-xs text-destructive mt-1 font-medium flex items-center gap-1">
-                ⚠️ You exceeded your monthly budget.
+              <p className="text-xs text-destructive mt-1 font-semibold flex items-center gap-1.5 bg-destructive/10 px-3 py-1.5 rounded-xl border border-destructive/20">
+                <span>⚠️ You exceeded your monthly budget.</span>
               </p>
             )}
 
             {/* Seamless Integrated Safe-to-Spend Daily Runway */}
-            <div className="pt-3.5 border-t border-border/40 dark:border-white/10">
+            <div className="pt-3.5 border-t border-border/60 dark:border-white/10">
               <SafeToSpendCard
                 availableBalance={remaining}
                 upcomingObligations={upcomingObligations}
@@ -655,23 +679,29 @@ export default function Dashboard() {
       {/* Daily Spending & Contextual Intelligence */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {/* Today Card */}
-        <Card className="rounded-3xl border border-white/20 dark:border-white/10 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-xs overflow-hidden">
-          <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2">
+        <Card className="rounded-3xl border border-border/80 dark:border-white/10 bg-card/92 dark:bg-card/78 backdrop-blur-2xl shadow-xs overflow-hidden">
+          <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2.5">
             <div>
-              <div className="h-5 flex items-center justify-between gap-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Today</p>
+              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center justify-center shrink-0">
+                    <Zap className="w-3.5 h-3.5" />
+                  </div>
+                  <p className="text-xs font-bold tracking-tight text-foreground">Today</p>
+                </div>
                 <span className={cn(
-                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0",
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border shrink-0",
                   todayComparison.color === "emerald" 
-                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" 
+                    ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-500/25" 
                     : todayComparison.color === "amber" 
-                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" 
-                    : "bg-muted text-muted-foreground"
+                    ? "bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/25" 
+                    : "bg-secondary text-muted-foreground border-border/60"
                 )}>
-                  {todayComparison.text}
+                  <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                  <span className="truncate max-w-[90px] sm:max-w-none">{todayComparison.text}</span>
                 </span>
               </div>
-              <p className="text-xl sm:text-2xl font-bold display-number tracking-tight mt-1 text-foreground leading-tight truncate">
+              <p className="text-xl sm:text-2xl font-extrabold display-number tracking-tight mt-2 text-foreground leading-tight truncate">
                 <AnimatedNumber value={todayExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
               </p>
             </div>
@@ -679,15 +709,15 @@ export default function Dashboard() {
             {/* Daily Allowance Context */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-1">
-                <span className="truncate">Daily allowance</span>
+                <span className="truncate font-medium">Daily limit</span>
                 <span className={cn(
-                  "font-semibold display-number text-[11px] shrink-0",
-                  todayRemainingAllowance < 0 ? "text-amber-500" : "text-foreground"
+                  "font-bold display-number text-[11px] shrink-0",
+                  todayRemainingAllowance < 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"
                 )}>
                   {formatCurrency(Math.max(0, todayRemainingAllowance), settings.currency)} left
                 </span>
               </div>
-              <div className="w-full h-1.5 bg-secondary/80 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
                 <div 
                   className={cn(
                     "h-full rounded-full transition-all duration-500",
@@ -695,7 +725,7 @@ export default function Dashboard() {
                       ? "bg-muted-foreground/30 w-0" 
                       : todayExpenses > dailyBudgetAllowance 
                       ? "bg-amber-500" 
-                      : "bg-primary"
+                      : "bg-emerald-500"
                   )}
                   style={{
                     width: dailyBudgetAllowance > 0 
@@ -709,28 +739,34 @@ export default function Dashboard() {
         </Card>
 
         {/* This Week Card */}
-        <Card className="rounded-3xl border border-white/20 dark:border-white/10 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-xs overflow-hidden">
-          <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2">
+        <Card className="rounded-3xl border border-border/80 dark:border-white/10 bg-card/92 dark:bg-card/78 backdrop-blur-2xl shadow-xs overflow-hidden">
+          <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2.5">
             <div>
-              <div className="h-5 flex items-center justify-between gap-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">This Week</p>
+              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400 border border-violet-500/25 flex items-center justify-center shrink-0">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                  </div>
+                  <p className="text-xs font-bold tracking-tight text-foreground">This Week</p>
+                </div>
                 <span className={cn(
-                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0",
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border shrink-0",
                   weekIntelligence.paceStatus.color === "emerald"
-                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-500/25"
                     : weekIntelligence.paceStatus.color === "amber"
-                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                    : "bg-destructive/15 text-destructive"
+                    ? "bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/25"
+                    : "bg-destructive/15 text-destructive border-destructive/25"
                 )}>
-                  {weekIntelligence.paceStatus.text}
+                  <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                  <span>{weekIntelligence.paceStatus.text}</span>
                 </span>
               </div>
-              <div className="mt-1">
-                <p className="text-xl sm:text-2xl font-bold display-number tracking-tight text-foreground leading-tight truncate">
+              <div className="mt-2 flex items-baseline justify-between gap-1">
+                <p className="text-xl sm:text-2xl font-extrabold display-number tracking-tight text-foreground leading-tight truncate">
                   <AnimatedNumber value={weekExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
                 </p>
-                <span className="text-[10.5px] font-medium text-muted-foreground block truncate">
-                  Avg {formatCurrency(weekIntelligence.dailyAvg, settings.currency)}/d
+                <span className="text-[10.5px] font-semibold text-muted-foreground shrink-0 display-number">
+                  ~{formatCurrency(weekIntelligence.dailyAvg, settings.currency)}/d
                 </span>
               </div>
             </div>
@@ -758,14 +794,14 @@ export default function Dashboard() {
                             : day.amount > 0
                             ? "bg-primary/65 group-hover:bg-primary/90"
                             : day.isPast
-                            ? "bg-muted-foreground/20"
-                            : "bg-muted/40"
+                            ? "bg-muted-foreground/25"
+                            : "bg-muted/60"
                         )}
                       />
                     </div>
                     <span className={cn(
-                      "text-[9px] font-medium transition-colors",
-                      day.isCurrentDay ? "text-primary font-bold" : "text-muted-foreground/70"
+                      "text-[9.5px] font-semibold transition-colors",
+                      day.isCurrentDay ? "text-primary font-bold" : "text-muted-foreground"
                     )}>
                       {day.label}
                     </span>
@@ -778,18 +814,20 @@ export default function Dashboard() {
       </div>
 
       {/* Category Budgets */}
-      <Card className="rounded-3xl border border-white/20 dark:border-white/10 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-xs overflow-hidden">
-        <CardContent className="p-4 sm:p-5 space-y-3.5">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider">Category Budgets</h3>
-            <Link to="/settings" className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5">
-              Manage →
-            </Link>
-          </div>
+      <Card className="rounded-3xl border border-border/80 dark:border-white/10 bg-card/92 dark:bg-card/78 backdrop-blur-2xl shadow-xs overflow-hidden">
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <SectionHeader
+            icon={<Target className="w-4 h-4" />}
+            title="Category Budgets"
+            tone="amber"
+            badge={`${budgets.filter(b => b.month === new Date().toISOString().slice(0, 7) && settings.categories.includes(b.category)).length} active`}
+            actionLabel="Manage"
+            actionTo="/settings"
+          />
           <div className="space-y-3.5">
             {budgets.filter(b => b.month === new Date().toISOString().slice(0, 7) && settings.categories.includes(b.category)).length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-border/50 rounded-2xl">
-                No budgets set for this month. Head over to <Link to="/settings" className="font-medium text-foreground underline">Settings</Link> to create limits!
+              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-border rounded-2xl bg-secondary/30">
+                No budgets set for this month. Head over to <Link to="/settings" className="font-semibold text-primary underline">Settings</Link> to create limits!
               </div>
             ) : (
               budgets
@@ -805,23 +843,29 @@ export default function Dashboard() {
                 return (
                   <div key={cat} className="space-y-1.5">
                     <div className="flex justify-between items-center text-xs sm:text-sm gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-sm shrink-0">{settings.categoryEmojis?.[cat] || '🏷️'}</span>
-                        <span className="font-medium truncate">{cat}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-6 h-6 rounded-lg bg-secondary flex items-center justify-center text-sm shrink-0">
+                          {settings.categoryEmojis?.[cat] || '🏷️'}
+                        </span>
+                        <span className="font-semibold text-foreground truncate">{cat}</span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground text-xs display-number">
-                        <span>{formatCurrency(spent, settings.currency)}</span>
+                        <span className="font-semibold text-foreground">{formatCurrency(spent, settings.currency)}</span>
                         <span>/</span>
                         <span>{formatCurrency(limit, settings.currency)}</span>
                         <span className={cn(
-                          "ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md",
-                          isDanger ? "bg-rose-500/15 text-rose-500" : isWarning ? "bg-amber-500/15 text-amber-500" : "bg-muted text-muted-foreground"
+                          "ml-1 text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                          isDanger
+                            ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/25"
+                            : isWarning
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/25"
+                            : "bg-secondary text-foreground border-border/60"
                         )}>
                           {Math.round(percentage)}%
                         </span>
                       </div>
                     </div>
-                    <div className="h-2 bg-secondary/80 rounded-full overflow-hidden">
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
                       <div 
                         className={cn(
                           "h-full rounded-full transition-all duration-500",
@@ -840,13 +884,18 @@ export default function Dashboard() {
 
       {/* Quick Add */}
       {quickAdds.length > 0 && (
-        <div>
-          <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-2.5">Quick Add</h3>
+        <div className="space-y-2.5">
+          <SectionHeader
+            icon={<Sparkles className="w-4 h-4" />}
+            title="1-Tap Quick Add"
+            tone="cyan"
+            badge={quickAdds.length}
+          />
           <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-3.5 sm:-mx-4 px-3.5 sm:px-4 scrollbar-hide">
             {quickAdds.map(qa => (
               <motion.button 
                 key={qa.description}
-                whileTap={{ scale: 0.92 }}
+                whileTap={{ scale: 0.94 }}
                 transition={{ type: "spring", stiffness: 500, damping: 24 }}
                 onClick={async () => {
                   vibrate(15);
@@ -870,12 +919,14 @@ export default function Dashboard() {
                     }
                   });
                 }}
-                className="flex items-center gap-2.5 bg-card/85 hover:bg-card border border-white/20 dark:border-white/10 px-3.5 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-colors shadow-xs select-none cursor-pointer"
+                className="flex items-center gap-2.5 bg-card/92 hover:bg-card border border-border/80 dark:border-white/10 hover:border-primary/40 px-3.5 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-all shadow-xs select-none cursor-pointer"
               >
-                <span className="text-xl">{qa.icon}</span>
+                <span className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-base">
+                  {qa.icon}
+                </span>
                 <div className="text-left">
-                  <p className="text-sm font-semibold leading-none">{qa.description}</p>
-                  <p className="text-xs text-muted-foreground mt-1 display-number">{formatCurrency(qa.amount, settings.currency)}</p>
+                  <p className="text-xs sm:text-sm font-bold leading-none text-foreground">{qa.description}</p>
+                  <p className="text-[11px] font-semibold text-primary mt-1 display-number">{formatCurrency(qa.amount, settings.currency)}</p>
                 </div>
               </motion.button>
             ))}
@@ -885,23 +936,25 @@ export default function Dashboard() {
 
       {/* Upcoming Bills */}
       {bills.length > 0 && (
-        <div>
-          <div className="flex justify-between items-center mb-2.5">
-            <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider">Upcoming Bills</h3>
-            <Link to="/planned" className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5">
-              View all →
-            </Link>
-          </div>
+        <div className="space-y-2.5">
+          <SectionHeader
+            icon={<CalendarClock className="w-4 h-4" />}
+            title="Upcoming Bills"
+            tone="rose"
+            badge={bills.length}
+            actionLabel="View all"
+            actionTo="/planned"
+          />
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-3.5 sm:-mx-4 px-3.5 sm:px-4 scrollbar-hide">
             {bills.map(bill => (
-              <div key={bill.id} className="bg-card/85 dark:bg-card/75 border border-white/20 dark:border-white/10 rounded-2xl p-3 shrink-0 w-[140px] shadow-xs flex flex-col justify-between">
+              <div key={bill.id} className="bg-card/92 dark:bg-card/78 border border-border/80 dark:border-white/10 rounded-2xl p-3.5 shrink-0 w-[150px] shadow-xs flex flex-col justify-between">
                 <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 truncate">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-wider bg-rose-500/12 text-rose-600 dark:text-rose-400 border border-rose-500/25 mb-2 truncate">
                     {bill.due_day ? `Due ${bill.due_day}th` : bill.due_date ? `Due ${format(parseISO(bill.due_date), 'MMM d')}` : bill.autoDeduct ? 'Auto-deduct' : 'Manual'}
-                  </p>
-                  <p className="font-semibold text-sm truncate text-foreground leading-tight">{bill.title}</p>
+                  </span>
+                  <p className="font-bold text-sm truncate text-foreground leading-tight">{bill.title}</p>
                 </div>
-                <p className="font-bold text-sm mt-2 text-foreground display-number">{formatCurrency(bill.amount, settings.currency)}</p>
+                <p className="font-extrabold text-base mt-2.5 text-foreground display-number">{formatCurrency(bill.amount, settings.currency)}</p>
               </div>
             ))}
           </div>
@@ -909,13 +962,15 @@ export default function Dashboard() {
       )}
 
       {/* Recent Expenses */}
-      <div>
-        <div className="flex justify-between items-center mb-2.5">
-          <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider">Recent Expenses</h3>
-          <Link to="/expenses" className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5">
-            View all →
-          </Link>
-        </div>
+      <div className="space-y-2.5">
+        <SectionHeader
+          icon={<ReceiptText className="w-4 h-4" />}
+          title="Recent Activity"
+          tone="blue"
+          badge={recentExpenses.length > 0 ? `${recentExpenses.length} latest` : undefined}
+          actionLabel="View all"
+          actionTo="/expenses"
+        />
         <div className="space-y-2.5">
           {recentExpenses.length === 0 ? (
             <EmptyState
@@ -932,23 +987,23 @@ export default function Dashboard() {
                 key={expense.id}
                 whileTap={{ scale: 0.985 }}
                 transition={{ type: "spring", stiffness: 450, damping: 26 }}
-                className="flex justify-between items-center p-3 sm:p-3.5 bg-card/85 dark:bg-card/75 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-xs hover:border-primary/30 transition-colors"
+                className="flex justify-between items-center p-3 sm:p-3.5 bg-card/92 dark:bg-card/78 backdrop-blur-xl border border-border/80 dark:border-white/10 rounded-2xl shadow-xs hover:border-primary/35 transition-colors"
               >
                 <Link to="/expenses" className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0 shadow-xs">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-semibold text-base shrink-0 shadow-2xs">
                     {settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm leading-tight truncate text-foreground">{expense.description}</p>
+                    <p className="font-bold text-sm leading-tight truncate text-foreground">{expense.description}</p>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-xs text-muted-foreground">{format(parseISO(expense.date), 'MMM d')}</span>
+                      <span className="text-[11px] font-medium text-muted-foreground">{format(parseISO(expense.date), 'MMM d')}</span>
                       <span className="text-muted-foreground/60">•</span>
                       <CategoryBadge category={expense.category} size="xs" />
                     </div>
                   </div>
                 </Link>
                 <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <div className="font-bold text-sm display-number text-foreground">
+                  <div className="font-extrabold text-sm sm:text-base display-number text-foreground">
                     {formatCurrency(expense.amount, settings.currency)}
                   </div>
                   <button
@@ -977,7 +1032,7 @@ export default function Dashboard() {
                         }
                       });
                     }}
-                    className="p-1.5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-90 transition-all select-none cursor-pointer"
+                    className="p-1.5 rounded-full bg-secondary/60 text-muted-foreground hover:text-primary hover:bg-primary/12 active:scale-90 transition-all select-none cursor-pointer border border-border/50"
                     title="Log again for today"
                     aria-label={`Log ${expense.description} again for today`}
                   >

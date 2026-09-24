@@ -41,29 +41,33 @@ export default function Planned() {
 
       {/* Cashflow & Deductions Overview */}
       <div className="grid grid-cols-2 gap-3.5">
-        <div className="p-4 rounded-3xl bg-card border border-border/70 shadow-xs flex flex-col justify-between">
+        <div className="p-4 rounded-3xl bg-card/92 dark:bg-card/78 border border-border/80 dark:border-white/10 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-medium">Deducted So Far</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span className="font-bold text-foreground">Deducted So Far</span>
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <div className="text-xl font-bold text-foreground mt-1.5">
+          <div className="text-xl sm:text-2xl font-extrabold text-foreground mt-2 display-number">
             {formatCurrency(totalDeducted, settings.currency)}
           </div>
-          <span className="text-[11px] text-muted-foreground mt-0.5">
+          <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
             Due date arrived this month
           </span>
         </div>
 
-        <div className="p-4 rounded-3xl bg-card border border-border/70 shadow-xs flex flex-col justify-between">
+        <div className="p-4 rounded-3xl bg-card/92 dark:bg-card/78 border border-border/80 dark:border-white/10 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-medium">Upcoming Obligations</span>
-            <CalendarDays className="w-4 h-4 text-amber-500" />
+            <span className="font-bold text-foreground">Upcoming</span>
+            <div className="w-6 h-6 rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400 border border-amber-500/25 flex items-center justify-center shrink-0">
+              <CalendarDays className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <div className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1.5">
+          <div className="text-xl sm:text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-2 display-number">
             {formatCurrency(upcomingTotal, settings.currency)}
           </div>
-          <span className="text-[11px] text-muted-foreground mt-0.5">
-            Deducts from balance on due dates
+          <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
+            Deducts on due dates
           </span>
         </div>
       </div>

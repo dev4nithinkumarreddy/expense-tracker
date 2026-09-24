@@ -5,31 +5,31 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 216 33% 97%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 217 91% 60%;
+    --primary: 217 91% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96.1%;
+    --secondary: 214 32% 93.5%;
     --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
+    --muted: 214 32% 93.5%;
+    --muted-foreground: 215 19% 42%;
+    --accent: 214 32% 93.5%;
     --accent-foreground: 222 47% 11%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 217 91% 60%;
+    --border: 214 30% 88.5%;
+    --input: 214 30% 88.5%;
+    --ring: 217 91% 58%;
     --radius: 1rem;
-    --sunset-start: 217 91% 60%;
+    --sunset-start: 217 91% 58%;
     --sunset-end: 199 89% 48%;
-    --chart-1: 217 91% 60%;
+    --chart-1: 217 91% 58%;
     --chart-2: 199 89% 48%;
     --chart-3: 175 80% 40%;
     --chart-4: 260 80% 65%;
@@ -39,26 +39,26 @@
     --chart-8: 280 65% 60%;
   }
   .dark {
-    --background: 222 47% 7%;
+    --background: 224 48% 6.5%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 11%;
+    --card: 222 42% 11.5%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
+    --popover: 222 42% 11.5%;
     --popover-foreground: 210 40% 98%;
     --primary: 217 91% 60%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 217 33% 17%;
+    --secondary: 217 33% 17.5%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217 33% 17%;
+    --muted: 217 33% 17.5%;
+    --muted-foreground: 215 20% 68%;
+    --accent: 217 33% 17.5%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
+    --border: 217 32% 19%;
+    --input: 217 32% 19%;
     --ring: 217 91% 60%;
     --sunset-start: 217 91% 60%;
     --sunset-end: 199 89% 48%;
@@ -75,14 +75,15 @@
     @apply border-border;
   }
   html, body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
     overflow-x: clip;
     font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     background-image: 
-      radial-gradient(circle at 0% 0%, hsl(var(--primary) / 0.08), transparent 35%),
-      radial-gradient(circle at 100% 100%, hsl(var(--sunset-end) / 0.08), transparent 35%);
+      radial-gradient(circle at 0% 0%, hsl(var(--primary) / 0.09), transparent 38%),
+      radial-gradient(circle at 100% 100%, hsl(var(--sunset-end) / 0.08), transparent 38%);
     background-attachment: fixed;
   }
 }
@@ -97,25 +98,26 @@
   }
   
   .glass-card {
-    background-color: hsl(var(--card) / 0.75);
+    background-color: hsl(var(--card) / 0.92);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid hsl(var(--border) / 0.7);
-    border-top: 1px solid rgba(255, 255, 255, 0.45);
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+    border: 1px solid hsl(var(--border) / 0.85);
+    border-top: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 1px 3px 0 rgba(15, 23, 42, 0.03);
   }
 
   .dark .glass-card {
-    background-color: hsl(var(--card) / 0.72);
+    background-color: hsl(var(--card) / 0.82);
+    border: 1px solid hsl(var(--border) / 0.8);
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.45);
   }
 
   .glass-toolbar {
-    background-color: hsl(var(--card) / 0.8);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-top: 1px solid rgba(255, 255, 255, 0.4);
+    background-color: hsl(var(--card) / 0.86);
+    backdrop-filter: blur(24px) saturate(190%);
+    -webkit-backdrop-filter: blur(24px) saturate(190%);
+    border-top: 1px solid rgba(255, 255, 255, 0.55);
   }
 
   .dark .glass-toolbar {
@@ -130,13 +132,20 @@
   }
 
   .display-number {
+    font-family: 'Outfit', '"Plus Jakarta Sans"', -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "cv01" 1;
   }
 
   .display-title {
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+    font-family: 'Outfit', '"Plus Jakarta Sans"', -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: -0.022em;
+    line-height: 1.12;
+  }
+
+  .ui-chip {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide border transition-all duration-150 select-none;
   }
 }
 
@@ -159,21 +168,27 @@
 
 /* Define themes outside of layers to prevent Tailwind from purging them dynamically */
 :root.theme-emerald, .theme-emerald {
-  --primary: 152 69% 45%;
-  --ring: 152 69% 45%;
-  --sunset-start: 152 69% 45%;
-  --sunset-end: 160 84% 39%;
+  --primary: 152 69% 42%;
+  --ring: 152 69% 42%;
+  --sunset-start: 152 69% 42%;
+  --sunset-end: 168 80% 38%;
 }
 :root.theme-rose, .theme-rose {
-  --primary: 346 87% 60%;
-  --ring: 346 87% 60%;
-  --sunset-start: 346 87% 60%;
-  --sunset-end: 333 71% 51%;
+  --primary: 346 84% 58%;
+  --ring: 346 84% 58%;
+  --sunset-start: 346 84% 58%;
+  --sunset-end: 328 78% 52%;
 }
 :root.theme-violet, .theme-violet {
   --primary: 262 83% 58%;
   --ring: 262 83% 58%;
   --sunset-start: 262 83% 58%;
-  --sunset-end: 271 91% 65%;
+  --sunset-end: 280 88% 62%;
+}
+:root.theme-amber, .theme-amber {
+  --primary: 28 92% 52%;
+  --ring: 28 92% 52%;
+  --sunset-start: 28 92% 52%;
+  --sunset-end: 14 88% 54%;
 }
 

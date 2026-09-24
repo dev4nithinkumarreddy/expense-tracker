@@ -8,7 +8,23 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Outfit', 'sans-serif'],
+        sans: [
+          '"Plus Jakarta Sans"',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"SF Pro Text"',
+          '"SF Pro Display"',
+          'Outfit',
+          'sans-serif',
+        ],
+        display: [
+          'Outfit',
+          '"Plus Jakarta Sans"',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"SF Pro Display"',
+          'sans-serif',
+        ],
       },
       colors: {
         background: "hsl(var(--background))",
