@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { hashPin, verifyPin, isBiometricsAvailable } from './biometrics';
+import {
+  hashPin,
+  verifyPin,
+  isBiometricsAvailable,
+  bufferToBase64,
+  base64ToBuffer,
+  isAppleDevice,
+  registerBiometrics,
+  authenticateWithBiometrics,
+} from './biometrics';
 
 describe('biometrics and PIN security', () => {
   it('hashes a PIN deterministically with SHA-256', async () => {
@@ -31,5 +40,28 @@ describe('biometrics and PIN security', () => {
   it('handles biometrics availability check safely when unmocked or mocked', async () => {
     const result = await isBiometricsAvailable();
     expect(typeof result).toBe('boolean');
+  });
+
+  it('correctly converts between ArrayBuffer and base64 strings', () => {
+    const original = new Uint8Array([1, 2, 3, 4, 15, 255]);
+    const b64 = bufferToBase64(original.buffer);
+    const restored = new Uint8Array(base64ToBuffer(b64));
+    expect(Array.from(restored)).toEqual(Array.from(original));
+  });
+
+  it('handles isAppleDevice safely in test environment', () => {
+    const result = isAppleDevice();
+    expect(typeof result).toBe('boolean');
+  });
+
+  it('handles registerBiometrics safely when WebAuthn is unavailable', async () => {
+    const res = await registerBiometrics();
+    expect(res.success).toBe(false);
+    expect(typeof res.error).toBe('string');
+  });
+
+  it('handles authenticateWithBiometrics safely when WebAuthn is unavailable', async () => {
+    const res = await authenticateWithBiometrics();
+    expect(res).toBe(false);
   });
 });

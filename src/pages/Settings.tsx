@@ -4,7 +4,7 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Lock, Fingerprint, KeyRound, Share2, Copy, Check } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Lock, Fingerprint, KeyRound, Share2, Copy, Check, ScanFace, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
@@ -14,7 +14,7 @@ import { RecentlyDeletedModal } from "../components/RecentlyDeletedModal";
 import { checkIsAdmin } from "../lib/admin";
 import { BadgeCabinet } from "../components/analytics/BadgeCabinet";
 import { PrintableStatementModal } from "../components/analytics/PrintableStatementModal";
-import { hashPin } from "../lib/biometrics";
+import { hashPin, registerBiometrics, clearStoredBiometrics, isAppleDevice } from "../lib/biometrics";
 import { toast } from "sonner";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
@@ -111,6 +111,40 @@ export default function Settings() {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isRegisteringBiometrics, setIsRegisteringBiometrics] = useState(false);
+  const isApple = isAppleDevice();
+
+  const handleToggleBiometrics = async () => {
+    vibrate(10);
+    if (settings.appLockBiometrics) {
+      clearStoredBiometrics();
+      updateSettings({ appLockBiometrics: false });
+      toast.success(isApple ? 'Face ID / Touch ID disabled' : 'Biometric unlock disabled');
+      return;
+    }
+
+    setIsRegisteringBiometrics(true);
+    try {
+      const res = await registerBiometrics();
+      if (res.success) {
+        updateSettings({ appLockBiometrics: true });
+        vibrate([15, 30, 15]);
+        if (settings.soundEnabled) playSuccessSound();
+        toast.success(
+          isApple
+            ? 'Face ID / Touch ID configured successfully!'
+            : 'Biometric unlock configured successfully!'
+        );
+      } else {
+        toast.error(res.error || 'Failed to setup biometrics');
+      }
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      toast.error(err?.message || 'Could not enable biometrics');
+    } finally {
+      setIsRegisteringBiometrics(false);
+    }
+  };
 
   const APP_SHARE_URL = "https://expense-tracker-captain12.vercel.app/";
 
@@ -608,21 +642,34 @@ export default function Settings() {
 
                   <div className="flex justify-between items-center pt-2 border-t">
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium">Biometric Unlock</span>
+                      <span className="text-sm font-medium flex items-center gap-1.5">
+                        {isApple ? (
+                          <ScanFace className="w-3.5 h-3.5 text-primary" />
+                        ) : (
+                          <Fingerprint className="w-3.5 h-3.5 text-primary" />
+                        )}
+                        <span>{isApple ? 'Face ID / Touch ID' : 'Biometric Unlock'}</span>
+                      </span>
                       <span className="text-xs text-muted-foreground">
-                        Use Face ID, Touch ID, or Windows Hello
+                        {isApple
+                          ? 'Unlock seamlessly with Apple Face ID or Touch ID'
+                          : 'Use Face ID, Touch ID, or Windows Hello'}
                       </span>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
+                      disabled={isRegisteringBiometrics}
                       className="gap-1.5"
-                      onClick={() => {
-                        vibrate(10);
-                        updateSettings({ appLockBiometrics: !settings.appLockBiometrics });
-                      }}
+                      onClick={handleToggleBiometrics}
                     >
-                      <Fingerprint className="w-3.5 h-3.5" />
+                      {isRegisteringBiometrics ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                      ) : isApple ? (
+                        <ScanFace className="w-3.5 h-3.5" />
+                      ) : (
+                        <Fingerprint className="w-3.5 h-3.5" />
+                      )}
                       <span>{settings.appLockBiometrics ? 'On' : 'Off'}</span>
                     </Button>
                   </div>

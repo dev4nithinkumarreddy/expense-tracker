@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useExpenseStore } from '../../store/useExpenseStore';
-import { verifyPin, authenticateWithBiometrics, isBiometricsAvailable } from '../../lib/biometrics';
-import { Shield, Delete, Fingerprint } from 'lucide-react';
+import { verifyPin, authenticateWithBiometrics, isBiometricsAvailable, isAppleDevice } from '../../lib/biometrics';
+import { Shield, Delete, Fingerprint, ScanFace } from 'lucide-react';
 import { vibrate } from '../../lib/utils';
 import { playTapSound, playSuccessSound } from '../../lib/sound';
 import { toast } from 'sonner';
@@ -17,17 +17,24 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
   const [isShaking, setIsShaking] = useState(false);
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const isApple = isAppleDevice();
 
   useEffect(() => {
     isBiometricsAvailable().then(setIsBiometricSupported);
   }, []);
 
-  // Attempt biometrics on mount if enabled
+  // Attempt biometrics on mount if supported and not on iOS (iOS requires user gesture to trigger Face ID)
   useEffect(() => {
-    if (settings.appLockEnabled && settings.appLockBiometrics && isBiometricSupported && !isUnlocked) {
+    if (
+      settings.appLockEnabled &&
+      settings.appLockBiometrics &&
+      isBiometricSupported &&
+      !isUnlocked &&
+      !isApple
+    ) {
       handleBiometricAuth();
     }
-  }, [settings.appLockEnabled, settings.appLockBiometrics, isBiometricSupported, isUnlocked]);
+  }, [settings.appLockEnabled, settings.appLockBiometrics, isBiometricSupported, isUnlocked, isApple]);
 
   const handleBiometricAuth = async () => {
     vibrate(10);
@@ -123,6 +130,18 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
               );
             })}
           </motion.div>
+
+          {/* Quick Biometric Unlock Pill */}
+          {isBiometricSupported && settings.appLockBiometrics && (
+            <button
+              type="button"
+              onClick={handleBiometricAuth}
+              className="mt-5 px-4 py-2 rounded-full bg-primary/10 hover:bg-primary/15 active:scale-95 text-primary border border-primary/20 text-xs font-semibold flex items-center gap-2 transition-all shadow-xs"
+            >
+              {isApple ? <ScanFace className="w-4 h-4" /> : <Fingerprint className="w-4 h-4" />}
+              <span>{isApple ? 'Unlock with Face ID' : 'Unlock with Biometrics'}</span>
+            </button>
+          )}
         </div>
 
         {/* Keypad */}
@@ -145,9 +164,9 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
                 type="button"
                 onClick={handleBiometricAuth}
                 className="w-16 h-16 sm:w-18 sm:h-18 mx-auto rounded-full bg-primary/10 hover:bg-primary/20 text-primary active:scale-90 transition-all flex items-center justify-center border border-primary/20 shadow-xs"
-                aria-label="Use Biometrics"
+                aria-label={isApple ? 'Use Face ID' : 'Use Biometrics'}
               >
-                <Fingerprint className="w-6 h-6" />
+                {isApple ? <ScanFace className="w-6 h-6" /> : <Fingerprint className="w-6 h-6" />}
               </button>
             ) : (
               <div />
