@@ -144,37 +144,113 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
       subscriptions,
       new Date()
     );
-    const remaining = summary.availableBalance;
+    // If over budget, available balance is negative or zero; clamp to 0 for available liquid funds
+    const remaining = Math.max(0, summary.availableBalance);
     const targetAcc = accountId 
       ? accounts.find((a) => a.id === accountId)
       : accounts.find((a) => a.type === 'bank') || accounts[0];
 
     if (!targetAcc) return;
 
-    // Calculate other liquid balances (excluding target account and credit cards)
-    const otherLiquidTotal = accounts
-      .filter((a) => a.id !== targetAcc.id && a.type !== 'credit_card')
-      .reduce((sum, a) => {
-        if (a.type === 'cash' && a.balance === 2500) return sum;
-        return sum + Math.max(0, a.balance || 0);
-      }, 0);
+    // Find other liquid accounts (excluding target account and credit card debt)
+    const otherLiquidAccounts = accounts.filter(
+      (a) => a.id !== targetAcc.id && a.type !== 'credit_card'
+    );
 
-    const targetBalance = Math.max(0, remaining - otherLiquidTotal);
+    // Sum of other liquid accounts (treating dummy template 2500 cash as 0)
+    const otherLiquidTotal = otherLiquidAccounts.reduce((sum, a) => {
+      if (a.type === 'cash' && a.balance === 2500) return sum;
+      return sum + Math.max(0, a.balance || 0);
+    }, 0);
 
-    set((state) => ({
-      accounts: state.accounts.map((acc) => {
-        if (acc.id === targetAcc.id) {
-          return { ...acc, balance: targetBalance };
+    let targetBalance = 0;
+    const otherBalances: Record<string, number> = {};
+
+    if (remaining === 0) {
+      // Balance is completely depleted/zero:
+      // Both target account AND cash/liquid balances must be 0 so accounts match budget!
+      targetBalance = 0;
+      otherLiquidAccounts.forEach((a) => {
+        otherBalances[a.id] = 0;
+      });
+    } else if (remaining >= otherLiquidTotal) {
+      // Normal case: target account absorbs the difference, other accounts keep their funds
+      targetBalance = remaining - otherLiquidTotal;
+      otherLiquidAccounts.forEach((a) => {
+        if (a.type === 'cash' && a.balance === 2500) {
+          otherBalances[a.id] = 0;
+        } else {
+          otherBalances[a.id] = Math.max(0, a.balance || 0);
         }
-        // If cash has the placeholder 2500, reset it to 0
-        if (acc.type === 'cash' && acc.balance === 2500) {
-          return { ...acc, balance: 0 };
+      });
+    } else {
+      // Low balance case (remaining < otherLiquidTotal):
+      // Target account gets 0, and the remaining budget is allocated across other liquid accounts (Cash)
+      targetBalance = 0;
+      let poolLeft = remaining;
+      otherLiquidAccounts.forEach((a) => {
+        const curBal = (a.type === 'cash' && a.balance === 2500) ? 0 : Math.max(0, a.balance || 0);
+        const allocated = Math.min(curBal, poolLeft);
+        otherBalances[a.id] = allocated;
+        poolLeft -= allocated;
+      });
+      if (poolLeft > 0) {
+        if (otherLiquidAccounts.length > 0) {
+          otherBalances[otherLiquidAccounts[0].id] = (otherBalances[otherLiquidAccounts[0].id] || 0) + poolLeft;
+        } else {
+          targetBalance = poolLeft;
         }
-        return acc;
-      }),
-    }));
+      }
+    }
 
-    toast.success(`Synced ${targetAcc.name} (${targetAcc.currency || settings.currency}${targetBalance}). Accounts now match remaining budget.`);
+    const updatedAccounts = accounts.map((acc) => {
+      if (acc.id === targetAcc.id) {
+        return { ...acc, balance: targetBalance };
+      }
+      if (acc.id in otherBalances) {
+        return { ...acc, balance: otherBalances[acc.id] };
+      }
+      return acc;
+    });
+
+    set({ accounts: updatedAccounts });
+
+    // Sync changed account balances to Supabase if session exists
+    const { session, addPendingMutation, syncPendingMutations } = get();
+    if (session) {
+      updatedAccounts.forEach((acc) => {
+        const prev = accounts.find((p) => p.id === acc.id);
+        if (prev && prev.balance !== acc.balance) {
+          addPendingMutation({
+            type: 'UPDATE_ACCOUNT',
+            payload: {
+              id: acc.id,
+              name: acc.name,
+              type: acc.type,
+              balance: acc.balance,
+              currency: acc.currency,
+              color: acc.color,
+              icon: acc.icon,
+              credit_limit: acc.credit_limit,
+              statement_day: acc.statement_day,
+              due_day: acc.due_day,
+            },
+          });
+        }
+      });
+      syncPendingMutations();
+    }
+
+    const curr = targetAcc.currency || settings.currency;
+    const cashAcc = updatedAccounts.find((a) => a.type === 'cash');
+    const cashPrev = accounts.find((a) => a.type === 'cash');
+    if (cashAcc && cashPrev && cashAcc.balance !== cashPrev.balance) {
+      toast.success(
+        `Synced accounts (${targetAcc.name}: ${curr}${targetBalance}, ${cashAcc.name}: ${curr}${cashAcc.balance}). Liquid wealth now matches remaining budget.`
+      );
+    } else {
+      toast.success(`Synced ${targetAcc.name} (${curr}${targetBalance}). Accounts now match remaining budget.`);
+    }
   },
 
   reconcileAccountsWithBudget: () => {

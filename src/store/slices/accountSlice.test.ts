@@ -221,4 +221,56 @@ describe('accountSlice', () => {
     expect(cash?.balance).toBe(100);
     expect((bank?.balance ?? 0) + (cash?.balance ?? 0)).toBe(400);
   });
+
+  it('syncs both bank and cash to 0 when remaining budget is completely depleted (0)', () => {
+    useExpenseStore.setState({
+      settings: { monthlyIncome: 15000, currency: '₹' } as any,
+      expenses: [
+        { id: 'e1', amount: 15000, description: 'All Budget Spent', category: 'General', date: new Date().toISOString() },
+      ],
+      bills: [],
+      subscriptions: [],
+      accounts: [
+        { id: 'acc-bank', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹' },
+        { id: 'acc-cash', name: 'Cash Wallet', type: 'cash', balance: 100, currency: '₹' },
+      ],
+    });
+
+    const store = useExpenseStore.getState();
+    // Remaining budget = 0
+    store.syncAccountWithBalance();
+
+    const state = useExpenseStore.getState();
+    const bank = state.accounts.find((a) => a.id === 'acc-bank');
+    const cash = state.accounts.find((a) => a.id === 'acc-cash');
+    expect(bank?.balance).toBe(0);
+    expect(cash?.balance).toBe(0);
+    expect((bank?.balance ?? 0) + (cash?.balance ?? 0)).toBe(0);
+  });
+
+  it('syncs cash down when remaining budget is low (less than cash balance)', () => {
+    useExpenseStore.setState({
+      settings: { monthlyIncome: 1000, currency: '₹' } as any,
+      expenses: [
+        { id: 'e1', amount: 960, description: 'Most Budget Spent', category: 'General', date: new Date().toISOString() },
+      ],
+      bills: [],
+      subscriptions: [],
+      accounts: [
+        { id: 'acc-bank', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹' },
+        { id: 'acc-cash', name: 'Cash Wallet', type: 'cash', balance: 100, currency: '₹' },
+      ],
+    });
+
+    const store = useExpenseStore.getState();
+    // Remaining budget = 40 (which is less than 100 in cash)
+    store.syncAccountWithBalance();
+
+    const state = useExpenseStore.getState();
+    const bank = state.accounts.find((a) => a.id === 'acc-bank');
+    const cash = state.accounts.find((a) => a.id === 'acc-cash');
+    expect(bank?.balance).toBe(0);
+    expect(cash?.balance).toBe(40);
+    expect((bank?.balance ?? 0) + (cash?.balance ?? 0)).toBe(40);
+  });
 });
