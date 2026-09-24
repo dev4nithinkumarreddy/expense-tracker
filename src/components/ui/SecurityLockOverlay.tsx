@@ -20,6 +20,7 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
   const isApple = isAppleDevice();
   const isAuthenticatingRef = useRef(false);
   const hasAutoTriggeredRef = useRef(false);
+  const hasFirstGestureTriggeredRef = useRef(false);
 
   const triggerUnlock = useCallback(() => {
     vibrate(20);
@@ -105,6 +106,23 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0, scale: 1.05 }}
         transition={{ duration: 0.25 }}
+        onPointerDown={(e) => {
+          // iOS WebKit blocks WebAuthn until the first user touch gesture.
+          // Trigger Face ID immediately on the first touch anywhere on the screen
+          // unless the user tapped a PIN digit directly.
+          if (
+            !hasFirstGestureTriggeredRef.current &&
+            settings.appLockBiometrics &&
+            isBiometricSupported &&
+            !isUnlocked
+          ) {
+            const target = e.target as HTMLElement;
+            if (!target.closest('[data-pin-digit]')) {
+              hasFirstGestureTriggeredRef.current = true;
+              handleBiometricAuth();
+            }
+          }
+        }}
         className="fixed inset-0 z-[999] flex flex-col items-center justify-between p-6 py-12 bg-background/95 backdrop-blur-2xl text-foreground select-none"
       >
         {/* Header Branding */}
@@ -115,7 +133,9 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
           <div className="text-center">
             <h2 className="text-xl font-bold tracking-tight">App Locked</h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Enter your 4-digit PIN to continue
+              {isBiometricSupported && settings.appLockBiometrics && isApple
+                ? 'Touch anywhere for Face ID or enter 4-digit PIN'
+                : 'Enter your 4-digit PIN to continue'}
             </p>
           </div>
 
@@ -160,6 +180,7 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
               <button
                 key={digit}
                 type="button"
+                data-pin-digit="true"
                 onClick={() => handleKeyPress(digit)}
                 className="w-16 h-16 sm:w-18 sm:h-18 mx-auto rounded-full bg-secondary/50 hover:bg-secondary active:scale-90 active:bg-primary/20 transition-all font-semibold text-xl flex items-center justify-center shadow-xs border border-border/40"
               >
@@ -183,6 +204,7 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
 
             <button
               type="button"
+              data-pin-digit="true"
               onClick={() => handleKeyPress('0')}
               className="w-16 h-16 sm:w-18 sm:h-18 mx-auto rounded-full bg-secondary/50 hover:bg-secondary active:scale-90 active:bg-primary/20 transition-all font-semibold text-xl flex items-center justify-center shadow-xs border border-border/40"
             >
@@ -191,6 +213,7 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
 
             <button
               type="button"
+              data-pin-digit="true"
               onClick={handleDelete}
               className="w-16 h-16 sm:w-18 sm:h-18 mx-auto rounded-full bg-secondary/30 hover:bg-secondary active:scale-90 text-muted-foreground hover:text-foreground transition-all flex items-center justify-center border border-border/30"
               aria-label="Backspace"
