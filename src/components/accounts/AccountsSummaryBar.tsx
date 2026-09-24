@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useExpenseStore, type Account } from '../../store/useExpenseStore';
 import { formatCurrency } from '../../lib/formatCurrency';
-import { vibrate } from '../../lib/utils';
+import { vibrate, cn } from '../../lib/utils';
 import { playTapSound, playSuccessSound } from '../../lib/sound';
 import { 
   Building2, 
@@ -185,7 +185,7 @@ export function AccountsSummaryBar() {
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <Button
             size="sm"
             variant="outline"
@@ -194,20 +194,21 @@ export function AccountsSummaryBar() {
               playTapSound();
               syncAccountWithBalance();
             }}
-            className="h-8 px-2.5 rounded-xl text-xs gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 shadow-2xs cursor-pointer text-primary"
+            className="h-8 px-2 sm:px-2.5 rounded-xl text-xs gap-1 sm:gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 shadow-2xs cursor-pointer text-primary"
             title="Sync Bank balance to match your remaining monthly budget"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Sync with Budget</span>
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Sync with Budget</span>
+            <span className="sm:hidden">Sync</span>
           </Button>
 
           <Button
             size="sm"
             variant="outline"
             onClick={() => handleOpenTransfer()}
-            className="h-8 px-2.5 rounded-xl text-xs gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 shadow-2xs cursor-pointer"
+            className="h-8 px-2 sm:px-2.5 rounded-xl text-xs gap-1 sm:gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 shadow-2xs cursor-pointer"
           >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-primary" />
+            <ArrowRightLeft className="w-3.5 h-3.5 text-primary shrink-0" />
             <span>Transfer</span>
           </Button>
 
@@ -219,17 +220,17 @@ export function AccountsSummaryBar() {
               playTapSound();
               setIsAddAccountOpen(true);
             }}
-            className="h-8 px-2.5 rounded-xl text-xs gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 text-muted-foreground hover:text-foreground shadow-2xs cursor-pointer"
+            className="h-8 px-2 sm:px-2.5 rounded-xl text-xs gap-1 sm:gap-1.5 bg-secondary/50 hover:bg-secondary border-border/50 text-muted-foreground hover:text-foreground shadow-2xs cursor-pointer"
             aria-label="Add Account"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 shrink-0" />
             <span>Add</span>
           </Button>
         </div>
       </div>
 
       {/* Responsive Inset Grouped Accounts Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
         {accounts.map((acc) => {
           const isCard = acc.type === 'credit_card';
           return (
@@ -238,13 +239,14 @@ export function AccountsSummaryBar() {
               whileTap={{ scale: 0.985 }}
               transition={{ type: "spring", stiffness: 450, damping: 28 }}
               onClick={() => handleOpenTransfer(acc.id)}
-              className={`p-3.5 rounded-2xl border backdrop-blur-xl relative overflow-hidden transition-all shadow-xs cursor-pointer flex flex-col justify-between min-h-[96px] ${
+              className={cn(
+                "p-3 sm:p-3.5 rounded-2xl border backdrop-blur-xl relative overflow-hidden transition-all shadow-xs cursor-pointer flex flex-col justify-between min-h-[96px]",
                 isCard
-                  ? 'bg-gradient-to-br from-purple-500/10 via-card/90 to-card/95 border-purple-500/25 dark:border-purple-400/20 hover:border-purple-500/40'
-                  : acc.type === 'cash'
-                  ? 'bg-gradient-to-br from-emerald-500/10 via-card/90 to-card/95 border-emerald-500/25 dark:border-emerald-400/20 hover:border-emerald-500/40'
-                  : 'bg-gradient-to-br from-blue-500/10 via-card/90 to-card/95 border-blue-500/25 dark:border-blue-400/20 hover:border-blue-500/40'
-              }`}
+                  ? "bg-gradient-to-br from-purple-500/10 via-card/90 to-card/95 border-purple-500/25 dark:border-purple-400/20 hover:border-purple-500/40"
+                  : acc.type === "cash"
+                  ? "bg-gradient-to-br from-emerald-500/10 via-card/90 to-card/95 border-emerald-500/25 dark:border-emerald-400/20 hover:border-emerald-500/40"
+                  : "bg-gradient-to-br from-blue-500/10 via-card/90 to-card/95 border-blue-500/25 dark:border-blue-400/20 hover:border-blue-500/40"
+              )}
             >
               {/* Account Header */}
               <div className="flex items-center justify-between gap-1.5 mb-2">
@@ -252,7 +254,7 @@ export function AccountsSummaryBar() {
                   <div className="w-7 h-7 rounded-xl bg-background/80 flex items-center justify-center shadow-2xs shrink-0">
                     {getAccountIcon(acc)}
                   </div>
-                  <span className="text-xs font-semibold truncate text-foreground">
+                  <span className="text-xs font-semibold truncate text-foreground leading-tight">
                     {acc.name}
                   </span>
                 </div>
@@ -273,13 +275,14 @@ export function AccountsSummaryBar() {
               </div>
 
               {/* Account Balance */}
-              <div className="my-auto">
+              <div className="my-auto py-0.5">
                 <p className="text-[10px] text-muted-foreground">
                   {isCard ? 'Owed Balance' : 'Available Balance'}
                 </p>
-                <p className={`text-base sm:text-lg font-bold tracking-tight display-number ${
-                  isCard && acc.balance > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-foreground'
-                }`}>
+                <p className={cn(
+                  "text-base sm:text-lg font-bold tracking-tight display-number leading-tight truncate",
+                  isCard && acc.balance > 0 ? "text-purple-600 dark:text-purple-400" : "text-foreground"
+                )}>
                   {settings.privacyMode
                     ? '••••••'
                     : formatCurrency(acc.balance, acc.currency || settings.currency)}
@@ -287,11 +290,11 @@ export function AccountsSummaryBar() {
               </div>
 
               {/* Footer row */}
-              <div className="mt-2 pt-2 border-t border-border/30 flex items-center justify-between text-[10px] text-muted-foreground">
+              <div className="mt-2 pt-2 border-t border-border/30 flex items-center justify-between text-[10px] text-muted-foreground gap-1">
                 {isCard && acc.credit_limit && acc.credit_limit > 0 ? (
                   <>
-                    <span>Available Credit:</span>
-                    <span className="font-semibold text-foreground">
+                    <span className="truncate">Avail. Credit:</span>
+                    <span className="font-semibold text-foreground shrink-0">
                       {settings.privacyMode
                         ? '••••'
                         : formatCurrency(
@@ -307,17 +310,17 @@ export function AccountsSummaryBar() {
                   </>
                 ) : acc.type === 'bank' ? (
                   <>
-                    <span>Primary Account</span>
+                    <span>Primary</span>
                     <span className="text-blue-500 font-medium">UPI / NetBanking</span>
                   </>
                 ) : acc.type === 'cash' ? (
                   <>
-                    <span>Physical Cash</span>
+                    <span>Physical</span>
                     <span className="text-emerald-500 font-medium">In Pocket</span>
                   </>
                 ) : (
                   <>
-                    <span>Savings Pot</span>
+                    <span>Savings</span>
                     <span className="text-amber-500 font-medium">Reserve</span>
                   </>
                 )}

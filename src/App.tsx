@@ -133,7 +133,7 @@ export default function App() {
         <BrowserRouter>
           <div className="min-h-screen bg-background text-foreground pb-24 [overflow-x:clip] relative">
             <AmbientBackground />
-            <main className="container max-w-md md:max-w-xl lg:max-w-2xl mx-auto p-4 animate-in fade-in duration-300">
+            <main className="container max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl mx-auto px-3.5 sm:px-4 py-3 sm:py-4 animate-in fade-in duration-300">
               <AnimatedRoutes />
             </main>
         

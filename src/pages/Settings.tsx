@@ -4,7 +4,7 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Lock, Fingerprint, KeyRound } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Lock, Fingerprint, KeyRound, Share2, Copy, Check } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
@@ -110,6 +110,44 @@ export default function Settings() {
   const [isStatementOpen, setIsStatementOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [pinInput, setPinInput] = useState("");
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const APP_SHARE_URL = "https://expense-tracker-captain12.vercel.app/";
+
+  const copyToClipboard = async () => {
+    vibrate(15);
+    if (settings.soundEnabled) playSuccessSound();
+    try {
+      await navigator.clipboard.writeText(APP_SHARE_URL);
+      setCopiedLink(true);
+      toast.success("Link copied to clipboard!");
+      setTimeout(() => setCopiedLink(false), 2200);
+    } catch {
+      toast.error("Failed to copy link");
+    }
+  };
+
+  const handleShareApp = async () => {
+    vibrate(15);
+    if (settings.soundEnabled) playTapSound();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Expense Tracker",
+          text: "Check out this fluid Expense Tracker to manage your spending, budgets, and liquid wealth!",
+          url: APP_SHARE_URL,
+        });
+        toast.success("Thanks for sharing!");
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          copyToClipboard();
+        }
+      }
+    } else {
+      copyToClipboard();
+    }
+  };
 
   const handleSavePin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,6 +327,76 @@ export default function Settings() {
             )}
           </div>
         )}
+
+        {/* Minimal & Attractive Share Option Card */}
+        <div className="relative overflow-hidden rounded-3xl border border-white/30 dark:border-white/10 bg-gradient-to-br from-primary/10 via-card/90 to-card/95 backdrop-blur-2xl p-4 sm:p-5 shadow-xs">
+          {/* Subtle Ambient Bloom */}
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary/20 blur-2xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Left Info */}
+            <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-primary to-cyan-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-primary/25">
+                <Share2 className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm text-foreground tracking-tight">Share Expense Tracker</h3>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20">
+                    Invite Friends
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Help friends track budgets, monitor cashflow & grow savings.
+                </p>
+                <button
+                  type="button"
+                  onClick={copyToClipboard}
+                  className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-background/80 hover:bg-background border border-border/50 text-[11px] text-muted-foreground hover:text-foreground font-mono transition-colors max-w-full cursor-pointer group"
+                  title="Click to copy link"
+                >
+                  <span className="truncate">expense-tracker-captain12.vercel.app</span>
+                  {copiedLink ? (
+                    <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Copy className="w-3 h-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Right Action Buttons */}
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={copyToClipboard}
+                className="h-8.5 px-3 rounded-xl text-xs font-semibold bg-secondary/80 hover:bg-secondary border border-border/60 text-foreground transition-all flex items-center gap-1.5 active:scale-95 shadow-2xs cursor-pointer select-none"
+                title="Copy app link"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500 stroke-[2.5]" />
+                    <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+
+              <Button
+                size="sm"
+                onClick={handleShareApp}
+                className="h-8.5 px-3.5 rounded-xl text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs shadow-primary/25 active:scale-95 transition-all cursor-pointer select-none"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Share</span>
+              </Button>
+            </div>
+          </div>
+        </div>
 
         <div>
           <Card className="rounded-3xl border border-border/60 bg-card/85 backdrop-blur-xl shadow-xs overflow-hidden">

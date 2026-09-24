@@ -27,25 +27,25 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { checkIsAdmin } from "../lib/admin";
 
 const DashboardSkeleton = () => (
-  <div className="space-y-6 animate-pulse mt-4">
-    <div className="flex justify-between items-end">
+  <div className="space-y-6 animate-pulse mt-2">
+    <div className="flex justify-between items-center">
       <div className="space-y-2">
-        <div className="h-7 w-32 bg-secondary/80 rounded-md" />
-        <div className="h-4 w-24 bg-secondary/80 rounded-md" />
+        <div className="h-7 w-32 bg-secondary/80 rounded-xl" />
+        <div className="h-4 w-24 bg-secondary/80 rounded-lg" />
       </div>
-      <div className="h-9 w-9 bg-secondary/80 rounded-full" />
+      <div className="flex gap-2">
+        <div className="h-9 w-9 bg-secondary/80 rounded-full" />
+        <div className="h-9 w-9 bg-secondary/80 rounded-full" />
+      </div>
     </div>
-    <div className="h-48 w-full bg-secondary/80 rounded-xl" />
+    <div className="h-10 w-full bg-secondary/80 rounded-2xl" />
+    <div className="h-56 w-full bg-secondary/80 rounded-3xl" />
+    <div className="h-40 w-full bg-secondary/80 rounded-3xl" />
     <div className="grid grid-cols-2 gap-4">
-      <div className="h-24 bg-secondary/80 rounded-xl" />
-      <div className="h-24 bg-secondary/80 rounded-xl" />
+      <div className="h-32 bg-secondary/80 rounded-3xl" />
+      <div className="h-32 bg-secondary/80 rounded-3xl" />
     </div>
-    <div className="h-16 w-full bg-secondary/80 rounded-xl" />
-    <div className="space-y-3">
-      <div className="h-5 w-32 bg-secondary/80 rounded-md mb-2" />
-      <div className="h-16 w-full bg-secondary/80 rounded-xl" />
-      <div className="h-16 w-full bg-secondary/80 rounded-xl" />
-    </div>
+    <div className="h-36 w-full bg-secondary/80 rounded-3xl" />
   </div>
 );
 
@@ -265,22 +265,26 @@ export default function Dashboard() {
 
   return (
     <PullToRefresh onRefresh={fetchCloudData}>
-      <div className="space-y-6 pb-20">
+      <div className="space-y-5 sm:space-y-6 pb-12">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold display-title leading-tight truncate">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold display-title leading-tight truncate">
               {displayName}
             </h1>
-            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 truncate">
               {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {currentStreak > 0 ? (
-              <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full font-medium text-sm border border-orange-500/20 shadow-xs animate-in fade-in zoom-in">
+              <div className="flex items-center gap-1 bg-orange-500/10 text-orange-500 px-2 sm:px-3 py-1.5 rounded-full font-medium text-xs sm:text-sm border border-orange-500/20 shadow-xs animate-in fade-in zoom-in">
                 <span>🔥</span>
-                <span>{currentStreak} Day Streak</span>
+                <span>
+                  {currentStreak}
+                  <span className="hidden sm:inline"> Day Streak</span>
+                  <span className="sm:hidden">d</span>
+                </span>
               </div>
             ) : null}
 
@@ -290,7 +294,7 @@ export default function Dashboard() {
                 updateSettings({ privacyMode: !settings.privacyMode });
               }}
               aria-label={settings.privacyMode ? "Show budget" : "Hide budget"}
-              className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none"
+              className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
             >
               {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
@@ -301,7 +305,7 @@ export default function Dashboard() {
                 onClick={() => vibrate(15)}
                 aria-label="Admin Portal"
                 title="Admin Portal"
-                className="p-2 text-primary hover:text-primary active:scale-95 transition-all duration-100 bg-primary/10 hover:bg-primary/20 rounded-full shadow-xs border border-primary/25 select-none animate-in fade-in"
+                className="w-9 h-9 flex items-center justify-center text-primary hover:text-primary active:scale-95 transition-all duration-100 bg-primary/10 hover:bg-primary/20 rounded-full shadow-xs border border-primary/25 select-none animate-in fade-in"
               >
                 <ShieldCheck className="w-4 h-4" />
               </Link>
@@ -311,7 +315,7 @@ export default function Dashboard() {
               to="/settings"
               onClick={() => vibrate(15)}
               aria-label="Settings"
-              className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none"
+              className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none"
             >
               <SettingsIcon className="w-4 h-4" />
             </Link>
@@ -323,7 +327,7 @@ export default function Dashboard() {
           <Sparkles className="w-4 h-4 text-primary shrink-0 animate-pulse" />
           <input
             type="text"
-            placeholder="Smart log: 'Coffee 150', 'Uber 300 #travel', 'Grocery 800 yesterday'..."
+            placeholder="Smart log: 'Coffee 150' or 'Uber 300'..."
             value={dashboardSmartInput}
             onChange={(e) => setDashboardSmartInput(e.target.value)}
             onKeyDown={(e) => {
@@ -332,16 +336,26 @@ export default function Dashboard() {
                 handleDashboardSmartSubmit();
               }
             }}
-            className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
           />
           {dashboardSmartInput && (
-            <Button
-              size="sm"
-              className="h-7 text-xs px-2.5 rounded-xl font-medium cursor-pointer"
-              onClick={handleDashboardSmartSubmit}
-            >
-              Log
-            </Button>
+            <div className="flex items-center gap-1 shrink-0 animate-in fade-in zoom-in-95 duration-150">
+              <button
+                type="button"
+                onClick={() => setDashboardSmartInput('')}
+                className="p-1 rounded-full text-muted-foreground hover:text-foreground cursor-pointer"
+                aria-label="Clear input"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <Button
+                size="sm"
+                className="h-7 text-xs px-2.5 rounded-xl font-medium cursor-pointer"
+                onClick={handleDashboardSmartSubmit}
+              >
+                Log
+              </Button>
+            </div>
           )}
         </div>
 
@@ -467,62 +481,63 @@ export default function Dashboard() {
           />
           {/* Subtle inner sheen */}
           <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent dark:from-white/5 pointer-events-none" />
-          <CardContent className="p-5 sm:p-6 relative z-10 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
-                  Monthly Budget
+          <CardContent className="p-4 sm:p-6 relative z-10 space-y-4 sm:space-y-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1 flex items-center gap-1.5">
+                  <span>Monthly Budget</span>
                   <button 
                     onClick={() => { vibrate(15); setIsIncomeModalOpen(true); }}
-                    className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground active:scale-90 rounded-full flex items-center justify-center transition-all duration-100 cursor-pointer"
+                    className="w-4 h-4 bg-primary/20 hover:bg-primary text-primary hover:text-primary-foreground active:scale-90 rounded-full flex items-center justify-center transition-all duration-100 cursor-pointer shrink-0"
                     aria-label="Add Extra Income"
+                    title="Add Extra Income"
                   >
                     <Plus className="w-3 h-3" />
                   </button>
                 </p>
-                <p className="text-lg font-semibold flex items-baseline gap-1 display-number">
+                <div className="text-lg sm:text-xl font-bold flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 display-number leading-tight">
                   <AnimatedNumber
                     value={settings.monthlyIncome}
                     formatFn={(val) => formatCurrency(val, settings.currency, settings.privacyMode)}
                   />
                   {!settings.privacyMode && extraIncome > 0 && (
-                    <span className="text-xs text-green-600 font-medium">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
                   )}
-                </p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground mb-1">Bills (Due)</p>
-                <p className="text-lg font-semibold display-number">
+              <div className="text-right min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Bills (Due)</p>
+                <p className="text-lg sm:text-xl font-bold display-number leading-tight">
                   <AnimatedNumber
                     value={totalDueObligations}
                     formatFn={(val) => formatCurrency(val, settings.currency)}
                   />
                 </p>
                 {upcomingObligations > 0 && (
-                  <p className="text-[10.5px] text-muted-foreground mt-0.5" title="Upcoming bills & subscriptions due later this month">
+                  <p className="text-[10.5px] text-muted-foreground mt-0.5 truncate" title="Upcoming bills & subscriptions due later this month">
                     +{formatCurrency(upcomingObligations, settings.currency)} upcoming
                   </p>
                 )}
               </div>
             </div>
             
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Remaining Budget</p>
-                <h2 className={cn("text-3xl font-bold display-number tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
+            <div className="flex justify-between items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Remaining Budget</p>
+                <h2 className={cn("text-2xl sm:text-3xl font-bold display-number tracking-tight leading-tight truncate", isOverBudget ? "text-destructive" : "text-primary")}>
                   <AnimatedNumber
                     value={remaining}
                     formatFn={(val) => formatCurrency(val, settings.currency)}
                   />
                 </h2>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1 truncate">
                   Spent: <span className="font-semibold text-foreground"><AnimatedNumber value={totalExpenses} formatFn={(val) => formatCurrency(val, settings.currency)} /></span>
                 </p>
               </div>
               <div className="shrink-0 flex items-center justify-center">
                 <BudgetRing
                   value={budgetUsedPercent}
-                  size={82}
+                  size={76}
                   strokeWidth={7.5}
                   isOverBudget={isOverBudget}
                 />
@@ -530,7 +545,7 @@ export default function Dashboard() {
             </div>
 
             {isOverBudget && (
-              <p className="text-xs text-destructive mt-1 font-medium flex items-center">
+              <p className="text-xs text-destructive mt-1 font-medium flex items-center gap-1">
                 ⚠️ You exceeded your monthly budget.
               </p>
             )}
@@ -551,43 +566,102 @@ export default function Dashboard() {
         {/* Multi-Account & Net-Worth Summary */}
         <AccountsSummaryBar />
 
-      {/* Income Modal */}
-      {isIncomeModalOpen && (
-        <Card className="border-primary animate-in fade-in slide-in-from-top-4 shadow-lg border-2 border-green-500/20">
-          <CardContent className="p-4 space-y-4">
-            <h3 className="font-medium text-sm text-green-600">Add Extra Income</h3>
-            <div className="space-y-3">
-              <Input 
-                placeholder="Source (e.g. Sold bike, Bonus)" 
-                value={incomeSource}
-                onChange={(e) => setIncomeSource(e.target.value)}
-                autoFocus
+        {/* Add Extra Income Modal Dialog */}
+        <AnimatePresence>
+          {isIncomeModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsIncomeModalOpen(false)}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm"
               />
-              <Input 
-                type="number" 
-                placeholder="Amount" 
-                value={incomeAmount}
-                onChange={(e) => setIncomeAmount(e.target.value)}
-              />
-              <div className="flex gap-2 justify-end pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setIsIncomeModalOpen(false)}>Cancel</Button>
-                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={handleAddIncome}>Add Income</Button>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ type: "spring", stiffness: 450, damping: 28 }}
+                className="relative w-full max-w-sm rounded-3xl bg-card border border-border/60 shadow-2xl p-5 space-y-4 z-10"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Add Extra Income</h3>
+                      <p className="text-[11px] text-muted-foreground">Boost your budget for this month</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 rounded-full text-muted-foreground cursor-pointer"
+                    onClick={() => setIsIncomeModalOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAddIncome();
+                  }}
+                  className="space-y-3.5"
+                >
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Income Source
+                    </label>
+                    <Input 
+                      placeholder="e.g. Sold old phone, Freelance, Bonus" 
+                      value={incomeSource}
+                      onChange={(e) => setIncomeSource(e.target.value)}
+                      autoFocus
+                      required
+                      className="rounded-xl bg-secondary/50 border-border/50 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Amount ({settings.currency})
+                    </label>
+                    <Input 
+                      type="number" 
+                      step="0.01"
+                      placeholder="0.00" 
+                      value={incomeAmount}
+                      onChange={(e) => setIncomeAmount(e.target.value)}
+                      required
+                      className="rounded-xl bg-secondary/50 border-border/50 text-sm font-bold display-number"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end pt-1">
+                    <Button variant="ghost" size="sm" type="button" onClick={() => setIsIncomeModalOpen(false)} className="rounded-xl">
+                      Cancel
+                    </Button>
+                    <Button size="sm" type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium cursor-pointer">
+                      Add Income
+                    </Button>
+                  </div>
+                </form>
+              </motion.div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </AnimatePresence>
 
       {/* Daily Spending & Contextual Intelligence */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         {/* Today Card */}
-        <Card className="border-border/60 shadow-xs relative overflow-hidden bg-card/60 backdrop-blur-sm">
-          <CardContent className="p-4 flex flex-col justify-between h-full space-y-2">
+        <Card className="rounded-3xl border border-white/20 dark:border-white/10 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-xs overflow-hidden">
+          <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2">
             <div>
-              <div className="flex items-center justify-between gap-1 flex-wrap">
+              <div className="h-5 flex items-center justify-between gap-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Today</p>
                 <span className={cn(
-                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1",
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0",
                   todayComparison.color === "emerald" 
                     ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" 
                     : todayComparison.color === "amber" 
@@ -597,17 +671,17 @@ export default function Dashboard() {
                   {todayComparison.text}
                 </span>
               </div>
-              <p className="text-2xl font-bold display-number tracking-tight mt-1 text-foreground">
+              <p className="text-xl sm:text-2xl font-bold display-number tracking-tight mt-1 text-foreground leading-tight truncate">
                 <AnimatedNumber value={todayExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
               </p>
             </div>
 
             {/* Daily Allowance Context */}
             <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                <span>Daily allowance</span>
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-1">
+                <span className="truncate">Daily allowance</span>
                 <span className={cn(
-                  "font-semibold display-number text-[11px]",
+                  "font-semibold display-number text-[11px] shrink-0",
                   todayRemainingAllowance < 0 ? "text-amber-500" : "text-foreground"
                 )}>
                   {formatCurrency(Math.max(0, todayRemainingAllowance), settings.currency)} left
@@ -635,13 +709,13 @@ export default function Dashboard() {
         </Card>
 
         {/* This Week Card */}
-        <Card className="border-border/60 shadow-xs relative overflow-hidden bg-card/60 backdrop-blur-sm">
-          <CardContent className="p-4 flex flex-col justify-between h-full space-y-2">
+        <Card className="rounded-3xl border border-white/20 dark:border-white/10 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-xs overflow-hidden">
+          <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2">
             <div>
-              <div className="flex items-center justify-between gap-1 flex-wrap">
+              <div className="h-5 flex items-center justify-between gap-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">This Week</p>
                 <span className={cn(
-                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1",
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0",
                   weekIntelligence.paceStatus.color === "emerald"
                     ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                     : weekIntelligence.paceStatus.color === "amber"
@@ -651,11 +725,11 @@ export default function Dashboard() {
                   {weekIntelligence.paceStatus.text}
                 </span>
               </div>
-              <div className="flex items-baseline justify-between mt-1">
-                <p className="text-2xl font-bold display-number tracking-tight text-foreground">
+              <div className="mt-1">
+                <p className="text-xl sm:text-2xl font-bold display-number tracking-tight text-foreground leading-tight truncate">
                   <AnimatedNumber value={weekExpenses} formatFn={(v) => formatCurrency(v, settings.currency)} />
                 </p>
-                <span className="text-[11px] font-medium text-muted-foreground">
+                <span className="text-[10.5px] font-medium text-muted-foreground block truncate">
                   Avg {formatCurrency(weekIntelligence.dailyAvg, settings.currency)}/d
                 </span>
               </div>
@@ -704,13 +778,18 @@ export default function Dashboard() {
       </div>
 
       {/* Category Budgets */}
-      <Card className="shadow-sm">
-        <CardContent className="p-4 space-y-4">
-          <h3 className="font-semibold text-sm text-muted-foreground">Category Budgets</h3>
-          <div className="space-y-4">
+      <Card className="rounded-3xl border border-white/20 dark:border-white/10 bg-card/85 dark:bg-card/75 backdrop-blur-2xl shadow-xs overflow-hidden">
+        <CardContent className="p-4 sm:p-5 space-y-3.5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider">Category Budgets</h3>
+            <Link to="/settings" className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5">
+              Manage →
+            </Link>
+          </div>
+          <div className="space-y-3.5">
             {budgets.filter(b => b.month === new Date().toISOString().slice(0, 7) && settings.categories.includes(b.category)).length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-border/50 rounded-lg">
-                No budgets set for this month. Head over to <span className="font-medium text-foreground">Settings</span> to create limits!
+              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed border-border/50 rounded-2xl">
+                No budgets set for this month. Head over to <Link to="/settings" className="font-medium text-foreground underline">Settings</Link> to create limits!
               </div>
             ) : (
               budgets
@@ -725,15 +804,29 @@ export default function Dashboard() {
 
                 return (
                   <div key={cat} className="space-y-1.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">{cat}</span>
-                      <span className="text-muted-foreground">
-                        {formatCurrency(spent, settings.currency)} / {formatCurrency(limit, settings.currency)}
-                      </span>
+                    <div className="flex justify-between items-center text-xs sm:text-sm gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-sm shrink-0">{settings.categoryEmojis?.[cat] || '🏷️'}</span>
+                        <span className="font-medium truncate">{cat}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground text-xs display-number">
+                        <span>{formatCurrency(spent, settings.currency)}</span>
+                        <span>/</span>
+                        <span>{formatCurrency(limit, settings.currency)}</span>
+                        <span className={cn(
+                          "ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md",
+                          isDanger ? "bg-rose-500/15 text-rose-500" : isWarning ? "bg-amber-500/15 text-amber-500" : "bg-muted text-muted-foreground"
+                        )}>
+                          {Math.round(percentage)}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-2 bg-secondary/80 rounded-full overflow-hidden">
                       <div 
-                        className={`h-full rounded-full transition-all duration-500 ${isDanger ? 'bg-destructive' : isWarning ? 'bg-warning' : 'bg-primary'}`}
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          isDanger ? 'bg-destructive' : isWarning ? 'bg-amber-500' : 'bg-primary'
+                        )}
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
@@ -748,30 +841,41 @@ export default function Dashboard() {
       {/* Quick Add */}
       {quickAdds.length > 0 && (
         <div>
-          <h3 className="font-semibold text-sm text-muted-foreground mb-3">Quick Add</h3>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+          <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-2.5">Quick Add</h3>
+          <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-3.5 sm:-mx-4 px-3.5 sm:px-4 scrollbar-hide">
             {quickAdds.map(qa => (
               <motion.button 
                 key={qa.description}
                 whileTap={{ scale: 0.92 }}
                 transition={{ type: "spring", stiffness: 500, damping: 24 }}
-                onClick={() => {
+                onClick={async () => {
                   vibrate(15);
+                  if (settings.soundEnabled) playSuccessSound();
                   const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
-                  addExpense({
+                  const newId = await addExpense({
                     amount: qa.amount,
                     description: qa.description,
                     category: qa.category,
                     date: new Date().toISOString(),
                     account_id: defaultAccount || undefined,
                   });
+                  toast.success(`Logged ${qa.description} (${formatCurrency(qa.amount, settings.currency)})`, {
+                    action: {
+                      label: "Undo",
+                      onClick: () => {
+                        vibrate(15);
+                        deleteExpense(newId);
+                        toast.info(`Undone: ${qa.description} removed`);
+                      }
+                    }
+                  });
                 }}
-                className="flex items-center gap-2.5 bg-card/85 hover:bg-card border border-white/20 dark:border-white/10 px-4 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-colors shadow-xs select-none"
+                className="flex items-center gap-2.5 bg-card/85 hover:bg-card border border-white/20 dark:border-white/10 px-3.5 py-2.5 rounded-2xl whitespace-nowrap shrink-0 transition-colors shadow-xs select-none cursor-pointer"
               >
                 <span className="text-xl">{qa.icon}</span>
                 <div className="text-left">
                   <p className="text-sm font-semibold leading-none">{qa.description}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 display-number">{formatCurrency(qa.amount, settings.currency)}</p>
+                  <p className="text-xs text-muted-foreground mt-1 display-number">{formatCurrency(qa.amount, settings.currency)}</p>
                 </div>
               </motion.button>
             ))}
@@ -782,15 +886,22 @@ export default function Dashboard() {
       {/* Upcoming Bills */}
       {bills.length > 0 && (
         <div>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-lg">Upcoming Bills</h3>
+          <div className="flex justify-between items-center mb-2.5">
+            <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider">Upcoming Bills</h3>
+            <Link to="/planned" className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5">
+              View all →
+            </Link>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-3.5 sm:-mx-4 px-3.5 sm:px-4 scrollbar-hide">
             {bills.map(bill => (
-              <div key={bill.id} className="bg-card border border-white/20 dark:border-white/10 rounded-2xl p-3 shrink-0 w-[140px] shadow-sm">
-                <p className="text-xs text-muted-foreground mb-1">{bill.autoDeduct ? 'Auto-deduct' : 'Manual'}</p>
-                <p className="font-medium text-sm truncate">{bill.title}</p>
-                <p className="font-semibold mt-1">{formatCurrency(bill.amount, settings.currency)}</p>
+              <div key={bill.id} className="bg-card/85 dark:bg-card/75 border border-white/20 dark:border-white/10 rounded-2xl p-3 shrink-0 w-[140px] shadow-xs flex flex-col justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 truncate">
+                    {bill.due_day ? `Due ${bill.due_day}th` : bill.due_date ? `Due ${format(parseISO(bill.due_date), 'MMM d')}` : bill.autoDeduct ? 'Auto-deduct' : 'Manual'}
+                  </p>
+                  <p className="font-semibold text-sm truncate text-foreground leading-tight">{bill.title}</p>
+                </div>
+                <p className="font-bold text-sm mt-2 text-foreground display-number">{formatCurrency(bill.amount, settings.currency)}</p>
               </div>
             ))}
           </div>
@@ -799,10 +910,13 @@ export default function Dashboard() {
 
       {/* Recent Expenses */}
       <div>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-semibold text-lg">Recent Expenses</h3>
+        <div className="flex justify-between items-center mb-2.5">
+          <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider">Recent Expenses</h3>
+          <Link to="/expenses" className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5">
+            View all →
+          </Link>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {recentExpenses.length === 0 ? (
             <EmptyState
               icon={<ReceiptText className="w-7 h-7" />}
@@ -818,28 +932,29 @@ export default function Dashboard() {
                 key={expense.id}
                 whileTap={{ scale: 0.985 }}
                 transition={{ type: "spring", stiffness: 450, damping: 26 }}
-                className="flex justify-between items-center p-3.5 bg-card/90 border border-white/20 dark:border-white/10 rounded-2xl shadow-xs hover:border-primary/30 transition-colors"
+                className="flex justify-between items-center p-3 sm:p-3.5 bg-card/85 dark:bg-card/75 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-2xl shadow-xs hover:border-primary/30 transition-colors"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <Link to="/expenses" className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0 shadow-xs">
                     {settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase()}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm leading-tight truncate">{expense.description}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm leading-tight truncate text-foreground">{expense.description}</p>
                     <div className="flex items-center gap-1.5 mt-1">
                       <span className="text-xs text-muted-foreground">{format(parseISO(expense.date), 'MMM d')}</span>
-                      <span>•</span>
+                      <span className="text-muted-foreground/60">•</span>
                       <CategoryBadge category={expense.category} size="xs" />
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="font-semibold text-sm display-number">
+                </Link>
+                <div className="flex items-center gap-2 shrink-0 ml-2">
+                  <div className="font-bold text-sm display-number text-foreground">
                     {formatCurrency(expense.amount, settings.currency)}
                   </div>
                   <button
                     type="button"
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      e.stopPropagation();
                       vibrate(20);
                       if (settings.soundEnabled) playSuccessSound();
                       const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
@@ -862,7 +977,7 @@ export default function Dashboard() {
                         }
                       });
                     }}
-                    className="p-1.5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-90 transition-all select-none"
+                    className="p-1.5 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 active:scale-90 transition-all select-none cursor-pointer"
                     title="Log again for today"
                     aria-label={`Log ${expense.description} again for today`}
                   >
