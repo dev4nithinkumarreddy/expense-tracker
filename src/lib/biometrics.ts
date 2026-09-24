@@ -65,6 +65,10 @@ export function getStoredBiometricCredentialId(): string | null {
   }
 }
 
+export function hasStoredBiometricCredential(): boolean {
+  return !!getStoredBiometricCredentialId();
+}
+
 export function clearStoredBiometrics(): void {
   try {
     localStorage.removeItem(CREDENTIAL_STORAGE_KEY);
@@ -102,8 +106,8 @@ export async function registerBiometrics(): Promise<{ success: boolean; error?: 
         },
         user: {
           id: userId,
-          name: 'user@expensetracker.app',
-          displayName: 'Expense Tracker User',
+          name: 'Expense Tracker',
+          displayName: 'Expense Tracker',
         },
         pubKeyCredParams: [
           { alg: -7, type: 'public-key' },  // ES256 (Apple Secure Enclave native)
@@ -113,7 +117,9 @@ export async function registerBiometrics(): Promise<{ success: boolean; error?: 
           authenticatorAttachment: 'platform',
           userVerification: 'required',
           residentKey: 'preferred',
+          requireResidentKey: false,
         },
+        attestation: 'none',
         timeout: 60000,
       },
     })) as (PublicKeyCredential & { rawId?: ArrayBuffer }) | null;
@@ -146,25 +152,23 @@ export async function authenticateWithBiometrics(): Promise<boolean> {
   try {
     if (typeof window === 'undefined' || !window.PublicKeyCredential) return false;
 
+    const storedId = getStoredBiometricCredentialId();
+    // Never call navigator.credentials.get() without a registered local credential ID,
+    // otherwise iOS triggers cross-device Hybrid transport ("Scan QR Code")!
+    if (!storedId) {
+      return false;
+    }
+
     const challenge = new Uint8Array(32);
     crypto.getRandomValues(challenge);
 
-    const storedId = getStoredBiometricCredentialId();
-    let allowCredentials: PublicKeyCredentialDescriptor[] | undefined = undefined;
-
-    if (storedId) {
-      try {
-        allowCredentials = [
-          {
-            id: base64ToBuffer(storedId),
-            type: 'public-key',
-            transports: ['internal'],
-          },
-        ];
-      } catch {
-        // Fallback to discoverable credential if parsing fails
-      }
-    }
+    const allowCredentials: PublicKeyCredentialDescriptor[] = [
+      {
+        id: base64ToBuffer(storedId),
+        type: 'public-key',
+        transports: ['internal'],
+      },
+    ];
 
     const credential = await navigator.credentials.get({
       publicKey: {

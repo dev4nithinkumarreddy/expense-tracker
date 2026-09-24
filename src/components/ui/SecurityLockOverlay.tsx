@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useExpenseStore } from '../../store/useExpenseStore';
 import { verifyPin, authenticateWithBiometrics, isBiometricsAvailable, isAppleDevice } from '../../lib/biometrics';
@@ -18,38 +18,47 @@ export function SecurityLockOverlay({ onUnlock }: SecurityLockOverlayProps) {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const isApple = isAppleDevice();
+  const isAuthenticatingRef = useRef(false);
+  const hasAutoTriggeredRef = useRef(false);
+
+  const triggerUnlock = useCallback(() => {
+    vibrate(20);
+    playSuccessSound();
+    setIsUnlocked(true);
+    onUnlock?.();
+  }, [onUnlock]);
+
+  const handleBiometricAuth = useCallback(async () => {
+    if (isAuthenticatingRef.current || isUnlocked) return;
+    isAuthenticatingRef.current = true;
+    try {
+      vibrate(10);
+      const success = await authenticateWithBiometrics();
+      if (success) {
+        triggerUnlock();
+      }
+    } finally {
+      isAuthenticatingRef.current = false;
+    }
+  }, [isUnlocked, triggerUnlock]);
 
   useEffect(() => {
     isBiometricsAvailable().then(setIsBiometricSupported);
   }, []);
 
-  // Attempt biometrics on mount if supported and not on iOS (iOS requires user gesture to trigger Face ID)
+  // Attempt biometrics automatically on mount
   useEffect(() => {
     if (
       settings.appLockEnabled &&
       settings.appLockBiometrics &&
       isBiometricSupported &&
       !isUnlocked &&
-      !isApple
+      !hasAutoTriggeredRef.current
     ) {
+      hasAutoTriggeredRef.current = true;
       handleBiometricAuth();
     }
-  }, [settings.appLockEnabled, settings.appLockBiometrics, isBiometricSupported, isUnlocked, isApple]);
-
-  const handleBiometricAuth = async () => {
-    vibrate(10);
-    const success = await authenticateWithBiometrics();
-    if (success) {
-      triggerUnlock();
-    }
-  };
-
-  const triggerUnlock = () => {
-    vibrate(20);
-    playSuccessSound();
-    setIsUnlocked(true);
-    onUnlock?.();
-  };
+  }, [settings.appLockEnabled, settings.appLockBiometrics, isBiometricSupported, isUnlocked, handleBiometricAuth]);
 
   const handleKeyPress = async (digit: string) => {
     if (pin.length >= 4) return;
