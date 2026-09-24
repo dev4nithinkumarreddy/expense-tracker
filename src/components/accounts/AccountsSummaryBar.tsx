@@ -46,7 +46,6 @@ export function AccountsSummaryBar() {
   const [newAccName, setNewAccName] = useState('');
   const [newAccType, setNewAccType] = useState<Account['type']>('bank');
   const [newAccBalance, setNewAccBalance] = useState('');
-  const [newAccLimit, setNewAccLimit] = useState('');
 
   const visibleAccounts = useMemo(
     () => accounts.filter((a) => a.type !== 'credit_card'),
@@ -115,7 +114,6 @@ export function AccountsSummaryBar() {
 
     setNewAccName('');
     setNewAccBalance('');
-    setNewAccLimit('');
     setIsAddAccountOpen(false);
   };
 
