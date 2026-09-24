@@ -554,7 +554,7 @@ export function AddExpenseModal({
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
-                      {accounts.map((acc) => {
+                      {accounts.filter((acc) => acc.type !== 'credit_card').map((acc) => {
                         const isSelected = selectedAccountId === acc.id;
                         return (
                           <button
@@ -572,7 +572,7 @@ export function AddExpenseModal({
                                 : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
                             )}
                           >
-                            <span>{acc.icon || (acc.type === 'credit_card' ? '💳' : acc.type === 'cash' ? '💵' : '🏦')}</span>
+                            <span>{acc.icon || (acc.type === 'cash' ? '💵' : '🏦')}</span>
                             <span>{acc.name}</span>
                             <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
                               ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})

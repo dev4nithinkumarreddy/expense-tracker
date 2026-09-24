@@ -48,22 +48,22 @@ export function AccountsSummaryBar() {
   const [newAccBalance, setNewAccBalance] = useState('');
   const [newAccLimit, setNewAccLimit] = useState('');
 
-  // Liquid net worth calculation: Bank + Cash + Savings - Credit Card Owed
+  const visibleAccounts = useMemo(
+    () => accounts.filter((a) => a.type !== 'credit_card'),
+    [accounts]
+  );
+
+  // Liquid net worth calculation: Bank + Cash + Savings
   const netWorth = useMemo(() => {
-    return accounts.reduce((acc, a) => {
-      if (a.type === 'credit_card') {
-        return acc - (a.balance || 0);
-      }
-      return acc + (a.balance || 0);
-    }, 0);
-  }, [accounts]);
+    return visibleAccounts.reduce((acc, a) => acc + (a.balance || 0), 0);
+  }, [visibleAccounts]);
 
   const handleOpenTransfer = (defaultFrom?: string) => {
     vibrate(10);
     playTapSound();
-    const from = defaultFrom || accounts[0]?.id || '';
+    const from = defaultFrom || visibleAccounts[0]?.id || '';
     setFromAccountId(from);
-    const to = accounts.find((a) => a.id !== from)?.id || '';
+    const to = visibleAccounts.find((a) => a.id !== from)?.id || '';
     setToAccountId(to);
     setTransferAmount('');
     setTransferNotes('');
@@ -95,7 +95,6 @@ export function AccountsSummaryBar() {
       return;
     }
     const bal = parseFloat(newAccBalance) || 0;
-    const limit = newAccType === 'credit_card' ? parseFloat(newAccLimit) || 0 : undefined;
 
     const icons: Record<Account['type'], string> = {
       bank: '🏦',
@@ -112,7 +111,6 @@ export function AccountsSummaryBar() {
       balance: bal,
       currency: settings.currency,
       icon: icons[newAccType],
-      credit_limit: limit,
     });
 
     setNewAccName('');
@@ -155,17 +153,20 @@ export function AccountsSummaryBar() {
   };
 
   return (
-    <div className="rounded-3xl border border-border/80 dark:border-white/10 bg-card/92 dark:bg-card/78 backdrop-blur-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+    <div className="space-y-3">
+      {/* Section Header Row directly on Canvas */}
+      <div className="flex items-center justify-between gap-2 px-0.5 flex-wrap">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-xl bg-indigo-500/12 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 flex items-center justify-center shrink-0 shadow-[0_2px_8px_rgba(99,102,241,0.12)]">
             <Building2 className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[13px] sm:text-sm font-bold tracking-tight text-foreground">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[15px] sm:text-base font-bold tracking-tight text-foreground leading-tight">
                 Accounts & Net Worth
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 display-number">
+                {settings.privacyMode ? '••••••' : formatCurrency(netWorth, settings.currency)}
               </span>
               <button
                 type="button"
@@ -181,12 +182,6 @@ export function AccountsSummaryBar() {
                 <HelpCircle className="w-3.5 h-3.5 text-primary/80" />
               </button>
             </div>
-            <p className="text-lg sm:text-xl font-extrabold tracking-tight text-foreground display-number leading-tight">
-              {settings.privacyMode ? '••••••' : formatCurrency(netWorth, settings.currency)}
-              <span className="text-[11px] font-semibold text-muted-foreground ml-1.5">
-                liquid wealth
-              </span>
-            </p>
           </div>
         </div>
 
@@ -199,7 +194,7 @@ export function AccountsSummaryBar() {
               playTapSound();
               syncAccountWithBalance();
             }}
-            className="h-8 px-2.5 sm:px-3 rounded-full text-xs font-semibold gap-1 sm:gap-1.5 bg-primary/10 hover:bg-primary/18 border-primary/25 shadow-2xs cursor-pointer text-primary"
+            className="h-8 px-2.5 sm:px-3 rounded-full text-xs font-bold gap-1 sm:gap-1.5 bg-primary/10 hover:bg-primary/18 border-primary/25 shadow-2xs cursor-pointer text-primary"
             title="Sync Bank balance to match your remaining monthly budget"
           >
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
@@ -211,7 +206,7 @@ export function AccountsSummaryBar() {
             size="sm"
             variant="outline"
             onClick={() => handleOpenTransfer()}
-            className="h-8 px-2.5 sm:px-3 rounded-full text-xs font-semibold gap-1 sm:gap-1.5 bg-secondary/70 hover:bg-secondary border-border/70 shadow-2xs cursor-pointer text-foreground"
+            className="h-8 px-2.5 sm:px-3 rounded-full text-xs font-bold gap-1 sm:gap-1.5 bg-card hover:bg-secondary border-border/80 shadow-2xs cursor-pointer text-foreground"
           >
             <ArrowRightLeft className="w-3.5 h-3.5 text-primary shrink-0" />
             <span>Transfer</span>
@@ -225,7 +220,7 @@ export function AccountsSummaryBar() {
               playTapSound();
               setIsAddAccountOpen(true);
             }}
-            className="h-8 px-2.5 rounded-full text-xs font-semibold gap-1 bg-secondary/70 hover:bg-secondary border-border/70 text-foreground shadow-2xs cursor-pointer"
+            className="h-8 px-2.5 rounded-full text-xs font-bold gap-1 bg-card hover:bg-secondary border-border/80 text-foreground shadow-2xs cursor-pointer"
             aria-label="Add Account"
           >
             <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
@@ -234,68 +229,65 @@ export function AccountsSummaryBar() {
         </div>
       </div>
 
-      {/* Responsive Inset Grouped Accounts Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-        {accounts.map((acc) => {
-          const isCard = acc.type === 'credit_card';
+      {/* Standalone Elevated Account Cards (Side-by-Side like Today & This Week) */}
+      <div className="grid grid-cols-2 gap-3">
+        {visibleAccounts.map((acc) => {
           const isCash = acc.type === 'cash';
+          const isSavings = acc.type === 'savings';
           return (
             <motion.div
               key={acc.id}
               whileTap={{ scale: 0.985 }}
               transition={{ type: "spring", stiffness: 450, damping: 28 }}
               onClick={() => handleOpenTransfer(acc.id)}
-              className={cn(
-                "p-3 sm:p-3.5 rounded-2xl border backdrop-blur-xl relative overflow-hidden transition-all shadow-xs cursor-pointer flex flex-col justify-between min-h-[100px]",
-                isCard
-                  ? "bg-gradient-to-br from-purple-500/12 via-card/92 to-card/96 border-purple-500/30 dark:border-purple-400/25 hover:border-purple-500/45"
-                  : isCash
-                  ? "bg-gradient-to-br from-emerald-500/12 via-card/92 to-card/96 border-emerald-500/30 dark:border-emerald-400/25 hover:border-emerald-500/45"
-                  : "bg-gradient-to-br from-blue-500/12 via-card/92 to-card/96 border-blue-500/30 dark:border-blue-400/25 hover:border-blue-500/45"
-              )}
+              className="p-3.5 sm:p-4 rounded-3xl border border-border/85 dark:border-white/10 bg-card/95 dark:bg-card/80 backdrop-blur-xl relative overflow-hidden transition-all shadow-xs hover:border-primary/35 cursor-pointer flex flex-col justify-between min-h-[112px]"
             >
               {/* Account Header */}
               <div className="flex items-center justify-between gap-1.5 mb-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-xl bg-background/90 border border-border/60 flex items-center justify-center shadow-2xs shrink-0">
+                  <div className={cn(
+                    "w-7 h-7 rounded-xl border flex items-center justify-center shadow-2xs shrink-0",
+                    isCash
+                      ? "bg-emerald-500/10 border-emerald-500/25"
+                      : isSavings
+                      ? "bg-amber-500/10 border-amber-500/25"
+                      : "bg-blue-500/10 border-blue-500/25"
+                  )}>
                     {getAccountIcon(acc)}
                   </div>
-                  <span className="text-xs font-bold truncate text-foreground leading-tight">
+                  <span className="text-xs sm:text-[13px] font-bold truncate text-foreground leading-tight">
                     {acc.name}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <span className={cn(
-                    "text-[9.5px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border",
-                    isCard
-                      ? "bg-purple-500/12 text-purple-700 dark:text-purple-300 border-purple-500/25"
-                      : isCash
+                    "hidden sm:inline-flex text-[9.5px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border",
+                    isCash
                       ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 border-emerald-500/25"
+                      : isSavings
+                      ? "bg-amber-500/12 text-amber-700 dark:text-amber-300 border-amber-500/25"
                       : "bg-blue-500/12 text-blue-700 dark:text-blue-300 border-blue-500/25"
                   )}>
-                    {isCard ? 'Credit' : acc.type}
+                    {acc.type}
                   </span>
                   <button
                     type="button"
                     onClick={(e) => handleOpenEditBalance(acc, e)}
-                    className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-background/90 transition-colors border border-transparent hover:border-border/50"
+                    className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors border border-transparent hover:border-border/50"
                     title={`Edit ${acc.name} balance`}
                     aria-label={`Edit ${acc.name} balance`}
                   >
-                    <Pencil className="w-2.5 h-2.5" />
+                    <Pencil className="w-3 h-3" />
                   </button>
                 </div>
               </div>
 
               {/* Account Balance */}
               <div className="my-auto py-0.5">
-                <p className="text-[10px] text-muted-foreground">
-                  {isCard ? 'Owed Balance' : 'Available Balance'}
+                <p className="text-[10px] font-medium text-muted-foreground">
+                  Available Balance
                 </p>
-                <p className={cn(
-                  "text-base sm:text-lg font-bold tracking-tight display-number leading-tight truncate",
-                  isCard && acc.balance > 0 ? "text-purple-600 dark:text-purple-400" : "text-foreground"
-                )}>
+                <p className="text-lg sm:text-xl font-extrabold tracking-tight display-number leading-tight truncate text-foreground mt-0.5">
                   {settings.privacyMode
                     ? '••••••'
                     : formatCurrency(acc.balance, acc.currency || settings.currency)}
@@ -303,28 +295,11 @@ export function AccountsSummaryBar() {
               </div>
 
               {/* Footer row */}
-              <div className="mt-2 pt-2 border-t border-border/30 flex items-center justify-between text-[10px] text-muted-foreground gap-1">
-                {isCard && acc.credit_limit && acc.credit_limit > 0 ? (
-                  <>
-                    <span className="truncate">Avail. Credit:</span>
-                    <span className="font-semibold text-foreground shrink-0">
-                      {settings.privacyMode
-                        ? '••••'
-                        : formatCurrency(
-                            Math.max(0, acc.credit_limit - acc.balance),
-                            acc.currency || settings.currency
-                          )}
-                    </span>
-                  </>
-                ) : isCard ? (
-                  <>
-                    <span>Credit Line</span>
-                    <span className="text-purple-500 font-medium">Revolving</span>
-                  </>
-                ) : acc.type === 'bank' ? (
+              <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground gap-1">
+                {acc.type === 'bank' ? (
                   <>
                     <span>Primary</span>
-                    <span className="text-blue-500 font-medium">UPI / NetBanking</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold">UPI / Bank</span>
                   </>
                 ) : acc.type === 'cash' ? (
                   <>
@@ -556,7 +531,7 @@ export function AccountsSummaryBar() {
                       onChange={(e) => setFromAccountId(e.target.value)}
                       className="w-full text-xs rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      {accounts.map((a) => (
+                      {visibleAccounts.map((a) => (
                         <option key={a.id} value={a.id}>
                           {a.name} ({a.currency || settings.currency}{a.balance})
                         </option>
@@ -573,7 +548,7 @@ export function AccountsSummaryBar() {
                       onChange={(e) => setToAccountId(e.target.value)}
                       className="w-full text-xs rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      {accounts.map((a) => (
+                      {visibleAccounts.map((a) => (
                         <option key={a.id} value={a.id}>
                           {a.name}
                         </option>
@@ -603,7 +578,7 @@ export function AccountsSummaryBar() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Credit card bill payment"
+                    placeholder="e.g. ATM withdrawal or savings transfer"
                     value={transferNotes}
                     onChange={(e) => setTransferNotes(e.target.value)}
                     className="w-full text-xs rounded-xl bg-secondary/50 border border-border/50 p-2 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -662,7 +637,7 @@ export function AccountsSummaryBar() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. HDFC Bank, Chase Sapphire, Petty Cash"
+                    placeholder="e.g. HDFC Bank, Emergency Savings, Petty Cash"
                     value={newAccName}
                     onChange={(e) => setNewAccName(e.target.value)}
                     className="w-full text-xs rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -673,8 +648,8 @@ export function AccountsSummaryBar() {
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Account Type
                   </label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {(['bank', 'cash', 'credit_card', 'savings'] as const).map((t) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['bank', 'cash', 'savings'] as const).map((t) => (
                       <button
                         key={t}
                         type="button"
@@ -683,13 +658,13 @@ export function AccountsSummaryBar() {
                           playTapSound();
                           setNewAccType(t);
                         }}
-                        className={`py-2 px-1 rounded-xl text-[11px] font-semibold capitalize border transition-all text-center cursor-pointer ${
+                        className={`py-2 px-1 rounded-xl text-xs font-semibold capitalize border transition-all text-center cursor-pointer ${
                           newAccType === t
                             ? 'bg-primary text-primary-foreground border-primary shadow-xs'
                             : 'bg-secondary/40 text-muted-foreground border-border/40 hover:bg-secondary'
                         }`}
                       >
-                        {t === 'credit_card' ? 'Card' : t}
+                        {t}
                       </button>
                     ))}
                   </div>
@@ -697,7 +672,7 @@ export function AccountsSummaryBar() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {newAccType === 'credit_card' ? 'Current Balance Owed' : 'Opening Balance'} ({settings.currency})
+                    Opening Balance ({settings.currency})
                   </label>
                   <input
                     type="number"
@@ -708,22 +683,6 @@ export function AccountsSummaryBar() {
                     className="w-full text-xs font-semibold rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
-
-                {newAccType === 'credit_card' && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Total Credit Limit ({settings.currency})
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="e.g. 100000"
-                      value={newAccLimit}
-                      onChange={(e) => setNewAccLimit(e.target.value)}
-                      className="w-full text-xs font-semibold rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                )}
 
                 <Button type="submit" className="w-full rounded-xl gap-2 font-semibold cursor-pointer">
                   <Plus className="w-4 h-4" />

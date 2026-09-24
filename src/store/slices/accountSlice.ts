@@ -6,7 +6,6 @@ import { calculateCashflowSummary } from '../../lib/cashflow';
 const DEFAULT_ACCOUNTS: Account[] = [
   { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
   { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
-  { id: 'acc-card-1', name: 'Credit Card', type: 'credit_card', balance: 0, credit_limit: 0, statement_day: 15, due_day: 5, currency: '₹', color: '#AF52DE', icon: '💳' },
 ];
 
 export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice> = (set, get) => ({
@@ -259,12 +258,12 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
 
     const bankAcc = accounts.find((a) => a.type === 'bank' || a.id === 'acc-bank-1');
     const cashAcc = accounts.find((a) => a.type === 'cash' || a.id === 'acc-cash-1');
-    const cardAcc = accounts.find((a) => a.type === 'credit_card' || a.id === 'acc-card-1');
-    
-    // Check if accounts still hold the initial dummy template values (25000 bank / 2500 cash / 100000 limit)
+    const hasDefaultCard = accounts.some((a) => a.id === 'acc-card-1');
+
+    // Check if accounts still hold the initial dummy template values (25000 bank / 2500 cash) or default acc-card-1
     const hasDummyValues = (bankAcc && bankAcc.balance === 25000) || 
                            (cashAcc && cashAcc.balance === 2500) ||
-                           (cardAcc && cardAcc.credit_limit === 100000);
+                           hasDefaultCard;
     
     if (hasDummyValues) {
       const summary = calculateCashflowSummary(
@@ -277,18 +276,17 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
       const remaining = summary.availableBalance;
 
       set((state) => ({
-        accounts: state.accounts.map((acc) => {
-          if (acc.id === bankAcc?.id && bankAcc.balance === 25000) {
-            return { ...acc, balance: remaining };
-          }
-          if (acc.id === cashAcc?.id && acc.balance === 2500) {
-            return { ...acc, balance: 0 };
-          }
-          if (acc.id === cardAcc?.id && acc.credit_limit === 100000) {
-            return { ...acc, credit_limit: 0 };
-          }
-          return acc;
-        }),
+        accounts: state.accounts
+          .filter((acc) => acc.id !== 'acc-card-1')
+          .map((acc) => {
+            if (acc.id === bankAcc?.id && bankAcc.balance === 25000) {
+              return { ...acc, balance: remaining };
+            }
+            if (acc.id === cashAcc?.id && acc.balance === 2500) {
+              return { ...acc, balance: 0 };
+            }
+            return acc;
+          }),
       }));
     }
   },
