@@ -122,88 +122,94 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* Story Wrapped Trigger Card */}
-        <div 
-          onClick={() => {
-            vibrate(12);
-            setIsStoryOpen(true);
-          }}
-          className="cursor-pointer p-3.5 px-4 rounded-3xl bg-gradient-to-r from-primary/15 via-purple-500/10 to-pink-500/15 border border-primary/25 hover:border-primary/45 transition-all flex items-center justify-between shadow-xs active:scale-[0.99] select-none"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-primary/20 text-primary flex items-center justify-center text-lg shadow-inner">
-              ✨
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 lg:items-start">
+          {/* Story Wrapped Trigger Card */}
+          <div 
+            onClick={() => {
+              vibrate(12);
+              setIsStoryOpen(true);
+            }}
+            className="cursor-pointer p-3.5 px-4 rounded-3xl bg-gradient-to-r from-primary/15 via-purple-500/10 to-pink-500/15 border border-primary/25 hover:border-primary/45 transition-all flex items-center justify-between shadow-xs active:scale-[0.99] select-none"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl bg-primary/20 text-primary flex items-center justify-center text-lg shadow-inner">
+                ✨
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <span>Monthly Story Wrapped</span>
+                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground font-semibold">New</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Your spending highlights, category champion & financial persona
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <span>Monthly Story Wrapped</span>
-                <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground font-semibold">New</span>
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                Your spending highlights, category champion & financial persona
-              </p>
-            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </div>
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+
+          {/* Month Navigator with Interactive Calendar Toggle */}
+          {viewMode === 'monthly' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between bg-card/80 dark:bg-card/60 backdrop-blur-xl p-2 rounded-3xl border border-border/50 shadow-xs">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9 rounded-2xl hover:bg-secondary/80 active:scale-95 transition-all" 
+                  onClick={() => {
+                    vibrate(10);
+                    const newMonth = subMonths(currentDate, 1);
+                    setCurrentDate(newMonth);
+                    setSelectedDate(null);
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    vibrate(10);
+                    setIsCalendarOpen(prev => !prev);
+                  }}
+                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl hover:bg-secondary/70 active:scale-95 transition-all cursor-pointer group"
+                  title="Tap to view interactive calendar inspector"
+                >
+                  <div className="p-1 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+                    <CalendarDays className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-semibold tracking-tight">
+                    {format(currentDate, 'MMMM yyyy')}
+                  </span>
+                  {isCalendarOpen ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  )}
+                </button>
+
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-9 w-9 rounded-2xl hover:bg-secondary/80 active:scale-95 transition-all" 
+                  onClick={() => {
+                    vibrate(10);
+                    const newMonth = addMonths(currentDate, 1);
+                    setCurrentDate(newMonth);
+                    setSelectedDate(null);
+                  }}
+                  disabled={isCurrentMonthOrFuture}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Month Navigator with Interactive Calendar Toggle */}
-        {viewMode === 'monthly' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between bg-card/80 dark:bg-card/60 backdrop-blur-xl p-1.5 rounded-2xl border border-border/50 shadow-xs">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 rounded-xl hover:bg-secondary/80 active:scale-95 transition-all" 
-                onClick={() => {
-                  vibrate(10);
-                  const newMonth = subMonths(currentDate, 1);
-                  setCurrentDate(newMonth);
-                  setSelectedDate(null);
-                }}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              
-              <button
-                type="button"
-                onClick={() => {
-                  vibrate(10);
-                  setIsCalendarOpen(prev => !prev);
-                }}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl hover:bg-secondary/70 active:scale-95 transition-all cursor-pointer group"
-                title="Tap to view interactive calendar inspector"
-              >
-                <div className="p-1 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
-                  <CalendarDays className="w-4 h-4" />
-                </div>
-                <span className="text-sm font-semibold tracking-tight">
-                  {format(currentDate, 'MMMM yyyy')}
-                </span>
-                {isCalendarOpen ? (
-                  <ChevronUp className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                )}
-              </button>
-
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 rounded-xl hover:bg-secondary/80 active:scale-95 transition-all" 
-                onClick={() => {
-                  vibrate(10);
-                  const newMonth = addMonths(currentDate, 1);
-                  setCurrentDate(newMonth);
-                  setSelectedDate(null);
-                }}
-                disabled={isCurrentMonthOrFuture}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Interactive Calendar Grid */}
+        {/* Interactive Calendar Grid & Date Inspector */}
+        {viewMode === 'monthly' && (isCalendarOpen || selectedDate) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
             {isCalendarOpen && (
               <div className="animate-in fade-in-50 zoom-in-95 duration-200">
                 <MonthCalendarGrid
@@ -218,7 +224,6 @@ export default function Analytics() {
               </div>
             )}
 
-            {/* Date Transactions Inspector Drawer */}
             {selectedDate && (
               <div className="animate-in fade-in-50 slide-in-from-top-3 duration-200">
                 <DateTransactionsInspector
@@ -245,51 +250,69 @@ export default function Analytics() {
             <p className="text-xs text-muted-foreground/70 mt-1">Log expenses using the + button to view detailed analytics.</p>
           </Card>
         ) : (
-          <div className="space-y-6">
-            {/* Category Donut Breakdown Chart */}
-            <CategoryDonutCard
-              categoryData={categoryData}
-              currency={settings.currency}
-              totalExpenses={kpis.totalExpenses}
-              onSelectCategory={(catName) => setSelectedCategoryForDrilldown(catName)}
-            />
+          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
+            {/* Left Column (6/12 on Laptop) */}
+            <div className="contents lg:flex lg:flex-col lg:col-span-6 lg:gap-6">
+              {/* 1. Category Donut Breakdown Chart */}
+              <div className="order-1 lg:order-none">
+                <CategoryDonutCard
+                  categoryData={categoryData}
+                  currency={settings.currency}
+                  totalExpenses={kpis.totalExpenses}
+                  onSelectCategory={(catName) => setSelectedCategoryForDrilldown(catName)}
+                />
+              </div>
 
-            {/* Daily Spending Bar Chart with Interactive Date Selector */}
-            <DailySpendingBarCard
-              dailyData={dailyData}
-              kpis={kpis}
-              currentDate={currentDate}
-              selectedDate={selectedDate}
-              currency={settings.currency}
-              onSelectDate={(date) => setSelectedDate(date)}
-            />
+              {/* 3. Category Breakdown & Budget Pacing List */}
+              <div className="order-3 lg:order-none">
+                <CategoryPacingList
+                  categoryData={categoryData}
+                  currency={settings.currency}
+                  categoryEmojis={settings.categoryEmojis}
+                  onSelectCategory={(catName) => setSelectedCategoryForDrilldown(catName)}
+                />
+              </div>
 
-            {/* Category Breakdown & Budget Pacing List */}
-            <CategoryPacingList
-              categoryData={categoryData}
-              currency={settings.currency}
-              categoryEmojis={settings.categoryEmojis}
-              onSelectCategory={(catName) => setSelectedCategoryForDrilldown(catName)}
-            />
-
-            {/* 50/30/20 Wealth Breakdown & Health Score */}
-            <FinancialHealthSection
-              monthlyIncome={settings.monthlyIncome}
-              expenses={expenses}
-              currency={settings.currency}
-              selectedMonthStr={format(currentDate, 'yyyy-MM')}
-            />
-
-            {/* Achievements & Milestones Trophy Cabinet */}
-            <div className="pt-2">
-              <BadgeCabinet />
+              {/* 7. Smart Tags Section */}
+              <div className="order-7 lg:order-none">
+                <SmartTagsCard tagData={tagData} currency={settings.currency} />
+              </div>
             </div>
 
-            {/* Smart Financial Insights */}
-            <SmartInsightsCard smartInsights={smartInsights} />
+            {/* Right Column (6/12 on Laptop) */}
+            <div className="contents lg:flex lg:flex-col lg:col-span-6 lg:gap-6">
+              {/* 2. Daily Spending Bar Chart with Interactive Date Selector */}
+              <div className="order-2 lg:order-none">
+                <DailySpendingBarCard
+                  dailyData={dailyData}
+                  kpis={kpis}
+                  currentDate={currentDate}
+                  selectedDate={selectedDate}
+                  currency={settings.currency}
+                  onSelectDate={(date) => setSelectedDate(date)}
+                />
+              </div>
 
-            {/* Smart Tags Section */}
-            <SmartTagsCard tagData={tagData} currency={settings.currency} />
+              {/* 4. 50/30/20 Wealth Breakdown & Health Score */}
+              <div className="order-4 lg:order-none">
+                <FinancialHealthSection
+                  monthlyIncome={settings.monthlyIncome}
+                  expenses={expenses}
+                  currency={settings.currency}
+                  selectedMonthStr={format(currentDate, 'yyyy-MM')}
+                />
+              </div>
+
+              {/* 6. Smart Financial Insights */}
+              <div className="order-6 lg:order-none">
+                <SmartInsightsCard smartInsights={smartInsights} />
+              </div>
+
+              {/* 5. Achievements & Milestones Trophy Cabinet */}
+              <div className="order-5 lg:order-none pt-2 lg:pt-0">
+                <BadgeCabinet />
+              </div>
+            </div>
           </div>
         )
       ) : (

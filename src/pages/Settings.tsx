@@ -304,7 +304,9 @@ export default function Settings() {
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
       </header>
 
-      <div className="space-y-4">
+      <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+        {/* Left Column on Laptop */}
+        <div className="space-y-4">
         {session?.user?.email && (
           <div className="space-y-3">
             <div>
@@ -739,7 +741,10 @@ export default function Settings() {
             </CardContent>
           </Card>
         </div>
+        </div>
 
+        {/* Right Column on Laptop */}
+        <div className="space-y-4">
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Categories & Budgets</h3>
           <Card>
@@ -867,6 +872,7 @@ export default function Settings() {
               </Button>
             </CardContent>
           </Card>
+        </div>
         </div>
       </div>
 

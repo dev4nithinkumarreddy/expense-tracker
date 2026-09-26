@@ -36,22 +36,22 @@ export function SafeToSpendCard({
   const content = (
     <div className="space-y-3">
       {/* Header Row */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <Compass className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 truncate">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <span>Safe Daily Runway</span>
             </h3>
-            <p className="text-[11px] text-muted-foreground truncate">
+            <p className="text-[11px] text-muted-foreground">
               {safe.daysRemaining} days remaining this month
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2">
           <span
             className={cn(
               'px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border',
@@ -85,8 +85,8 @@ export function SafeToSpendCard({
       </div>
 
       {/* Main Stat & Context */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2.5 pt-0.5">
-        <div className="min-w-0">
+      <div className="flex items-baseline justify-between pt-0.5">
+        <div>
           <p className="text-2xl sm:text-3xl font-black display-number tracking-tight text-foreground">
             <AnimatedNumber
               value={simulation ? simulation.newDailyAllowance : safe.dailyAllowance}
@@ -101,21 +101,21 @@ export function SafeToSpendCard({
 
         {/* Compact What-If Spend Calculator (Expanded or Active) */}
         {(showSimInput || simulation) && (
-          <div className="flex flex-wrap sm:flex-col items-start sm:items-end gap-1.5 p-2 rounded-2xl bg-secondary/50 sm:bg-transparent sm:p-0 border border-border/40 sm:border-0 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-medium text-muted-foreground">Test:</span>
+          <div className="flex flex-col items-end gap-1 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">Test:</span>
               <input
                 type="text"
                 inputMode="decimal"
                 autoFocus={showSimInput}
-                placeholder="Amount"
+                placeholder="₹ Amount"
                 value={simAmount}
                 onChange={(e) => setSimAmount(e.target.value.replace(/[^\d.]/g, ''))}
-                className="w-24 text-right bg-card dark:bg-secondary/70 rounded-xl px-2.5 py-1 text-xs font-semibold border border-border/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-24 text-right bg-secondary/70 rounded-xl px-2.5 py-1 text-xs font-medium border border-border/50 focus:outline-none focus:border-primary"
               />
             </div>
             {simulation && (
-              <span className="text-[10px] font-bold text-amber-500">
+              <span className="text-[10px] font-semibold text-amber-500">
                 -{formatCurrency(simulation.impactPerDay, currency)}/day impact
               </span>
             )}

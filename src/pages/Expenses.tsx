@@ -147,195 +147,211 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* Sticky Frosted Glass Filter Bar - Stays pinned at top: 0 */}
-      <div className="sticky top-0 z-30 -mx-4 px-4 sm:mx-0 sm:px-0 py-2.5 bg-background/90 dark:bg-background/85 backdrop-blur-2xl border-b border-border/40 shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] space-y-2.5 transition-all">
-        {/* Row 1: Search + Date Filter + Amount Filter Toggle */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search expenses..." 
-              className="pl-9 bg-card/90 rounded-xl h-10 border-border/60"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <select
-            className="flex h-10 w-[115px] rounded-xl border border-input bg-card/90 px-2.5 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-          >
-            <option value="all">All Time</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="last_7_days">Last 7 Days</option>
-          </select>
-          <Button
-            type="button"
-            variant={showAmountFilters || minAmount || maxAmount ? "default" : "outline"}
-            size="icon"
-            className="h-10 w-10 shrink-0 rounded-xl"
-            onClick={() => {
-              vibrate(10);
-              setShowAmountFilters(!showAmountFilters);
-            }}
-            title="Filter by amount"
-            aria-label="Filter by amount"
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {/* Collapsible Amount Filter Inputs */}
-        {(showAmountFilters || minAmount || maxAmount) && (
-          <div className="flex gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
-            <Input 
-              type="number" 
-              placeholder="Min Amount" 
-              className="h-8 text-xs bg-card/90 rounded-lg" 
-              value={minAmount} 
-              onChange={(e) => setMinAmount(e.target.value)} 
-            />
-            <Input 
-              type="number" 
-              placeholder="Max Amount" 
-              className="h-8 text-xs bg-card/90 rounded-lg" 
-              value={maxAmount} 
-              onChange={(e) => setMaxAmount(e.target.value)} 
-            />
-          </div>
-        )}
-
-        {/* Row 2: Category Filter Pills */}
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-          <Button
-            variant={selectedCategory === null ? "default" : "secondary"}
-            size="sm"
-            className="rounded-full shrink-0 h-7 text-xs px-3"
-            onClick={() => setSelectedCategory(null)}
-          >
-            All
-          </Button>
-          {settings.categories.map(cat => {
-            const count = expenses.filter(e => e.category === cat).length;
-            if (count === 0 && selectedCategory !== cat) return null;
-            const isSelected = selectedCategory === cat;
-            const style = getCategoryStyle(cat);
-            return (
-              <button
-                key={cat}
-                type="button"
-                className={`h-7 px-3 text-xs rounded-full font-medium shrink-0 transition-all flex items-center gap-1.5 border select-none ${
-                  isSelected
-                    ? `${style.bg} ${style.text} ${style.border} shadow-xs font-semibold ring-1 ring-primary/30`
-                    : 'bg-secondary/60 text-muted-foreground border-transparent hover:text-foreground'
-                }`}
-                onClick={() => setSelectedCategory(isSelected ? null : cat)}
+      <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
+        {/* Sticky Frosted Glass Filter Bar (Mobile top bar -> Desktop left sticky panel) */}
+        <div className="sticky top-0 lg:top-6 z-30 lg:col-span-4 -mx-4 px-4 sm:mx-0 sm:px-0 lg:p-4 py-2.5 bg-background/90 lg:bg-card/92 dark:bg-background/85 lg:dark:bg-card/80 backdrop-blur-2xl border-b lg:border border-border/40 lg:border-border/80 lg:dark:border-white/10 lg:rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] space-y-2.5 lg:space-y-4 transition-all">
+          {/* Row 1: Search + Date Filter + Amount Filter Toggle */}
+          <div className="flex lg:flex-col gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search expenses..." 
+                className="pl-9 bg-card/90 lg:bg-secondary/50 rounded-xl h-10 border-border/60"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <select
+                className="flex h-10 w-[115px] lg:flex-1 rounded-xl border border-input bg-card/90 lg:bg-secondary/50 px-2.5 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
               >
-                <span>{style.emoji}</span>
-                <span>{cat}</span>
+                <option value="all">All Time</option>
+                <option value="this_month">This Month</option>
+                <option value="last_month">Last Month</option>
+                <option value="last_7_days">Last 7 Days</option>
+              </select>
+              <Button
+                type="button"
+                variant={showAmountFilters || minAmount || maxAmount ? "default" : "outline"}
+                size="icon"
+                className="h-10 w-10 shrink-0 rounded-xl"
+                onClick={() => {
+                  vibrate(10);
+                  setShowAmountFilters(!showAmountFilters);
+                }}
+                title="Filter by amount"
+                aria-label="Filter by amount"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Collapsible Amount Filter Inputs */}
+          {(showAmountFilters || minAmount || maxAmount) && (
+            <div className="flex gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
+              <Input 
+                type="number" 
+                placeholder="Min Amount" 
+                className="h-8 text-xs bg-card/90 lg:bg-secondary/50 rounded-lg" 
+                value={minAmount} 
+                onChange={(e) => setMinAmount(e.target.value)} 
+              />
+              <Input 
+                type="number" 
+                placeholder="Max Amount" 
+                className="h-8 text-xs bg-card/90 lg:bg-secondary/50 rounded-lg" 
+                value={maxAmount} 
+                onChange={(e) => setMaxAmount(e.target.value)} 
+              />
+            </div>
+          )}
+
+          {/* Row 2: Category Filter Pills */}
+          <div className="space-y-1.5">
+            <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
+              Categories
+            </span>
+            <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+              <Button
+                variant={selectedCategory === null ? "default" : "secondary"}
+                size="sm"
+                className="rounded-full shrink-0 h-7 text-xs px-3"
+                onClick={() => setSelectedCategory(null)}
+              >
+                All
+              </Button>
+              {settings.categories.map(cat => {
+                const count = expenses.filter(e => e.category === cat).length;
+                if (count === 0 && selectedCategory !== cat) return null;
+                const isSelected = selectedCategory === cat;
+                const style = getCategoryStyle(cat);
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`h-7 px-3 text-xs rounded-full font-medium shrink-0 transition-all flex items-center gap-1.5 border select-none cursor-pointer ${
+                      isSelected
+                        ? `${style.bg} ${style.text} ${style.border} shadow-xs font-semibold ring-1 ring-primary/30`
+                        : 'bg-secondary/60 text-muted-foreground border-transparent hover:text-foreground'
+                    }`}
+                    onClick={() => setSelectedCategory(isSelected ? null : cat)}
+                  >
+                    <span>{style.emoji}</span>
+                    <span>{cat}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Row 3: Quick Filter Chips */}
+          <div className="space-y-1.5">
+            <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
+              Quick Filters
+            </span>
+            <div className="flex lg:flex-wrap items-center gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide text-xs">
+              <button
+                type="button"
+                onClick={() => { vibrate(10); setQuickFilter('all'); }}
+                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  quickFilter === 'all' 
+                    ? 'bg-primary text-primary-foreground shadow-xs' 
+                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                All Items
               </button>
-            );
-          })}
+              <button
+                type="button"
+                onClick={() => { vibrate(10); setQuickFilter('receipt'); }}
+                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  quickFilter === 'receipt' 
+                    ? 'bg-primary text-primary-foreground shadow-xs' 
+                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+                Has Receipt
+              </button>
+              <button
+                type="button"
+                onClick={() => { vibrate(10); setQuickFilter('high_spend'); }}
+                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  quickFilter === 'high_spend' 
+                    ? 'bg-primary text-primary-foreground shadow-xs' 
+                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                High Spend &gt;₹1k
+              </button>
+              <button
+                type="button"
+                onClick={() => { vibrate(10); setQuickFilter('recurring'); }}
+                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  quickFilter === 'recurring' 
+                    ? 'bg-primary text-primary-foreground shadow-xs' 
+                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Repeat className="w-3.5 h-3.5" />
+                Recurring
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Row 3: Quick Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide text-xs">
-          <button
-            type="button"
-            onClick={() => { vibrate(10); setQuickFilter('all'); }}
-            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
-              quickFilter === 'all' 
-                ? 'bg-primary text-primary-foreground shadow-xs' 
-                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            All Items
-          </button>
-          <button
-            type="button"
-            onClick={() => { vibrate(10); setQuickFilter('receipt'); }}
-            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
-              quickFilter === 'receipt' 
-                ? 'bg-primary text-primary-foreground shadow-xs' 
-                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Paperclip className="w-3.5 h-3.5" />
-            Has Receipt
-          </button>
-          <button
-            type="button"
-            onClick={() => { vibrate(10); setQuickFilter('high_spend'); }}
-            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
-              quickFilter === 'high_spend' 
-                ? 'bg-primary text-primary-foreground shadow-xs' 
-                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            High Spend &gt;₹1k
-          </button>
-          <button
-            type="button"
-            onClick={() => { vibrate(10); setQuickFilter('recurring'); }}
-            className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
-              quickFilter === 'recurring' 
-                ? 'bg-primary text-primary-foreground shadow-xs' 
-                : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Repeat className="w-3.5 h-3.5" />
-            Recurring
-          </button>
+        <div className="lg:col-span-8">
+          <PullToRefresh onRefresh={fetchCloudData}>
+            <div className="space-y-6 pb-24">
+              {Object.entries(grouped).length === 0 ? (
+                <EmptyState
+                  icon={<Receipt className="w-8 h-8" />}
+                  title={expenses.length === 0 ? "No expenses logged yet" : "No matching expenses"}
+                  description={expenses.length === 0 
+                    ? "Your slate is clean for this month. Tap below to log your first expense."
+                    : "No transactions matched your filters. Try adjusting your search or category."
+                  }
+                  actionLabel={expenses.length === 0 ? "+ Log First Expense" : "Reset Filters"}
+                  onAction={expenses.length === 0 ? () => setIsModalOpen(true) : () => {
+                    setSearchTerm("");
+                    setSelectedCategory(null);
+                    setDateFilter("this_month");
+                    setMinAmount("");
+                    setMaxAmount("");
+                    setQuickFilter("all");
+                  }}
+                />
+              ) : (
+                Object.entries(grouped).map(([dateStr, dayExpenses]) => (
+                  <div key={dateStr}>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 mt-4 lg:mt-1">
+                      {format(parseISO(dateStr), 'EEEE, MMMM d')}
+                    </h3>
+                    <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
+                      {dayExpenses.map(expense => {
+                        const isIncome = expense.category === 'Income';
+                        return (
+                          <SwipeableExpenseItem 
+                            key={expense.id} 
+                            expense={expense} 
+                            isIncome={isIncome} 
+                            onEdit={handleEdit}
+                            onViewReceipt={(url, title, amount) => setActiveReceipt({ url, title, amount })}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </PullToRefresh>
         </div>
       </div>
-
-      <PullToRefresh onRefresh={fetchCloudData}>
-        <div className="space-y-6 pb-24">
-          {Object.entries(grouped).length === 0 ? (
-            <EmptyState
-              icon={<Receipt className="w-8 h-8" />}
-              title={expenses.length === 0 ? "No expenses logged yet" : "No matching expenses"}
-              description={expenses.length === 0 
-                ? "Your slate is clean for this month. Tap below to log your first expense."
-                : "No transactions matched your filters. Try adjusting your search or category."
-              }
-              actionLabel={expenses.length === 0 ? "+ Log First Expense" : "Reset Filters"}
-              onAction={expenses.length === 0 ? () => setIsModalOpen(true) : () => {
-                setSearchTerm("");
-                setSelectedCategory(null);
-                setDateFilter("this_month");
-                setMinAmount("");
-                setMaxAmount("");
-                setQuickFilter("all");
-              }}
-            />
-          ) : (
-            Object.entries(grouped).map(([dateStr, dayExpenses]) => (
-              <div key={dateStr}>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 mt-4">
-                  {format(parseISO(dateStr), 'EEEE, MMMM d')}
-                </h3>
-                <div className="space-y-3">
-                  {dayExpenses.map(expense => {
-                    const isIncome = expense.category === 'Income';
-                    return (
-                      <SwipeableExpenseItem 
-                        key={expense.id} 
-                        expense={expense} 
-                        isIncome={isIncome} 
-                        onEdit={handleEdit}
-                        onViewReceipt={(url, title, amount) => setActiveReceipt({ url, title, amount })}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </PullToRefresh>
 
       <AddExpenseModal isOpen={isModalOpen} onClose={handleCloseModal} expenseToEdit={expenseToEdit} />
 

@@ -32,23 +32,36 @@ export default function Planned() {
 
   return (
     <div className="space-y-6 pb-24">
-      <header className="flex justify-between items-center">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Planned</h1>
           <p className="text-muted-foreground text-sm">Bills, Subscriptions, Wishlist & IOUs</p>
         </div>
+        <div className="w-full lg:w-[420px]">
+          <SegmentedControl
+            options={[
+              { label: "Bills", value: "bills" },
+              { label: "Subs", value: "subs" },
+              { label: "Wishlist", value: "wishlist" },
+              { label: "IOUs", value: "iou" }
+            ]}
+            value={activeTab}
+            onChange={(val) => setActiveTab(val as any)}
+            className="w-full"
+          />
+        </div>
       </header>
 
       {/* Cashflow & Deductions Overview */}
-      <div className="grid grid-cols-2 gap-3.5">
-        <div className="p-4 rounded-3xl bg-card/92 dark:bg-card/78 border border-border/80 dark:border-white/10 shadow-xs flex flex-col justify-between">
+      <div className="grid grid-cols-2 gap-3.5 lg:gap-5">
+        <div className="p-4 lg:p-5 rounded-3xl bg-card/92 dark:bg-card/78 border border-border/80 dark:border-white/10 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-bold text-foreground">Deducted So Far</span>
             <div className="w-6 h-6 rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 flex items-center justify-center shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-extrabold text-foreground mt-2 display-number">
+          <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-foreground mt-2 display-number">
             {formatCurrency(totalDeducted, settings.currency)}
           </div>
           <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
@@ -56,14 +69,14 @@ export default function Planned() {
           </span>
         </div>
 
-        <div className="p-4 rounded-3xl bg-card/92 dark:bg-card/78 border border-border/80 dark:border-white/10 shadow-xs flex flex-col justify-between">
+        <div className="p-4 lg:p-5 rounded-3xl bg-card/92 dark:bg-card/78 border border-border/80 dark:border-white/10 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-bold text-foreground">Upcoming</span>
             <div className="w-6 h-6 rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400 border border-amber-500/25 flex items-center justify-center shrink-0">
               <CalendarDays className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="text-xl sm:text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-2 display-number">
+          <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-2 display-number">
             {formatCurrency(upcomingTotal, settings.currency)}
           </div>
           <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
@@ -71,18 +84,6 @@ export default function Planned() {
           </span>
         </div>
       </div>
-
-      <SegmentedControl
-        options={[
-          { label: "Bills", value: "bills" },
-          { label: "Subs", value: "subs" },
-          { label: "Wishlist", value: "wishlist" },
-          { label: "IOUs", value: "iou" }
-        ]}
-        value={activeTab}
-        onChange={(val) => setActiveTab(val as any)}
-        className="w-full"
-      />
 
       {activeTab === "bills" && <BillsTab />}
       {activeTab === "subs" && <SubscriptionsTab />}
@@ -224,16 +225,18 @@ function SubscriptionsTab() {
         </Card>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         {subscriptions.length === 0 && !isAdding ? (
-          <EmptyState
-            icon={<CalendarDays className="w-6 h-6" />}
-            title="No subscriptions tracked"
-            description="Keep tabs on your recurring services like Netflix, Spotify, or gym memberships."
-            compact
-            actionLabel="+ Add Subscription"
-            onAction={() => setIsAdding(true)}
-          />
+          <div className="lg:col-span-2">
+            <EmptyState
+              icon={<CalendarDays className="w-6 h-6" />}
+              title="No subscriptions tracked"
+              description="Keep tabs on your recurring services like Netflix, Spotify, or gym memberships."
+              compact
+              actionLabel="+ Add Subscription"
+              onAction={() => setIsAdding(true)}
+            />
+          </div>
         ) : (
           subscriptions.map(sub => {
             const dueStatus = getSubscriptionDueStatus(sub);
@@ -446,16 +449,18 @@ function WishlistTab() {
       )}
 
       {/* Wishlist Items List */}
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         {pendingItems.length === 0 && !isAdding ? (
-          <EmptyState
-            icon={<ShoppingBag className="w-6 h-6" />}
-            title="Your wishlist is empty"
-            description="Save purchases you're planning for, estimate costs, and curb impulse spending."
-            compact
-            actionLabel="+ Add Item"
-            onAction={() => setIsAdding(true)}
-          />
+          <div className="lg:col-span-2">
+            <EmptyState
+              icon={<ShoppingBag className="w-6 h-6" />}
+              title="Your wishlist is empty"
+              description="Save purchases you're planning for, estimate costs, and curb impulse spending."
+              compact
+              actionLabel="+ Add Item"
+              onAction={() => setIsAdding(true)}
+            />
+          </div>
         ) : (
           pendingItems.map((item) => {
             const now = new Date();
@@ -737,16 +742,18 @@ function IOUTab() {
         </Card>
       )}
 
-      <div className="space-y-3 mt-4">
+      <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0 mt-4">
         {pendingDebts.length === 0 && !isAdding ? (
-          <EmptyState
-            icon={<HandCoins className="w-6 h-6" />}
-            title="No pending IOUs"
-            description="Track money you lent to friends or need to pay back."
-            compact
-            actionLabel="+ Add IOU"
-            onAction={() => setIsAdding(true)}
-          />
+          <div className="lg:col-span-2">
+            <EmptyState
+              icon={<HandCoins className="w-6 h-6" />}
+              title="No pending IOUs"
+              description="Track money you lent to friends or need to pay back."
+              compact
+              actionLabel="+ Add IOU"
+              onAction={() => setIsAdding(true)}
+            />
+          </div>
         ) : (
           pendingDebts.map(debt => (
             <Card key={debt.id} className="overflow-hidden">
@@ -876,16 +883,18 @@ function BillsTab() {
         </Card>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
         {bills.length === 0 && !isAdding ? (
-          <EmptyState
-            icon={<CalendarDays className="w-6 h-6" />}
-            title="No monthly bills"
-            description="Add recurring monthly obligations like rent, utilities, electricity, or internet."
-            compact
-            actionLabel="+ Add Bill"
-            onAction={() => setIsAdding(true)}
-          />
+          <div className="lg:col-span-2">
+            <EmptyState
+              icon={<CalendarDays className="w-6 h-6" />}
+              title="No monthly bills"
+              description="Add recurring monthly obligations like rent, utilities, electricity, or internet."
+              compact
+              actionLabel="+ Add Bill"
+              onAction={() => setIsAdding(true)}
+            />
+          </div>
         ) : (
           bills.map(bill => {
             const dueStatus = getBillDueStatus(bill);
