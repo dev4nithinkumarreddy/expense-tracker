@@ -2,6 +2,11 @@
 declare let self: ServiceWorkerGlobalScope;
 
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { clientsClaim } from 'workbox-core';
+
+// Immediately activate and claim all open tabs/clients without waiting
+self.skipWaiting();
+clientsClaim();
 
 cleanupOutdatedCaches();
 

@@ -124,7 +124,12 @@ export default function App() {
   }
 
   if (!session) {
-    return <Auth />;
+    return (
+      <>
+        <ReloadPrompt />
+        <Auth />
+      </>
+    );
   }
 
   return (

@@ -146,13 +146,23 @@ export default function Settings() {
     }
   };
 
-  const APP_SHARE_URL = "https://expense-tracker-captain12.vercel.app/";
+  const getAppShareUrl = () => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return `${window.location.origin}/`;
+    }
+    return "https://expense-tracker-captain12.vercel.app/";
+  };
+
+  const currentHost = typeof window !== 'undefined' && window.location?.host 
+    ? window.location.host 
+    : "expense-tracker-captain12.vercel.app";
 
   const copyToClipboard = async () => {
     vibrate(15);
     if (settings.soundEnabled) playSuccessSound();
+    const shareUrl = getAppShareUrl();
     try {
-      await navigator.clipboard.writeText(APP_SHARE_URL);
+      await navigator.clipboard.writeText(shareUrl);
       setCopiedLink(true);
       toast.success("Link copied to clipboard!");
       setTimeout(() => setCopiedLink(false), 2200);
@@ -164,13 +174,14 @@ export default function Settings() {
   const handleShareApp = async () => {
     vibrate(15);
     if (settings.soundEnabled) playTapSound();
+    const shareUrl = getAppShareUrl();
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: "Expense Tracker",
           text: "Check out this fluid Expense Tracker to manage your spending, budgets, and liquid wealth!",
-          url: APP_SHARE_URL,
+          url: shareUrl,
         });
         toast.success("Thanks for sharing!");
       } catch (err: any) {
@@ -385,6 +396,19 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                   Help friends track budgets, monitor cashflow & grow savings.
                 </p>
+                <button
+                  type="button"
+                  onClick={copyToClipboard}
+                  className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-background/80 hover:bg-background border border-border/50 text-[11px] text-muted-foreground hover:text-foreground font-mono transition-colors max-w-full cursor-pointer group"
+                  title="Click to copy link"
+                >
+                  <span className="truncate">{currentHost}</span>
+                  {copiedLink ? (
+                    <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Copy className="w-3 h-3 text-muted-foreground group-hover:text-foreground shrink-0" />
+                  )}
+                </button>
               </div>
             </div>
 

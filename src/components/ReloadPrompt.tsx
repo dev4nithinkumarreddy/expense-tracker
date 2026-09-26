@@ -5,6 +5,8 @@ import { Button } from './ui/button';
 import { RefreshCcw, X } from 'lucide-react';
 import { useExpenseStore } from '../store/useExpenseStore';
 
+import { useEffect } from 'react';
+
 export function ReloadPrompt() {
   const { isModalOpen } = useExpenseStore();
 
@@ -15,15 +17,51 @@ export function ReloadPrompt() {
   } = useRegisterSW({
     onRegistered(r: any) {
       if (r) {
-        setInterval(() => {
+        // Eagerly probe for updates on registration
+        r.update();
+
+        // Probe for updates when tab becomes visible
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            r.update();
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Regular periodic probe every 15 minutes
+        const intervalId = setInterval(() => {
           r.update();
-        }, 60 * 60 * 1000);
+        }, 15 * 60 * 1000);
+
+        return () => {
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+          clearInterval(intervalId);
+        };
       }
     },
     onRegisterError(error: any) {
       console.error('SW registration error', error);
     },
   });
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      let refreshing = false;
+
+      const handleControllerChange = () => {
+        if (hadController && !refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+      return () => {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      };
+    }
+  }, []);
 
   const close = () => {
     setOfflineReady(false);
