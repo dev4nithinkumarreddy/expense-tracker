@@ -30,6 +30,12 @@ export const CATEGORY_STYLES: Record<string, { bg: string; text: string; border:
     border: 'border-sky-500/25',
     emoji: '🚗',
   },
+  Fuel: {
+    bg: 'bg-amber-500/10 dark:bg-amber-500/15',
+    text: 'text-amber-700 dark:text-amber-400',
+    border: 'border-amber-500/25',
+    emoji: '⛽',
+  },
   Travel: {
     bg: 'bg-cyan-500/10 dark:bg-cyan-500/15',
     text: 'text-cyan-700 dark:text-cyan-400',
@@ -150,3 +156,10 @@ export const DEFAULT_STYLE = {
 export function getCategoryStyle(category: string) {
   return CATEGORY_STYLES[category] || DEFAULT_STYLE;
 }
+
+export function isIncomeCategory(category?: string | null): boolean {
+  if (!category) return false;
+  const normalized = category.trim().toLowerCase();
+  return normalized === 'income' || normalized === 'salary';
+}
+

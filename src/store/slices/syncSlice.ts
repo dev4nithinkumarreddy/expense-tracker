@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { queryClient } from '../../lib/queryClient';
 import { calculateStreak } from '../../lib/streak';
 import { generateDeterministicUUID } from '../../lib/utils';
+import { applyExpenseToAccounts } from './expenseSlice';
 import { 
   defaultCategories, 
   type ExpenseState, 
@@ -544,7 +545,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             receipt_url: e.receipt_url || null,
             recurrence: 'none',
             next_occurrence: null,
-            recurring_source_id: e.recurring_source_id || null
+            recurring_source_id: e.recurring_source_id || null,
+            account_id: e.account_id || null
           }
         });
       });
@@ -572,10 +574,16 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       finalExpenses = finalExpenses.map(e => e.id === updatedE.id ? updatedE : e);
     });
 
+    let finalAccounts = state.accounts;
+    allNewExpenses.forEach(newExp => {
+      finalAccounts = applyExpenseToAccounts(finalAccounts, newExp, 1);
+    });
+
     return {
       ...state,
       lastActiveMonth: currentMonth,
-      expenses: finalExpenses
+      expenses: finalExpenses,
+      accounts: finalAccounts
     };
   }),
 
@@ -590,7 +598,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           supabase.from('budgets').delete().eq('user_id', session.user.id),
           supabase.from('wishlist').delete().eq('user_id', session.user.id),
           supabase.from('debts').delete().eq('user_id', session.user.id),
-          supabase.from('user_settings').delete().eq('user_id', session.user.id)
+          supabase.from('user_settings').delete().eq('user_id', session.user.id),
+          (supabase.from('accounts' as any).delete().eq('user_id', session.user.id) as any).catch(() => {})
         ]);
         queryClient.removeQueries();
         toast.success("All data erased successfully");
@@ -608,6 +617,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       debts: [],
       pendingMutations: [],
       recentlyDeleted: [],
+      accounts: [
+        { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
+        { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
+      ],
       settings: {
         monthlyIncome: 45000,
         currency: '₹',

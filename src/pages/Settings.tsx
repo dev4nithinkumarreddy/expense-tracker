@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Share2, Copy, Check, Shield, Sparkles } from "lucide-react";
+import { Moon, Sun, Download, Upload, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Share2, Copy, Check, Shield, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
@@ -101,9 +101,10 @@ function CategoryRowItem({
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { settings, updateSettings, addCategory, deleteCategory, reorderCategories, eraseAllData, expenses, bills, session, budgets, updateBudget, recentlyDeleted = [] } = useExpenseStore();
+  const { settings, updateSettings, addCategory, deleteCategory, reorderCategories, eraseAllData, expenses, bills, session, budgets, updateBudget, recentlyDeleted = [], accounts = [], subscriptions = [], debts = [], wishlistItems = [] } = useExpenseStore();
   const { isSupported, permission, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
   
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [editingEmojiFor, setEditingEmojiFor] = useState<string | null>(null);
@@ -183,7 +184,19 @@ export default function Settings() {
   const [qaIcon, setQaIcon] = useState("✨");
 
   const handleExport = () => {
-    const data = { expenses, bills, settings };
+    vibrate(10);
+    const data = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      expenses,
+      bills,
+      settings,
+      budgets,
+      accounts,
+      subscriptions,
+      debts,
+      wishlistItems
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -193,6 +206,69 @@ export default function Settings() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    toast.success("Backup downloaded successfully!");
+  };
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (!parsed || typeof parsed !== 'object') {
+          toast.error("Invalid backup file format");
+          return;
+        }
+
+        useExpenseStore.setState((state) => ({
+          expenses: Array.isArray(parsed.expenses) ? parsed.expenses : state.expenses,
+          bills: Array.isArray(parsed.bills) ? parsed.bills : state.bills,
+          budgets: Array.isArray(parsed.budgets) ? parsed.budgets : state.budgets,
+          accounts: Array.isArray(parsed.accounts) ? parsed.accounts : state.accounts,
+          subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : state.subscriptions,
+          debts: Array.isArray(parsed.debts) ? parsed.debts : state.debts,
+          wishlistItems: Array.isArray(parsed.wishlistItems) ? parsed.wishlistItems : state.wishlistItems,
+          settings: parsed.settings ? { ...state.settings, ...parsed.settings } : state.settings,
+        }));
+
+        const store = useExpenseStore.getState();
+        if (store.session) {
+          if (Array.isArray(parsed.expenses)) {
+            parsed.expenses.forEach((exp: any) => {
+              store.addPendingMutation({ type: 'INSERT_EXPENSE', payload: { ...exp, user_id: store.session?.user.id } });
+            });
+          }
+          if (Array.isArray(parsed.accounts)) {
+            parsed.accounts.forEach((acc: any) => {
+              store.addPendingMutation({ type: 'INSERT_ACCOUNT', payload: { ...acc, user_id: store.session?.user.id } });
+            });
+          }
+          if (Array.isArray(parsed.bills)) {
+            parsed.bills.forEach((b: any) => {
+              store.addPendingMutation({ type: 'INSERT_BILL', payload: { ...b, user_id: store.session?.user.id } });
+            });
+          }
+          if (parsed.settings) {
+            store.updateSettings(parsed.settings);
+          }
+          store.syncPendingMutations();
+        }
+
+        vibrate(20);
+        if (settings.soundEnabled) playSuccessSound();
+        toast.success("Backup restored successfully!");
+      } catch (err) {
+        console.error("Backup import error:", err);
+        toast.error("Failed to parse backup JSON file");
+      } finally {
+        if (importInputRef.current) {
+          importInputRef.current.value = "";
+        }
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleCsvExport = () => {
@@ -787,6 +863,21 @@ export default function Settings() {
                 <Download className="w-4 h-4" />
                 Export Full Backup (JSON)
               </Button>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start gap-2" 
+                onClick={() => importInputRef.current?.click()}
+              >
+                <Upload className="w-4 h-4" />
+                Import Backup (JSON)
+              </Button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImportJson}
+              />
               <Button variant="outline" className="w-full justify-start gap-2" onClick={() => supabase.auth.signOut()}>
                 Sign Out
               </Button>

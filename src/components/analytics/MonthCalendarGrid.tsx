@@ -11,6 +11,7 @@ import {
 import { vibrate } from '../../lib/utils';
 import type { Expense } from '../../store/useExpenseStore';
 import { getExpenseLocalDate } from '../../lib/streak';
+import { isIncomeCategory } from '../../lib/categoryStyles';
 
 interface MonthCalendarGridProps {
   currentMonthDate: Date;
@@ -37,7 +38,7 @@ export function MonthCalendarGrid({
   const daySpendMap = useMemo(() => {
     const map = new Map<string, { count: number; total: number }>();
     expenses.forEach((e) => {
-      if (e.category === 'Income' || e.amount <= 0) return;
+      if (isIncomeCategory(e.category) || e.category === 'Transfer' || e.amount <= 0) return;
       const dateKey = getExpenseLocalDate(e.date);
       const current = map.get(dateKey) || { count: 0, total: 0 };
       map.set(dateKey, {

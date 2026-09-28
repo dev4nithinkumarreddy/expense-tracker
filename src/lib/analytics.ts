@@ -6,6 +6,7 @@ import {
 } from 'date-fns';
 import type { Expense, Budget } from '../store/useExpenseStore';
 import { getExpenseLocalDate } from './streak';
+import { isIncomeCategory } from './categoryStyles';
 
 export interface MonthKPIs {
   totalExpenses: number;
@@ -63,15 +64,15 @@ export function calculateMonthKPIs(
 
   // Filter positive expenses (ignore negative carry-overs and transfers) using local date
   const currentMonthExpenses = expenses.filter(e => {
-    if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
+    if (!e || !e.date || isIncomeCategory(e.category) || e.category === 'Transfer' || e.amount <= 0) return false;
     return getExpenseLocalDate(e.date).startsWith(selectedMonthStr);
   });
   const totalExpenses = currentMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
 
-  // Income: sum of category 'Income' records or fallback to baselineMonthlyIncome
+  // Income: sum of income records or fallback to baselineMonthlyIncome
   const loggedIncome = expenses
     .filter(e => {
-      if (!e || !e.date || e.category !== 'Income') return false;
+      if (!e || !e.date || !isIncomeCategory(e.category)) return false;
       return getExpenseLocalDate(e.date).startsWith(selectedMonthStr);
     })
     .reduce((sum, e) => sum + e.amount, 0);
@@ -97,7 +98,7 @@ export function calculateMonthKPIs(
   const lastMonthStr = format(lastMonthDate, 'yyyy-MM');
   const lastMonthExpenses = expenses
     .filter(e => {
-      if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
+      if (!e || !e.date || isIncomeCategory(e.category) || e.category === 'Transfer' || e.amount <= 0) return false;
       return getExpenseLocalDate(e.date).startsWith(lastMonthStr);
     })
     .reduce((sum, e) => sum + e.amount, 0);
@@ -163,14 +164,14 @@ export function calculateMultiMonthTrends(
 
     const mExpenses = expenses
       .filter(e => {
-        if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
+        if (!e || !e.date || isIncomeCategory(e.category) || e.category === 'Transfer' || e.amount <= 0) return false;
         return getExpenseLocalDate(e.date).startsWith(mKey);
       })
       .reduce((sum, e) => sum + e.amount, 0);
 
     const loggedIncome = expenses
       .filter(e => {
-        if (!e || !e.date || e.category !== 'Income') return false;
+        if (!e || !e.date || !isIncomeCategory(e.category)) return false;
         return getExpenseLocalDate(e.date).startsWith(mKey);
       })
       .reduce((sum, e) => sum + e.amount, 0);
@@ -200,7 +201,7 @@ export function calculateDailySpend(
   const dailyMap: Record<number, number> = {};
 
   expenses.forEach(e => {
-    if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return;
+    if (!e || !e.date || isIncomeCategory(e.category) || e.category === 'Transfer' || e.amount <= 0) return;
     const localDate = getExpenseLocalDate(e.date);
     if (localDate.startsWith(selectedMonthStr)) {
       const parts = localDate.split('-');
@@ -234,7 +235,7 @@ export function calculateCategoryBreakdown(
   selectedMonthStr: string
 ): CategoryBreakdownItem[] {
   const currentMonthExpenses = expenses.filter(e => {
-    if (!e || !e.date || e.category === 'Income' || e.category === 'Transfer' || e.amount <= 0) return false;
+    if (!e || !e.date || isIncomeCategory(e.category) || e.category === 'Transfer' || e.amount <= 0) return false;
     return getExpenseLocalDate(e.date).startsWith(selectedMonthStr);
   });
 

@@ -3,7 +3,48 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { calculateStreak } from '../../lib/streak';
 import { queryClient } from '../../lib/queryClient';
-import type { ExpenseState, ExpenseSlice, DeletedExpense, Expense } from '../types';
+import { isIncomeCategory } from '../../lib/categoryStyles';
+import type { ExpenseState, ExpenseSlice, DeletedExpense, Expense, Account } from '../types';
+
+export function applyExpenseToAccounts(
+  accounts: Account[] | undefined,
+  expense: Expense,
+  direction: 1 | -1
+): Account[] {
+  if (!accounts || accounts.length === 0) return accounts || [];
+
+  if (expense.category === 'Transfer' && expense.account_id && expense.transfer_account_id) {
+    return accounts.map((acc) => {
+      if (acc.id === expense.account_id) {
+        const delta = acc.type === 'credit_card' ? expense.amount : -expense.amount;
+        return { ...acc, balance: acc.balance + delta * direction };
+      }
+      if (acc.id === expense.transfer_account_id) {
+        const delta = acc.type === 'credit_card' ? -expense.amount : expense.amount;
+        return { ...acc, balance: acc.balance + delta * direction };
+      }
+      return acc;
+    });
+  }
+
+  if (expense.account_id && expense.category !== 'Transfer') {
+    const isIncome = isIncomeCategory(expense.category);
+    return accounts.map((acc) => {
+      if (acc.id === expense.account_id) {
+        if (acc.type === 'credit_card') {
+          const delta = isIncome ? -expense.amount : expense.amount;
+          return { ...acc, balance: acc.balance + delta * direction };
+        } else {
+          const delta = isIncome ? expense.amount : -expense.amount;
+          return { ...acc, balance: acc.balance + delta * direction };
+        }
+      }
+      return acc;
+    });
+  }
+
+  return accounts;
+}
 
 export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice> = (set, get) => ({
   expenses: [],
@@ -19,22 +60,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     set((state) => {
       const updatedExpenses = [...state.expenses, newExpense];
       const newStreak = calculateStreak(updatedExpenses);
-      let updatedAccounts = state.accounts;
-      if (newExpense.account_id && state.accounts && newExpense.category !== 'Transfer') {
-        const isIncome = newExpense.category === 'Income';
-        updatedAccounts = state.accounts.map(acc => {
-          if (acc.id === newExpense.account_id) {
-            if (acc.type === 'credit_card') {
-              const delta = isIncome ? -newExpense.amount : newExpense.amount;
-              return { ...acc, balance: acc.balance + delta };
-            } else {
-              const delta = isIncome ? newExpense.amount : -newExpense.amount;
-              return { ...acc, balance: acc.balance + delta };
-            }
-          }
-          return acc;
-        });
-      }
+      const updatedAccounts = newExpense.category === 'Transfer'
+        ? state.accounts
+        : applyExpenseToAccounts(state.accounts, newExpense, 1);
       return { 
         expenses: updatedExpenses,
         accounts: updatedAccounts,
@@ -70,9 +98,18 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
   
   updateExpense: (id, updatedFields) => {
     set((state) => {
-      const updatedExpenses = state.expenses.map(e => e.id === id ? { ...e, ...updatedFields } : e);
+      const oldExpense = state.expenses.find(e => e.id === id);
+      if (!oldExpense) return state;
+      const updatedExpense = { ...oldExpense, ...updatedFields };
+      const updatedExpenses = state.expenses.map(e => e.id === id ? updatedExpense : e);
+
+      // Revert previous account effect and apply new account effect
+      const accountsAfterRevert = applyExpenseToAccounts(state.accounts, oldExpense, -1);
+      const updatedAccounts = applyExpenseToAccounts(accountsAfterRevert, updatedExpense, 1);
+
       return {
         expenses: updatedExpenses,
+        accounts: updatedAccounts,
         settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
       };
     });
@@ -116,34 +153,7 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
 
     set((state) => {
       const updatedExpenses = state.expenses.filter(e => e.id !== id);
-      let updatedAccounts = state.accounts;
-      if (expenseToDelete.category === 'Transfer' && expenseToDelete.account_id && expenseToDelete.transfer_account_id && state.accounts) {
-        updatedAccounts = state.accounts.map(acc => {
-          if (acc.id === expenseToDelete.account_id) {
-            const delta = acc.type === 'credit_card' ? -expenseToDelete.amount : expenseToDelete.amount;
-            return { ...acc, balance: acc.balance + delta };
-          }
-          if (acc.id === expenseToDelete.transfer_account_id) {
-            const delta = acc.type === 'credit_card' ? expenseToDelete.amount : -expenseToDelete.amount;
-            return { ...acc, balance: acc.balance + delta };
-          }
-          return acc;
-        });
-      } else if (expenseToDelete.account_id && state.accounts && expenseToDelete.category !== 'Transfer') {
-        const isIncome = expenseToDelete.category === 'Income';
-        updatedAccounts = state.accounts.map(acc => {
-          if (acc.id === expenseToDelete.account_id) {
-            if (acc.type === 'credit_card') {
-              const delta = isIncome ? expenseToDelete.amount : -expenseToDelete.amount;
-              return { ...acc, balance: acc.balance + delta };
-            } else {
-              const delta = isIncome ? -expenseToDelete.amount : expenseToDelete.amount;
-              return { ...acc, balance: acc.balance + delta };
-            }
-          }
-          return acc;
-        });
-      }
+      const updatedAccounts = applyExpenseToAccounts(state.accounts, expenseToDelete, -1);
       return {
         expenses: updatedExpenses,
         accounts: updatedAccounts,
@@ -180,34 +190,7 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     const updatedExpenses = [...expenses, restoredExpense];
 
     set((state) => {
-      let updatedAccounts = state.accounts;
-      if (restoredExpense.category === 'Transfer' && restoredExpense.account_id && restoredExpense.transfer_account_id && state.accounts) {
-        updatedAccounts = state.accounts.map(acc => {
-          if (acc.id === restoredExpense.account_id) {
-            const delta = acc.type === 'credit_card' ? restoredExpense.amount : -restoredExpense.amount;
-            return { ...acc, balance: acc.balance + delta };
-          }
-          if (acc.id === restoredExpense.transfer_account_id) {
-            const delta = acc.type === 'credit_card' ? -restoredExpense.amount : restoredExpense.amount;
-            return { ...acc, balance: acc.balance + delta };
-          }
-          return acc;
-        });
-      } else if (restoredExpense.account_id && state.accounts && restoredExpense.category !== 'Transfer') {
-        const isIncome = restoredExpense.category === 'Income';
-        updatedAccounts = state.accounts.map(acc => {
-          if (acc.id === restoredExpense.account_id) {
-            if (acc.type === 'credit_card') {
-              const delta = isIncome ? -restoredExpense.amount : restoredExpense.amount;
-              return { ...acc, balance: acc.balance + delta };
-            } else {
-              const delta = isIncome ? restoredExpense.amount : -restoredExpense.amount;
-              return { ...acc, balance: acc.balance + delta };
-            }
-          }
-          return acc;
-        });
-      }
+      const updatedAccounts = applyExpenseToAccounts(state.accounts, restoredExpense, 1);
       return {
         expenses: updatedExpenses,
         accounts: updatedAccounts,

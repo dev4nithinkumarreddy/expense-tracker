@@ -11,7 +11,7 @@ import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { vibrate } from "../lib/utils";
 import { EmptyState } from "../components/ui/EmptyState";
-import { getCategoryStyle } from "../lib/categoryStyles";
+import { getCategoryStyle, isIncomeCategory } from "../lib/categoryStyles";
 
 type QuickFilter = 'all' | 'receipt' | 'high_spend' | 'recurring';
 
@@ -343,7 +343,7 @@ export default function Expenses() {
                     </h3>
                     <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
                       {dayExpenses.map(expense => {
-                        const isIncome = expense.category === 'Income';
+                        const isIncome = isIncomeCategory(expense.category);
                         return (
                           <SwipeableExpenseItem 
                             key={expense.id} 

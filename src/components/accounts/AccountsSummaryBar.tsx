@@ -60,9 +60,9 @@ export function AccountsSummaryBar() {
   const handleOpenTransfer = (defaultFrom?: string) => {
     vibrate(10);
     playTapSound();
-    const from = defaultFrom || visibleAccounts[0]?.id || '';
+    const from = defaultFrom || accounts[0]?.id || '';
     setFromAccountId(from);
-    const to = visibleAccounts.find((a) => a.id !== from)?.id || '';
+    const to = accounts.find((a) => a.id !== from)?.id || '';
     setToAccountId(to);
     setTransferAmount('');
     setTransferNotes('');
@@ -529,9 +529,9 @@ export function AccountsSummaryBar() {
                       onChange={(e) => setFromAccountId(e.target.value)}
                       className="w-full text-xs rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      {visibleAccounts.map((a) => (
+                      {accounts.map((a) => (
                         <option key={a.id} value={a.id}>
-                          {a.name} ({a.currency || settings.currency}{a.balance})
+                          {a.name} {a.type === 'credit_card' ? `(Owed: ${a.currency || settings.currency}${a.balance})` : `(${a.currency || settings.currency}${a.balance})`}
                         </option>
                       ))}
                     </select>
@@ -546,9 +546,9 @@ export function AccountsSummaryBar() {
                       onChange={(e) => setToAccountId(e.target.value)}
                       className="w-full text-xs rounded-xl bg-secondary/50 border border-border/50 p-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     >
-                      {visibleAccounts.map((a) => (
+                      {accounts.map((a) => (
                         <option key={a.id} value={a.id}>
-                          {a.name}
+                          {a.name} {a.type === 'credit_card' ? `(Owed: ${a.currency || settings.currency}${a.balance})` : `(${a.currency || settings.currency}${a.balance})`}
                         </option>
                       ))}
                     </select>

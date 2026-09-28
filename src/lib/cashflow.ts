@@ -1,5 +1,6 @@
 import type { Bill, Subscription, Expense } from '../store/useExpenseStore';
 import { isThisMonth, parseISO } from 'date-fns';
+import { isIncomeCategory } from './categoryStyles';
 
 export interface CashflowSummary {
   totalBudget: number;
@@ -37,11 +38,11 @@ export function calculateCashflowSummary(
   });
 
   const extraIncome = currentMonthRecords
-    .filter(e => e.category === 'Income')
+    .filter(e => isIncomeCategory(e.category))
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   const totalExpenses = currentMonthRecords
-    .filter(e => e.category !== 'Income' && e.category !== 'Transfer')
+    .filter(e => !isIncomeCategory(e.category) && e.category !== 'Transfer')
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   const totalBudget = (Number(monthlyIncome) || 0) + extraIncome;

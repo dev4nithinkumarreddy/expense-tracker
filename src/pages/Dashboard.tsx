@@ -23,6 +23,7 @@ import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { playSuccessSound } from "../lib/sound";
 import { toast } from "sonner";
 import { CategoryBadge } from "../components/ui/CategoryBadge";
+import { isIncomeCategory } from "../lib/categoryStyles";
 import { EmptyState } from "../components/ui/EmptyState";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { checkIsAdmin } from "../lib/admin";
@@ -162,8 +163,8 @@ export default function Dashboard() {
   }
 
   const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
-  const incomeRecords = currentMonthRecords.filter(e => e.category === 'Income');
-  const currentMonthExpenses = currentMonthRecords.filter(e => e.category !== 'Income' && e.category !== 'Transfer');
+  const incomeRecords = currentMonthRecords.filter(e => isIncomeCategory(e.category));
+  const currentMonthExpenses = currentMonthRecords.filter(e => !isIncomeCategory(e.category) && e.category !== 'Transfer');
 
   const extraIncome = incomeRecords.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = cashflow.totalExpenses;
@@ -240,7 +241,7 @@ export default function Dashboard() {
 
   // Recent expenses (last 5, showing latest non-income transactions across month boundaries)
   const recentExpenses = [...expenses]
-    .filter(e => e.category !== 'Income')
+    .filter(e => !isIncomeCategory(e.category))
     .sort((a, b) => {
       const timeDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
       if (timeDiff !== 0) return timeDiff;

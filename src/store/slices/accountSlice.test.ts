@@ -273,4 +273,74 @@ describe('accountSlice', () => {
     expect(cash?.balance).toBe(40);
     expect((bank?.balance ?? 0) + (cash?.balance ?? 0)).toBe(40);
   });
+
+  it('adjusts account balances properly when an expense is updated', async () => {
+    useExpenseStore.setState({
+      accounts: [
+        { id: 'acc-bank', name: 'Main Bank', type: 'bank', balance: 10000, currency: '₹' },
+        { id: 'acc-cash', name: 'Cash', type: 'cash', balance: 2000, currency: '₹' },
+      ],
+      expenses: [],
+      recentlyDeleted: [],
+    });
+
+    const store = useExpenseStore.getState();
+    const expId = await store.addExpense({
+      amount: 500,
+      description: 'Dinner',
+      category: 'Food',
+      date: new Date().toISOString(),
+      account_id: 'acc-bank',
+    });
+
+    expect(useExpenseStore.getState().accounts.find(a => a.id === 'acc-bank')?.balance).toBe(9500);
+
+    // Edit expense amount to 1500
+    store.updateExpense(expId, { amount: 1500 });
+    expect(useExpenseStore.getState().accounts.find(a => a.id === 'acc-bank')?.balance).toBe(8500);
+
+    // Switch account from bank to cash
+    store.updateExpense(expId, { account_id: 'acc-cash' });
+    expect(useExpenseStore.getState().accounts.find(a => a.id === 'acc-bank')?.balance).toBe(10000); // Reverted on bank
+    expect(useExpenseStore.getState().accounts.find(a => a.id === 'acc-cash')?.balance).toBe(500); // Applied on cash (2000 - 1500)
+  });
+
+  it('treats Salary category as income and credits the bank account', async () => {
+    useExpenseStore.setState({
+      accounts: [
+        { id: 'acc-bank', name: 'Main Bank', type: 'bank', balance: 5000, currency: '₹' },
+      ],
+      expenses: [],
+      recentlyDeleted: [],
+    });
+
+    const store = useExpenseStore.getState();
+    await store.addExpense({
+      amount: 45000,
+      description: 'Monthly Salary',
+      category: 'Salary',
+      date: new Date().toISOString(),
+      account_id: 'acc-bank',
+    });
+
+    expect(useExpenseStore.getState().accounts.find(a => a.id === 'acc-bank')?.balance).toBe(50000);
+  });
+
+  it('resets accounts to default accounts on eraseAllData', async () => {
+    useExpenseStore.setState({
+      accounts: [
+        { id: 'acc-custom', name: 'Crypto Wallet', type: 'savings', balance: 99999, currency: '₹' },
+      ],
+      expenses: [],
+      recentlyDeleted: [],
+    });
+
+    await useExpenseStore.getState().eraseAllData();
+
+    const accounts = useExpenseStore.getState().accounts;
+    expect(accounts).toHaveLength(2);
+    expect(accounts.find(a => a.id === 'acc-bank-1')).toBeDefined();
+    expect(accounts.find(a => a.id === 'acc-cash-1')).toBeDefined();
+    expect(accounts.find(a => a.id === 'acc-custom')).toBeUndefined();
+  });
 });

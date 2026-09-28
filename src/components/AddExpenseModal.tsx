@@ -20,6 +20,7 @@ const DEFAULT_CATEGORY_EMOJIS: Record<string, string> = {
   Entertainment: '🎬',
   Travel: '✈️',
   Transport: '🚗',
+  Fuel: '⛽',
   Bills: '💡',
   Utilities: '⚡',
   Medical: '💊',

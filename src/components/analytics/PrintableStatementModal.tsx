@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useExpenseStore } from '../../store/useExpenseStore';
 import { generateStatementData, triggerPrintStatement } from '../../lib/pdfReportGenerator';
 import { formatCurrency } from '../../lib/formatCurrency';
+import { isIncomeCategory } from '../../lib/categoryStyles';
 import { format, parseISO, subMonths } from 'date-fns';
 import { Printer, X, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -271,12 +272,12 @@ export function PrintableStatementModal({
                           </td>
                           <td
                             className={`p-2.5 px-3 text-right font-semibold whitespace-nowrap ${
-                              tx.category === 'Income'
+                              isIncomeCategory(tx.category)
                                 ? 'text-emerald-600 print:text-emerald-700'
                                 : 'text-foreground print:text-black'
                             }`}
                           >
-                            {tx.category === 'Income' ? '+' : '-'}
+                            {isIncomeCategory(tx.category) ? '+' : '-'}
                             {formatCurrency(tx.amount, statement.currency)}
                           </td>
                         </tr>

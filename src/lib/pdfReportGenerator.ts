@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import type { Expense, Settings, Account } from '../store/types';
+import { isIncomeCategory } from './categoryStyles';
 
 export interface StatementData {
   title: string;
@@ -36,9 +37,9 @@ export function generateStatementData(
 
   // Separate non-income / non-transfer expenses
   const debitExpenses = filteredExpenses.filter(
-    (e) => e.category !== 'Income' && e.category !== 'Transfer'
+    (e) => !isIncomeCategory(e.category) && e.category !== 'Transfer'
   );
-  const incomeExpenses = filteredExpenses.filter((e) => e.category === 'Income');
+  const incomeExpenses = filteredExpenses.filter((e) => isIncomeCategory(e.category));
 
   const totalIncome = incomeExpenses.reduce((sum, e) => sum + e.amount, 0) || settings.monthlyIncome || 0;
   const totalExpenses = debitExpenses.reduce((sum, e) => sum + e.amount, 0);

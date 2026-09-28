@@ -2,16 +2,17 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useExpenseStore } from '../../store/useExpenseStore';
 import { isThisMonth, parseISO } from 'date-fns';
+import { isIncomeCategory } from '../../lib/categoryStyles';
 
 export function AmbientBackground() {
   const { expenses, settings, bills } = useExpenseStore();
 
   const healthState = useMemo(() => {
     const currentMonthExpenses = expenses.filter(
-      (e) => isThisMonth(parseISO(e.date)) && e.category !== 'Income' && e.category !== 'Transfer'
+      (e) => isThisMonth(parseISO(e.date)) && !isIncomeCategory(e.category) && e.category !== 'Transfer'
     );
     const incomeRecords = expenses.filter(
-      (e) => isThisMonth(parseISO(e.date)) && e.category === 'Income'
+      (e) => isThisMonth(parseISO(e.date)) && isIncomeCategory(e.category)
     );
 
     const extraIncome = incomeRecords.reduce((sum, e) => sum + e.amount, 0);
