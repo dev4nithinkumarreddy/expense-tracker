@@ -96,6 +96,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         syncRetryTimer = null;
       }
 
+      let syncedAny = false;
+
       for (const mut of pendingMutations) {
         try {
           let error: any = null;
@@ -225,6 +227,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
 
           if (!error) {
+            syncedAny = true;
             removePendingMutation(mut.id);
             consecutiveSyncFailures = 0;
             toast.dismiss('sync-paused-error');
@@ -256,6 +259,21 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
            toast.error(`Sync network error. Retrying in background...`, { id: 'sync-paused-error' });
            scheduleSyncRetry(() => get().syncPendingMutations());
            break;
+        }
+      }
+
+      if (session && syncedAny && typeof supabase?.channel === 'function') {
+        try {
+          const syncChannel = supabase.channel(`device-sync-${session.user.id}`);
+          if (typeof syncChannel?.send === 'function') {
+            syncChannel.send({
+              type: 'broadcast',
+              event: 'data_changed',
+              payload: { timestamp: Date.now() }
+            });
+          }
+        } catch {
+          // Non-blocking
         }
       }
     } finally {

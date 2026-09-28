@@ -64,28 +64,40 @@ export default function App() {
 
   // Live Cross-Device Realtime Synchronization
   useEffect(() => {
-    if (!session) return;
+    if (!session?.user?.id) return;
 
-    // Listen to changes on all public tables
-    const channel = supabase
-      .channel(`device-sync-${session.user.id}`)
-      .on(
+    const channelName = `device-sync-${session.user.id}`;
+    const tables = ['expenses', 'accounts', 'bills', 'budgets', 'user_settings', 'subscriptions', 'debts', 'wishlist'];
+    
+    let channel = supabase.channel(channelName);
+
+    // 1. Instant peer-to-peer broadcast from other devices
+    channel = channel.on('broadcast', { event: 'data_changed' }, () => {
+      fetchCloudData();
+    });
+
+    // 2. Realtime Postgres DB changes per table
+    tables.forEach((table) => {
+      channel = channel.on(
         'postgres_changes',
         {
           event: '*',
-          schema: 'public'
+          schema: 'public',
+          table,
+          filter: `user_id=eq.${session.user.id}`
         },
         () => {
-          // Instant sync whenever any device mutates data on this account
           fetchCloudData();
         }
-      )
-      .subscribe();
+      );
+    });
+
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, fetchCloudData]);
+  }, [session?.user?.id, fetchCloudData]);
 
   // Sync on App Resume / Tab Focus (Mobile & Desktop) & Periodic Liveness
   useEffect(() => {
