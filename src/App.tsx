@@ -18,6 +18,7 @@ import { isThisMonth, isToday, parseISO } from "date-fns";
 import { formatCurrency } from "./lib/formatCurrency";
 
 import { SecurityLockOverlay } from "./components/ui/SecurityLockOverlay";
+import { NotificationPrompt } from "./components/notifications/NotificationPrompt";
 
 export default function App() {
   const { settings, checkMonthRollover, setSession, session, fetchCloudData, syncPendingMutations, isModalOpen, setModalOpen } = useExpenseStore();
@@ -155,7 +156,14 @@ export default function App() {
         
             <AddExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
             <ReloadPrompt />
-            <Toaster theme={settings.darkMode ? "dark" : "light"} position="bottom-center" />
+            <NotificationPrompt />
+            <Toaster 
+              theme={settings.darkMode ? "dark" : "light"} 
+              position="top-center" 
+              offset="max(1rem, calc(env(safe-area-inset-top, 0px) + 0.75rem))"
+              duration={3000}
+              richColors
+            />
             <SecurityLockOverlay />
             <BottomNav />
             <VercelAnalytics />

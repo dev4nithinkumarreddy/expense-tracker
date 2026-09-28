@@ -45,6 +45,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
   sharedData: null,
   shouldTriggerScan: false,
   pendingMutations: [],
+  isSyncing: false,
 
   setSession: (session) => set({ session }),
   setSharedData: (data) => set({ sharedData: data }),
@@ -66,6 +67,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     
     if (isSyncingLock) return;
     isSyncingLock = true;
+    set({ isSyncing: true });
 
     try {
       if (syncRetryTimer) {
@@ -200,6 +202,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       }
     } finally {
       isSyncingLock = false;
+      set({ isSyncing: false });
     }
   },
 
@@ -207,6 +210,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     const { session } = get();
     if (!session) return;
     
+    set({ isSyncing: true });
     try {
       const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes, accountsRes] = await Promise.all([
         supabase.from('expenses').select('*').eq('user_id', session.user.id),
@@ -419,6 +423,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       }
     } catch (error) {
       console.error("Failed to fetch cloud data:", error);
+    } finally {
+      set({ isSyncing: false });
     }
   },
 

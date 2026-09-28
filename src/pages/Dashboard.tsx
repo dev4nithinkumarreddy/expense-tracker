@@ -27,6 +27,7 @@ import { isIncomeCategory } from "../lib/categoryStyles";
 import { EmptyState } from "../components/ui/EmptyState";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { checkIsAdmin } from "../lib/admin";
+import { SyncStatusBadge } from "../components/ui/SyncStatusBadge";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-2">
@@ -274,9 +275,12 @@ export default function Dashboard() {
               <h1 className="text-2xl sm:text-3xl font-bold display-title leading-tight truncate">
                 {displayName}
               </h1>
-              <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 truncate">
-                {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <p className="text-muted-foreground text-xs sm:text-sm truncate">
+                  {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </p>
+                <SyncStatusBadge />
+              </div>
             </div>
             
             {/* Mobile/Tablet Action Buttons */}

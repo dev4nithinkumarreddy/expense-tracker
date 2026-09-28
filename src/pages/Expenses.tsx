@@ -12,6 +12,8 @@ import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { vibrate } from "../lib/utils";
 import { EmptyState } from "../components/ui/EmptyState";
 import { getCategoryStyle, isIncomeCategory } from "../lib/categoryStyles";
+import { SyncStatusBadge } from "../components/ui/SyncStatusBadge";
+import { toast } from "sonner";
 
 type QuickFilter = 'all' | 'receipt' | 'high_spend' | 'recurring';
 
@@ -32,6 +34,21 @@ export default function Expenses() {
     const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Auto-dismiss virtual keyboard on mobile when user scrolls transactions
+  useEffect(() => {
+    const dismissKeyboard = () => {
+      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+          document.activeElement.blur();
+        }
+      }
+    };
+
+    window.addEventListener('scroll', dismissKeyboard, { passive: true });
+    return () => window.removeEventListener('scroll', dismissKeyboard);
+  }, []);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
 
@@ -67,6 +84,10 @@ export default function Expenses() {
         matchesDate = isSameMonth(expenseDate, subMonths(new Date(), 1));
       } else if (dateFilter === 'last_7_days') {
         matchesDate = isAfter(expenseDate, subDays(new Date(), 7));
+      } else if (dateFilter === 'last_30_days') {
+        matchesDate = isAfter(expenseDate, subDays(new Date(), 30));
+      } else if (dateFilter === 'this_year') {
+        matchesDate = expenseDate.getFullYear() === new Date().getFullYear();
       }
 
       let matchesQuick = true;
@@ -106,7 +127,10 @@ export default function Expenses() {
   };
 
   const handleCsvExport = () => {
-    if (!filteredExpenses.length) return;
+    if (!filteredExpenses.length) {
+      toast.info("No expenses found matching the selected filter");
+      return;
+    }
     const headers = ["Date", "Description", "Category", "Amount", "Notes"];
     const rows = filteredExpenses.map(e => [
       e.date.split("T")[0],
@@ -120,18 +144,22 @@ export default function Expenses() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `expense-tracker-filtered-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `expense-tracker-${dateFilter}-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredExpenses.length} expenses to CSV`);
   };
 
   return (
     <div className="space-y-4">
       {/* Top Page Header - Scrolls away naturally */}
       <div className="flex justify-between items-center pt-1 pb-1">
-        <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
+          <SyncStatusBadge />
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -173,14 +201,16 @@ export default function Expenses() {
             </div>
             <div className="flex gap-2 shrink-0">
               <select
-                className="flex h-10 w-[115px] lg:flex-1 rounded-xl border border-input bg-card/90 lg:bg-secondary/50 px-2.5 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0"
+                className="flex h-10 w-[115px] lg:flex-1 rounded-xl border border-input bg-card/90 lg:bg-secondary/50 px-2.5 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0 cursor-pointer"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
               >
-                <option value="all">All Time</option>
                 <option value="this_month">This Month</option>
                 <option value="last_month">Last Month</option>
                 <option value="last_7_days">Last 7 Days</option>
+                <option value="last_30_days">Last 30 Days</option>
+                <option value="this_year">This Year (YTD)</option>
+                <option value="all">All Time</option>
               </select>
               <Button
                 type="button"

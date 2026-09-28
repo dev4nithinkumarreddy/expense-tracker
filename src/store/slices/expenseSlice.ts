@@ -171,6 +171,7 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     }
 
     toast.success(`Deleted "${expenseToDelete.description}"`, {
+      duration: 3500,
       action: {
         label: 'Undo',
         onClick: () => {

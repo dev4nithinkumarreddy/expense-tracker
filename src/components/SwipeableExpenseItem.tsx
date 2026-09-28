@@ -35,6 +35,7 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
     });
 
     toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
+      duration: 3500,
       action: {
         label: "Undo",
         onClick: () => {

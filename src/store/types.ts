@@ -190,6 +190,7 @@ export interface SyncSlice {
   lastActiveMonth: string;
   session: Session | null;
   pendingMutations: PendingMutation[];
+  isSyncing?: boolean;
   isModalOpen: boolean;
   sharedData: { title?: string; text?: string; url?: string } | null;
   shouldTriggerScan: boolean;
