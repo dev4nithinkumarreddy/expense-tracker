@@ -4,7 +4,7 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Lock, Fingerprint, KeyRound, Share2, Copy, Check, ScanFace, Loader2 } from "lucide-react";
+import { Moon, Sun, Download, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Share2, Copy, Check, Shield, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
@@ -14,7 +14,8 @@ import { RecentlyDeletedModal } from "../components/RecentlyDeletedModal";
 import { checkIsAdmin } from "../lib/admin";
 import { BadgeCabinet } from "../components/analytics/BadgeCabinet";
 import { PrintableStatementModal } from "../components/analytics/PrintableStatementModal";
-import { hashPin, registerBiometrics, clearStoredBiometrics, isAppleDevice } from "../lib/biometrics";
+// Preserved for upcoming full native app restoration:
+// import { hashPin, registerBiometrics, clearStoredBiometrics, isAppleDevice } from "../lib/biometrics";
 import { toast } from "sonner";
 const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
 
@@ -108,43 +109,13 @@ export default function Settings() {
   const [editingEmojiFor, setEditingEmojiFor] = useState<string | null>(null);
   const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [pinInput, setPinInput] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
-  const [isRegisteringBiometrics, setIsRegisteringBiometrics] = useState(false);
-  const isApple = isAppleDevice();
-
-  const handleToggleBiometrics = async () => {
-    vibrate(10);
-    if (settings.appLockBiometrics) {
-      clearStoredBiometrics();
-      updateSettings({ appLockBiometrics: false });
-      toast.success(isApple ? 'Face ID / Touch ID disabled' : 'Biometric unlock disabled');
-      return;
-    }
-
-    setIsRegisteringBiometrics(true);
-    try {
-      const res = await registerBiometrics();
-      if (res.success) {
-        updateSettings({ appLockBiometrics: true });
-        vibrate([15, 30, 15]);
-        if (settings.soundEnabled) playSuccessSound();
-        toast.success(
-          isApple
-            ? 'Face ID / Touch ID configured successfully!'
-            : 'Biometric unlock configured successfully!'
-        );
-      } else {
-        toast.error(res.error || 'Failed to setup biometrics');
-      }
-    } catch (e: unknown) {
-      const err = e as { message?: string };
-      toast.error(err?.message || 'Could not enable biometrics');
-    } finally {
-      setIsRegisteringBiometrics(false);
-    }
-  };
+  // Preserved for upcoming full native app restoration:
+  // const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  // const [pinInput, setPinInput] = useState("");
+  // const [isRegisteringBiometrics, setIsRegisteringBiometrics] = useState(false);
+  // const isApple = isAppleDevice();
+  // const handleToggleBiometrics = async () => { ... };
 
   const getAppShareUrl = () => {
     if (typeof window !== 'undefined' && window.location?.origin) {
@@ -194,22 +165,8 @@ export default function Settings() {
     }
   };
 
-  const handleSavePin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pinInput.length !== 4 || !/^\d{4}$/.test(pinInput)) {
-      toast.error('PIN must be exactly 4 digits');
-      return;
-    }
-    vibrate(15);
-    const hash = await hashPin(pinInput);
-    updateSettings({
-      appLockPin: hash,
-      appLockEnabled: true,
-    });
-    setPinInput('');
-    setIsPinModalOpen(false);
-    toast.success('Security PIN configured and App Lock enabled!');
-  };
+  // Preserved for upcoming full native app restoration:
+  // const handleSavePin = async (e: React.FormEvent) => { ... };
 
   useEffect(() => {
     if (session?.user?.email || session?.user?.id) {
@@ -640,90 +597,33 @@ export default function Settings() {
 
         <div>
           <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Privacy & Security</h3>
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-primary" />
-                    <span>App Lock & Biometrics</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Require 4-digit PIN or Face ID to open app
+          <Card className="rounded-3xl border border-border/60 bg-card/85 backdrop-blur-xl shadow-xs overflow-hidden">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20 shadow-xs">
+                    <Shield className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-foreground">App Lock & Biometrics</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                        Coming Soon
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-md">
+                      Hardware Face ID, Touch ID & PIN security are paused for the web version and will launch with seamless OS integration in the upcoming full native app.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 self-start sm:self-center">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary/80 border border-border/60 text-xs font-semibold text-muted-foreground select-none">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    In Full Native App
                   </span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    vibrate(10);
-                    if (!settings.appLockEnabled && !settings.appLockPin) {
-                      setIsPinModalOpen(true);
-                    } else {
-                      updateSettings({ appLockEnabled: !settings.appLockEnabled });
-                    }
-                  }}
-                >
-                  {settings.appLockEnabled ? 'Enabled' : 'Disabled'}
-                </Button>
               </div>
-
-              {settings.appLockEnabled && (
-                <>
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium">Security PIN</span>
-                      <span className="text-xs text-muted-foreground">Change your 4-digit access code</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={() => {
-                        vibrate(10);
-                        setIsPinModalOpen(true);
-                      }}
-                    >
-                      <KeyRound className="w-3.5 h-3.5" />
-                      <span>Change PIN</span>
-                    </Button>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium flex items-center gap-1.5">
-                        {isApple ? (
-                          <ScanFace className="w-3.5 h-3.5 text-primary" />
-                        ) : (
-                          <Fingerprint className="w-3.5 h-3.5 text-primary" />
-                        )}
-                        <span>{isApple ? 'Face ID / Touch ID' : 'Biometric Unlock'}</span>
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {isApple
-                          ? 'Unlock seamlessly with Apple Face ID or Touch ID'
-                          : 'Use Face ID, Touch ID, or Windows Hello'}
-                      </span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isRegisteringBiometrics}
-                      className="gap-1.5"
-                      onClick={handleToggleBiometrics}
-                    >
-                      {isRegisteringBiometrics ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                      ) : isApple ? (
-                        <ScanFace className="w-3.5 h-3.5" />
-                      ) : (
-                        <Fingerprint className="w-3.5 h-3.5" />
-                      )}
-                      <span>{settings.appLockBiometrics ? 'On' : 'Off'}</span>
-                    </Button>
-                  </div>
-                </>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -905,7 +805,7 @@ export default function Settings() {
         onClose={() => setIsRecentlyDeletedOpen(false)} 
       />
 
-      {/* PIN Setup Modal */}
+      {/* PIN Setup Modal - Preserved for full native app restoration:
       {isPinModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -913,51 +813,11 @@ export default function Settings() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
           />
           <div className="relative w-full max-w-xs rounded-3xl bg-card border border-border shadow-2xl p-6 space-y-4 z-10 text-center animate-in fade-in zoom-in-95">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center">
-              <KeyRound className="w-6 h-6" />
-            </div>
-
-            <div>
-              <h3 className="text-base font-bold text-foreground">Set 4-Digit PIN</h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Enter a 4-digit code to protect your financial data
-              </p>
-            </div>
-
-            <form onSubmit={handleSavePin} className="space-y-4">
-              <Input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                required
-                autoFocus
-                placeholder="••••"
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                className="text-center text-2xl tracking-[0.5em] font-bold h-12 rounded-2xl bg-secondary/60"
-              />
-
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="flex-1 rounded-xl text-xs"
-                  onClick={() => setIsPinModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={pinInput.length !== 4}
-                  className="flex-1 rounded-xl text-xs font-semibold"
-                >
-                  Save PIN
-                </Button>
-              </div>
-            </form>
+            ...
           </div>
         </div>
       )}
+      */}
 
       {/* Printable Statement Modal */}
       <PrintableStatementModal
