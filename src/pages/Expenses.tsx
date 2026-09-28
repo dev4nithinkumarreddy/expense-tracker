@@ -159,7 +159,7 @@ export default function Expenses() {
 
       <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
         {/* Sticky Frosted Glass Filter Bar (Mobile top bar -> Desktop left sticky panel) */}
-        <div className="sticky top-0 lg:top-6 z-30 lg:col-span-4 -mx-4 px-4 sm:mx-0 sm:px-0 lg:p-4 py-2.5 bg-background/90 lg:bg-card/92 dark:bg-background/85 lg:dark:bg-card/80 backdrop-blur-2xl border-b lg:border border-border/40 lg:border-border/80 lg:dark:border-white/10 lg:rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] space-y-2.5 lg:space-y-4 transition-all">
+        <div className="sticky top-[env(safe-area-inset-top,0px)] lg:top-6 z-30 lg:col-span-4 -mx-4 px-4 sm:mx-0 sm:px-0 lg:p-4 py-2.5 bg-background/90 lg:bg-card/92 dark:bg-background/85 lg:dark:bg-card/80 backdrop-blur-2xl border-b lg:border border-border/40 lg:border-border/80 lg:dark:border-white/10 lg:rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] space-y-2.5 lg:space-y-4 transition-all">
           {/* Row 1: Search + Date Filter + Amount Filter Toggle */}
           <div className="flex lg:flex-col gap-2">
             <div className="relative flex-1">

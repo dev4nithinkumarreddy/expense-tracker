@@ -71,7 +71,7 @@ export function ReloadPrompt() {
   if ((!offlineReady && !needRefresh) || isModalOpen) return null;
 
   return (
-    <div className="fixed top-4 left-0 right-0 z-50 flex justify-center px-4 animate-in slide-in-from-top-4">
+    <div className="fixed top-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem))] left-0 right-0 z-50 flex justify-center px-4 animate-in slide-in-from-top-4">
       <Card className="w-full max-w-sm border shadow-lg bg-popover text-popover-foreground rounded-xl">
         <CardContent className="p-4 flex items-center justify-between gap-4">
           <div className="text-sm font-medium flex-1">
