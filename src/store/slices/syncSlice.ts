@@ -18,6 +18,27 @@ import {
   type Account
 } from '../types';
 
+// Standard UUID identifiers for default cloud accounts
+export const CLOUD_BANK_UUID = 'a0000000-0000-4000-8000-000000000001';
+export const CLOUD_CASH_UUID = 'a0000000-0000-4000-8000-000000000002';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function toCloudAccountId(id?: string | null): string | null {
+  if (!id) return null;
+  if (id === 'acc-bank-1') return CLOUD_BANK_UUID;
+  if (id === 'acc-cash-1') return CLOUD_CASH_UUID;
+  if (id === 'acc-card-1') return 'a0000000-0000-4000-8000-000000000003';
+  if (UUID_REGEX.test(id)) return id;
+  return null;
+}
+
+export function fromCloudAccountId(id?: string | null): string {
+  if (!id) return '';
+  if (id === CLOUD_BANK_UUID) return 'acc-bank-1';
+  if (id === CLOUD_CASH_UUID) return 'acc-cash-1';
+  return id;
+}
+
 // Module-scoped synchronization lock & retry state (never stored on window)
 let isSyncingLock = false;
 let syncRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -77,20 +98,50 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
 
       for (const mut of pendingMutations) {
         try {
-          let error = null;
+          let error: any = null;
           if (mut.type === 'INSERT_EXPENSE') {
-            let res = await supabase.from('expenses').upsert(mut.payload);
-            if (res.error && (res.error.message?.includes('account_id') || res.error.message?.includes('transfer_account_id') || res.error.code === 'PGRST204')) {
-              const fallbackPayload = { ...mut.payload };
+            const payload = { ...mut.payload };
+            if (payload.account_id) {
+              payload.account_id = toCloudAccountId(payload.account_id);
+            }
+            if (payload.transfer_account_id) {
+              payload.transfer_account_id = toCloudAccountId(payload.transfer_account_id);
+            }
+            let res = await supabase.from('expenses').upsert(payload);
+            if (res.error && (
+              res.error.code === '23503' ||
+              res.error.code === '22P02' ||
+              res.error.code === 'PGRST204' ||
+              res.error.message?.includes('account_id') ||
+              res.error.message?.includes('transfer_account_id') ||
+              res.error.message?.includes('uuid')
+            )) {
+              console.warn("Retrying expense upsert without account foreign keys:", res.error);
+              const fallbackPayload = { ...payload };
               delete (fallbackPayload as any).account_id;
               delete (fallbackPayload as any).transfer_account_id;
               res = await supabase.from('expenses').upsert(fallbackPayload);
             }
             error = res.error;
           } else if (mut.type === 'UPDATE_EXPENSE') {
-            let res = await supabase.from('expenses').update(mut.payload).eq('id', mut.payload.id);
-            if (res.error && (res.error.message?.includes('account_id') || res.error.message?.includes('transfer_account_id') || res.error.code === 'PGRST204')) {
-              const fallbackPayload = { ...mut.payload };
+            const payload = { ...mut.payload };
+            if (payload.account_id) {
+              payload.account_id = toCloudAccountId(payload.account_id);
+            }
+            if (payload.transfer_account_id) {
+              payload.transfer_account_id = toCloudAccountId(payload.transfer_account_id);
+            }
+            let res = await supabase.from('expenses').update(payload).eq('id', mut.payload.id);
+            if (res.error && (
+              res.error.code === '23503' ||
+              res.error.code === '22P02' ||
+              res.error.code === 'PGRST204' ||
+              res.error.message?.includes('account_id') ||
+              res.error.message?.includes('transfer_account_id') ||
+              res.error.message?.includes('uuid')
+            )) {
+              console.warn("Retrying expense update without account foreign keys:", res.error);
+              const fallbackPayload = { ...payload };
               delete (fallbackPayload as any).account_id;
               delete (fallbackPayload as any).transfer_account_id;
               res = await supabase.from('expenses').update(fallbackPayload).eq('id', mut.payload.id);
@@ -101,12 +152,12 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             error = res.error;
           } else if (mut.type === 'INSERT_BILL') {
             const payload = { ...mut.payload };
-            if (payload.due_date === null) delete payload.due_date;
+            if (payload.due_date === null || payload.due_date === undefined) delete payload.due_date;
             const res = await supabase.from('bills').upsert(payload);
             error = res.error;
           } else if (mut.type === 'UPDATE_BILL') {
             const payload = { ...mut.payload };
-            if (payload.due_date === null) delete payload.due_date;
+            if (payload.due_date === null || payload.due_date === undefined) delete payload.due_date;
             const res = await supabase.from('bills').update(payload).eq('id', payload.id);
             error = res.error;
           } else if (mut.type === 'DELETE_BILL') {
@@ -149,29 +200,28 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const res = await supabase.from('user_settings').upsert(mut.payload);
             error = res.error;
           } else if (mut.type === 'INSERT_ACCOUNT') {
-            const res = await (supabase.from('accounts' as any).upsert(mut.payload) as any);
-            if (res.error && (res.error.code === '42P01' || res.error.code === 'PGRST205' || res.error.code === 'PGRST200' || res.error.code === 'PGRST204' || res.error.message?.includes('accounts'))) {
-              console.warn("Supabase accounts table not created yet in cloud schema. Account stored locally in IndexedDB.", res.error);
-              error = null;
-            } else {
-              error = res.error;
-            }
+            const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
+            const payload = {
+              ...mut.payload,
+              id: cloudId,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await (supabase.from('accounts' as any).upsert(payload) as any);
+            error = res.error;
           } else if (mut.type === 'UPDATE_ACCOUNT') {
-            const res = await (supabase.from('accounts' as any).update(mut.payload).eq('id', mut.payload.id) as any);
-            if (res.error && (res.error.code === '42P01' || res.error.code === 'PGRST205' || res.error.code === 'PGRST200' || res.error.code === 'PGRST204' || res.error.message?.includes('accounts'))) {
-              console.warn("Supabase accounts table not created yet in cloud schema. Account stored locally in IndexedDB.", res.error);
-              error = null;
-            } else {
-              error = res.error;
-            }
+            const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
+            const payload = { ...mut.payload, id: cloudId };
+            const res = await (supabase.from('accounts' as any).update(payload).eq('id', cloudId) as any);
+            error = res.error;
           } else if (mut.type === 'DELETE_ACCOUNT') {
-            const res = await (supabase.from('accounts' as any).delete().eq('id', mut.payload.id) as any);
-            if (res.error && (res.error.code === '42P01' || res.error.code === 'PGRST205' || res.error.code === 'PGRST200' || res.error.code === 'PGRST204' || res.error.message?.includes('accounts'))) {
-              console.warn("Supabase accounts table not created yet in cloud schema. Account stored locally in IndexedDB.", res.error);
-              error = null;
-            } else {
-              error = res.error;
-            }
+            const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
+            const res = await (supabase.from('accounts' as any).delete().eq('id', cloudId) as any);
+            error = res.error;
+          }
+
+          // Duplicate key errors mean the row is already in the database
+          if (error && (error.code === '23505' || error.message?.includes('already exists'))) {
+            error = null;
           }
 
           if (!error) {
@@ -186,7 +236,15 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
                queryClient.invalidateQueries({ queryKey: ['budgets'] });
             }
           } else {
-            console.error("Mutation failed:", error);
+            console.error("Mutation failed:", error, mut);
+            // Drop client-level syntax/constraint errors so the queue is never blocked
+            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100'].includes(error.code);
+            if (isNonRecoverable) {
+              console.warn(`Dropping unrecoverable mutation (${mut.type}) to unblock sync queue:`, error);
+              removePendingMutation(mut.id);
+              continue;
+            }
+
             consecutiveSyncFailures++;
             toast.error(`Sync paused: ${error.message || 'Server error'}. Retrying...`, { id: 'sync-paused-error' });
             scheduleSyncRetry(() => get().syncPendingMutations());
@@ -215,7 +273,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes, accountsRes] = await Promise.all([
         supabase.from('expenses').select('*').eq('user_id', session.user.id),
         supabase.from('bills').select('*').eq('user_id', session.user.id),
-        supabase.from('user_settings').select('*').eq('user_id', session.user.id).single(),
+        supabase.from('user_settings').select('*').eq('user_id', session.user.id).maybeSingle(),
         supabase.from('budgets').select('*').eq('user_id', session.user.id),
         supabase.from('wishlist').select('*').eq('user_id', session.user.id),
         supabase.from('debts').select('*').eq('user_id', session.user.id),
@@ -246,9 +304,22 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         set({ subscriptions: mergedSubs });
       }
 
-      if (expensesRes.data) {
+      if (expensesRes && expensesRes.data) {
         const { pendingMutations } = get();
-        let mergedExpenses = expensesRes.data as Expense[];
+        let mergedExpenses: Expense[] = expensesRes.data.map((e: any) => ({
+          id: e.id,
+          amount: Number(e.amount),
+          description: e.description,
+          category: e.category,
+          date: e.date,
+          notes: e.notes || undefined,
+          receipt_url: e.receipt_url || undefined,
+          recurrence: e.recurrence || 'none',
+          next_occurrence: e.next_occurrence || null,
+          recurring_source_id: e.recurring_source_id || null,
+          account_id: fromCloudAccountId(e.account_id) || undefined,
+          transfer_account_id: fromCloudAccountId(e.transfer_account_id) || undefined,
+        }));
         
         pendingMutations.forEach(mut => {
           if (mut.type === 'INSERT_EXPENSE') {
@@ -266,8 +337,11 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             currentStreak: calculateStreak(mergedExpenses)
           }
         }));
+        queryClient.setQueryData(['expenses', session.user.id], mergedExpenses);
+        queryClient.invalidateQueries({ queryKey: ['expenses'] });
       }
-      if (billsRes.data) {
+
+      if (billsRes && billsRes.data) {
         const { pendingMutations } = get();
         let mergedBills: Bill[] = billsRes.data.map(b => ({
           id: b.id,
@@ -305,8 +379,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         });
         set({ bills: mergedBills });
+        queryClient.invalidateQueries({ queryKey: ['bills'] });
       }
-      if (budgetsRes.data) {
+
+      if (budgetsRes && budgetsRes.data) {
         const { pendingMutations } = get();
         let mergedBudgets: Budget[] = budgetsRes.data.map(b => ({
           id: b.id,
@@ -338,10 +414,12 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         });
         set({ budgets: mergedBudgets });
+        queryClient.invalidateQueries({ queryKey: ['budgets'] });
       }
+
       const { pendingMutations: activeMutations } = get();
       const hasPendingSettings = activeMutations.some(m => m.type === 'UPDATE_SETTINGS');
-      if (!hasPendingSettings && settingsRes.data) {
+      if (!hasPendingSettings && settingsRes?.data) {
         const s = settingsRes.data;
         set((state) => ({
           settings: {
@@ -361,8 +439,27 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             currentStreak: calculateStreak(state.expenses)
           }
         }));
+      } else if (!hasPendingSettings && !settingsRes?.data) {
+        // Upload initial local settings to Supabase so subsequent devices get it
+        const currentSettings = get().settings;
+        await supabase.from('user_settings').upsert({
+          user_id: session.user.id,
+          monthly_income: currentSettings.monthlyIncome,
+          currency: currentSettings.currency,
+          dark_mode: currentSettings.darkMode,
+          categories: currentSettings.categories,
+          carry_forward: currentSettings.carryForward,
+          category_budgets: currentSettings.categoryBudgets,
+          quick_adds: currentSettings.quickAdds,
+          privacy_mode: currentSettings.privacyMode,
+          theme: currentSettings.theme,
+          category_emojis: currentSettings.categoryEmojis,
+          notifications_enabled: currentSettings.notificationsEnabled,
+          user_name: currentSettings.userName,
+        });
       }
-      if (wishlistRes.data) {
+
+      if (wishlistRes && wishlistRes.data) {
         const { pendingMutations } = get();
         let mergedWishlist = wishlistRes.data as WishlistItem[];
         
@@ -394,32 +491,66 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         set({ debts: mergedDebts });
       }
 
-      if (accountsRes?.data && accountsRes.data.length > 0) {
-        const { pendingMutations } = get();
-        let mergedAccounts: Account[] = accountsRes.data.map((a: any) => ({
-          id: a.id,
-          name: a.name,
-          type: a.type,
-          balance: a.balance ?? 0,
-          currency: a.currency || '₹',
-          color: a.color,
-          icon: a.icon,
-          credit_limit: a.credit_limit,
-          statement_day: a.statement_day,
-          due_day: a.due_day,
-        }));
+      if (accountsRes && !accountsRes.error && accountsRes.data) {
+        if (accountsRes.data.length === 0) {
+          // Cloud has no accounts yet. Seed default/local accounts to Supabase:
+          const currentAccounts: Account[] = (get().accounts && get().accounts.length > 0)
+            ? get().accounts
+            : [
+                { id: 'acc-bank-1', name: 'Main Bank', type: 'bank' as const, balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
+                { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash' as const, balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
+              ];
 
-        pendingMutations.forEach(mut => {
-          if (mut.type === 'INSERT_ACCOUNT') {
-            mergedAccounts.push(mut.payload as Account);
-          } else if (mut.type === 'UPDATE_ACCOUNT') {
-            mergedAccounts = mergedAccounts.map(a => a.id === mut.payload.id ? { ...a, ...mut.payload } : a);
-          } else if (mut.type === 'DELETE_ACCOUNT') {
-            mergedAccounts = mergedAccounts.filter(a => a.id !== mut.payload.id);
+          const seedPayloads = currentAccounts.map((acc: any) => ({
+            id: toCloudAccountId(acc.id) || acc.id,
+            user_id: session.user.id,
+            name: acc.name,
+            type: acc.type,
+            balance: acc.balance ?? 0,
+            currency: acc.currency || '₹',
+            color: acc.color || null,
+            icon: acc.icon || null,
+            credit_limit: acc.credit_limit || null,
+            statement_day: acc.statement_day || null,
+            due_day: acc.due_day || null
+          }));
+
+          try {
+            await (supabase.from('accounts' as any).upsert(seedPayloads) as any);
+          } catch (e) {
+            console.warn('Failed to seed cloud accounts:', e);
           }
-        });
-        set({ accounts: mergedAccounts });
-        get().reconcileAccountsWithBudget?.();
+          set({ accounts: currentAccounts });
+        } else {
+          const { pendingMutations } = get();
+          let mergedAccounts: Account[] = accountsRes.data.map((a: any) => ({
+            id: fromCloudAccountId(a.id),
+            name: a.name,
+            type: a.type,
+            balance: Number(a.balance) || 0,
+            currency: a.currency || '₹',
+            color: a.color,
+            icon: a.icon,
+            credit_limit: a.credit_limit,
+            statement_day: a.statement_day,
+            due_day: a.due_day,
+          }));
+
+          pendingMutations.forEach(mut => {
+            if (mut.type === 'INSERT_ACCOUNT') {
+              const localId = fromCloudAccountId(mut.payload.id);
+              mergedAccounts.push({ ...mut.payload, id: localId });
+            } else if (mut.type === 'UPDATE_ACCOUNT') {
+              const localId = fromCloudAccountId(mut.payload.id);
+              mergedAccounts = mergedAccounts.map(a => a.id === localId ? { ...a, ...mut.payload, id: localId } : a);
+            } else if (mut.type === 'DELETE_ACCOUNT') {
+              const localId = fromCloudAccountId(mut.payload.id);
+              mergedAccounts = mergedAccounts.filter(a => a.id !== localId);
+            }
+          });
+          set({ accounts: mergedAccounts });
+          get().reconcileAccountsWithBudget?.();
+        }
       }
     } catch (error) {
       console.error("Failed to fetch cloud data:", error);

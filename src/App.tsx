@@ -56,10 +56,65 @@ export default function App() {
   useEffect(() => {
     const handleOnline = () => {
       syncPendingMutations();
+      fetchCloudData();
     };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [syncPendingMutations]);
+  }, [syncPendingMutations, fetchCloudData]);
+
+  // Live Cross-Device Realtime Synchronization
+  useEffect(() => {
+    if (!session) return;
+
+    // Listen to changes on all public tables
+    const channel = supabase
+      .channel(`device-sync-${session.user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public'
+        },
+        () => {
+          // Instant sync whenever any device mutates data on this account
+          fetchCloudData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, fetchCloudData]);
+
+  // Sync on App Resume / Tab Focus (Mobile & Desktop) & Periodic Liveness
+  useEffect(() => {
+    if (!session) return;
+
+    const handleSyncOnResume = () => {
+      if (document.visibilityState === 'visible') {
+        syncPendingMutations();
+        fetchCloudData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleSyncOnResume);
+    window.addEventListener('focus', handleSyncOnResume);
+
+    // Heartbeat sync every 30s when online and app is open
+    const interval = setInterval(() => {
+      if (navigator.onLine && document.visibilityState === 'visible') {
+        syncPendingMutations();
+        fetchCloudData();
+      }
+    }, 30000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleSyncOnResume);
+      window.removeEventListener('focus', handleSyncOnResume);
+      clearInterval(interval);
+    };
+  }, [session, syncPendingMutations, fetchCloudData]);
 
   // Intercept Web Share Target API & PWA Shortcuts
   useEffect(() => {
