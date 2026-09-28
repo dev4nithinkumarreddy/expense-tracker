@@ -136,7 +136,7 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <div className="min-h-screen bg-background text-foreground pb-24 [overflow-x:clip] relative">
+          <div className="min-h-screen bg-background text-foreground pb-[max(6rem,calc(env(safe-area-inset-bottom,0px)+5.5rem))] [overflow-x:clip] relative">
             <AmbientBackground />
             <main className="container max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-6xl xl:max-w-7xl mx-auto px-3.5 sm:px-4 lg:px-8 py-3 sm:py-4 lg:py-6 animate-in fade-in duration-300">
               <AnimatedRoutes />

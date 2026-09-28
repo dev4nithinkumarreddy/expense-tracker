@@ -13,7 +13,8 @@ import {
   type Budget, 
   type Subscription, 
   type WishlistItem, 
-  type Debt 
+  type Debt,
+  type Account
 } from '../types';
 
 // Module-scoped synchronization lock & retry state (never stored on window)
@@ -206,14 +207,15 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     if (!session) return;
     
     try {
-      const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes] = await Promise.all([
+      const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes, accountsRes] = await Promise.all([
         supabase.from('expenses').select('*').eq('user_id', session.user.id),
         supabase.from('bills').select('*').eq('user_id', session.user.id),
         supabase.from('user_settings').select('*').eq('user_id', session.user.id).single(),
         supabase.from('budgets').select('*').eq('user_id', session.user.id),
         supabase.from('wishlist').select('*').eq('user_id', session.user.id),
         supabase.from('debts').select('*').eq('user_id', session.user.id),
-        supabase.from('subscriptions').select('*').eq('user_id', session.user.id)
+        supabase.from('subscriptions').select('*').eq('user_id', session.user.id),
+        (supabase.from('accounts' as any).select('*').eq('user_id', session.user.id) as any).catch(() => ({ data: null }))
       ]);
 
       if (subsRes && subsRes.data) {
@@ -385,6 +387,34 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         });
         set({ debts: mergedDebts });
+      }
+
+      if (accountsRes?.data && accountsRes.data.length > 0) {
+        const { pendingMutations } = get();
+        let mergedAccounts: Account[] = accountsRes.data.map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          balance: a.balance ?? 0,
+          currency: a.currency || '₹',
+          color: a.color,
+          icon: a.icon,
+          credit_limit: a.credit_limit,
+          statement_day: a.statement_day,
+          due_day: a.due_day,
+        }));
+
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_ACCOUNT') {
+            mergedAccounts.push(mut.payload as Account);
+          } else if (mut.type === 'UPDATE_ACCOUNT') {
+            mergedAccounts = mergedAccounts.map(a => a.id === mut.payload.id ? { ...a, ...mut.payload } : a);
+          } else if (mut.type === 'DELETE_ACCOUNT') {
+            mergedAccounts = mergedAccounts.filter(a => a.id !== mut.payload.id);
+          }
+        });
+        set({ accounts: mergedAccounts });
+        get().reconcileAccountsWithBudget?.();
       }
     } catch (error) {
       console.error("Failed to fetch cloud data:", error);

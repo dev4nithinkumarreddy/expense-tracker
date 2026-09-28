@@ -11,7 +11,7 @@ import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { vibrate } from "../lib/utils";
 import { EmptyState } from "../components/ui/EmptyState";
-import { getCategoryStyle } from "../components/ui/CategoryBadge";
+import { getCategoryStyle } from "../lib/categoryStyles";
 
 type QuickFilter = 'all' | 'receipt' | 'high_spend' | 'recurring';
 
@@ -38,6 +38,16 @@ export default function Expenses() {
   const expenseOrderMap = useMemo(() => {
     return new Map(expenses.map((e, idx) => [e.id, idx]));
   }, [expenses]);
+
+  const availableCategories = useMemo(() => {
+    const list = [...settings.categories];
+    expenses.forEach((e) => {
+      if (e.category && !list.includes(e.category)) {
+        list.push(e.category);
+      }
+    });
+    return list;
+  }, [settings.categories, expenses]);
 
   const filteredExpenses = expenses
     .filter(e => {
@@ -223,7 +233,7 @@ export default function Expenses() {
               >
                 All
               </Button>
-              {settings.categories.map(cat => {
+              {availableCategories.map(cat => {
                 const count = expenses.filter(e => e.category === cat).length;
                 if (count === 0 && selectedCategory !== cat) return null;
                 const isSelected = selectedCategory === cat;

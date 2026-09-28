@@ -24,7 +24,7 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] max-w-sm sm:max-w-md lg:max-w-xl">
+    <nav className="fixed bottom-[max(1rem,env(safe-area-inset-bottom,1rem))] sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] max-w-sm sm:max-w-md lg:max-w-xl">
       <div className="bg-card/88 dark:bg-card/82 backdrop-blur-2xl border border-border/80 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)] rounded-full p-1.5 px-2 lg:px-3 flex items-center justify-between select-none">
         
         {/* Left tabs */}
