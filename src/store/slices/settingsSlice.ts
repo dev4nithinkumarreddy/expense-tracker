@@ -18,11 +18,21 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
     theme: 'default',
     categoryEmojis: {},
     userName: '',
-    soundEnabled: false
+    soundEnabled: false,
+    settingsInitialized: false,
+    updated_at: undefined
   },
 
   updateSettings: (newSettings) => {
-    set((state) => ({ settings: { ...state.settings, ...newSettings } }));
+    const updatedAt = new Date().toISOString();
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        ...newSettings,
+        settingsInitialized: true,
+        updated_at: updatedAt
+      }
+    }));
     // IMPORTANT: read settings from get() AFTER set() so we capture the merged/updated values
     const { session, settings: updatedSettings, addPendingMutation, syncPendingMutations } = get();
     if (session) {
@@ -42,7 +52,7 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
           category_emojis: updatedSettings.categoryEmojis,
           notifications_enabled: updatedSettings.notificationsEnabled,
           user_name: updatedSettings.userName,
-          updated_at: new Date().toISOString()
+          updated_at: updatedAt
         }
       });
       syncPendingMutations();

@@ -93,6 +93,15 @@ export async function chunkedUpsert<T extends Record<string, any>>(
   return { success, failed };
 }
 
+export function isSettingsDefault(s: any): boolean {
+  if (!s) return true;
+  const income = s.monthlyIncome ?? s.monthly_income ?? 45000;
+  const dark = s.darkMode ?? s.dark_mode ?? true;
+  const theme = s.theme || 'default';
+  const name = (s.userName ?? s.user_name ?? '').trim();
+  return income === 45000 && dark === true && theme === 'default' && name === '';
+}
+
 // Module-scoped synchronization lock & retry state (never stored on window)
 let isSyncingLock = false;
 let syncRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1200,8 +1209,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
 
       const { pendingMutations: activeMutations } = get();
       const hasPendingSettings = activeMutations.some(m => m.type === 'UPDATE_SETTINGS');
-      if (!hasPendingSettings && settingsRes?.data) {
-        const s = settingsRes.data;
+
+      const hydrateSettingsFromCloud = (s: any) => {
         set((state) => ({
           settings: {
             ...state.settings,
@@ -1216,27 +1225,121 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             theme: s.theme || 'default',
             categoryEmojis: (s.category_emojis as Record<string, string>) || {},
             notificationsEnabled: s.notifications_enabled || false,
-            userName: s.user_name || state.settings.userName,
+            userName: s.user_name || '',
+            settingsInitialized: true,
+            updated_at: s.updated_at,
             currentStreak: calculateStreak(state.expenses)
           }
         }));
-      } else if (!hasPendingSettings && !settingsRes?.data) {
-        const currentSettings = get().settings;
-        await supabase.from('user_settings').upsert({
-          user_id: session.user.id,
-          monthly_income: currentSettings.monthlyIncome,
-          currency: currentSettings.currency,
-          dark_mode: currentSettings.darkMode,
-          categories: currentSettings.categories,
-          carry_forward: currentSettings.carryForward,
-          category_budgets: currentSettings.categoryBudgets,
-          quick_adds: currentSettings.quickAdds,
-          privacy_mode: currentSettings.privacyMode,
-          theme: currentSettings.theme,
-          category_emojis: currentSettings.categoryEmojis,
-          notifications_enabled: currentSettings.notificationsEnabled,
-          user_name: currentSettings.userName,
-        });
+      };
+
+      if (!hasPendingSettings) {
+        const localSettings = get().settings;
+        const cloudSettings = settingsRes?.data;
+
+        const localIsDefault = isSettingsDefault(localSettings);
+        const localHasChanges = Boolean(localSettings.settingsInitialized || !localIsDefault);
+
+        if (cloudSettings) {
+          const cloudIsDefault = isSettingsDefault(cloudSettings);
+
+          // CASE 2: FIX THE CURRENT DAMAGE
+          // If cloud has default values (erroneously seeded by a fresh device)
+          // AND local settings differ from defaults (e.g. Device A with real user settings):
+          // Treat local as authoritative, repair cloud row immediately.
+          if (cloudIsDefault && localHasChanges) {
+            console.log('[Sync] Repairing damaged cloud settings with authoritative local settings');
+            const repairUpdatedAt = localSettings.updated_at || new Date().toISOString();
+            set((state) => ({
+              settings: {
+                ...state.settings,
+                settingsInitialized: true,
+                updated_at: repairUpdatedAt
+              }
+            }));
+            await supabase.from('user_settings').upsert({
+              user_id: session.user.id,
+              monthly_income: localSettings.monthlyIncome,
+              currency: localSettings.currency,
+              dark_mode: localSettings.darkMode,
+              categories: localSettings.categories,
+              carry_forward: localSettings.carryForward,
+              category_budgets: localSettings.categoryBudgets,
+              quick_adds: localSettings.quickAdds,
+              privacy_mode: localSettings.privacyMode,
+              theme: localSettings.theme || 'default',
+              category_emojis: localSettings.categoryEmojis,
+              notifications_enabled: localSettings.notificationsEnabled || false,
+              user_name: localSettings.userName || null,
+              updated_at: repairUpdatedAt
+            });
+          }
+          // CASE 4: UPDATED_AT CONFLICT RESOLUTION
+          // When both sides have valid/custom settings, compare updated_at
+          else if (localHasChanges && !cloudIsDefault) {
+            const localTs = localSettings.updated_at ? new Date(localSettings.updated_at).getTime() : 0;
+            const cloudTs = cloudSettings.updated_at ? new Date(cloudSettings.updated_at).getTime() : 0;
+
+            if (localTs > cloudTs) {
+              console.log('[Sync] Local settings are newer than cloud, upserting to cloud');
+              await supabase.from('user_settings').upsert({
+                user_id: session.user.id,
+                monthly_income: localSettings.monthlyIncome,
+                currency: localSettings.currency,
+                dark_mode: localSettings.darkMode,
+                categories: localSettings.categories,
+                carry_forward: localSettings.carryForward,
+                category_budgets: localSettings.categoryBudgets,
+                quick_adds: localSettings.quickAdds,
+                privacy_mode: localSettings.privacyMode,
+                theme: localSettings.theme || 'default',
+                category_emojis: localSettings.categoryEmojis,
+                notifications_enabled: localSettings.notificationsEnabled || false,
+                user_name: localSettings.userName || null,
+                updated_at: localSettings.updated_at || new Date().toISOString()
+              });
+            } else {
+              hydrateSettingsFromCloud(cloudSettings);
+            }
+          }
+          // CASE 3: FRESH DEVICE HYDRATION
+          // Local is untouched default -> cloud settings win unconditionally
+          else {
+            hydrateSettingsFromCloud(cloudSettings);
+          }
+        } else {
+          // Cloud has no row yet (empty table):
+          // CASE 1: ONLY seed if user has actually changed settings locally!
+          if (localHasChanges) {
+            console.log('[Sync] Seeding customized local settings to empty cloud user_settings');
+            const seedUpdatedAt = localSettings.updated_at || new Date().toISOString();
+            set((state) => ({
+              settings: {
+                ...state.settings,
+                settingsInitialized: true,
+                updated_at: seedUpdatedAt
+              }
+            }));
+            await supabase.from('user_settings').upsert({
+              user_id: session.user.id,
+              monthly_income: localSettings.monthlyIncome,
+              currency: localSettings.currency,
+              dark_mode: localSettings.darkMode,
+              categories: localSettings.categories,
+              carry_forward: localSettings.carryForward,
+              category_budgets: localSettings.categoryBudgets,
+              quick_adds: localSettings.quickAdds,
+              privacy_mode: localSettings.privacyMode,
+              theme: localSettings.theme || 'default',
+              category_emojis: localSettings.categoryEmojis,
+              notifications_enabled: localSettings.notificationsEnabled || false,
+              user_name: localSettings.userName || null,
+              updated_at: seedUpdatedAt
+            });
+          } else {
+            console.log('[Sync] Local device has untouched default settings; skipping cloud seed to prevent overwriting');
+          }
+        }
       }
     } catch (error) {
       console.error("Failed to fetch cloud data:", error);

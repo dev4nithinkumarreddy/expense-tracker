@@ -118,6 +118,8 @@ export interface Settings {
   appLockEnabled?: boolean;
   appLockPin?: string;
   appLockBiometrics?: boolean;
+  settingsInitialized?: boolean;
+  updated_at?: string;
 }
 
 export const defaultCategories = [
