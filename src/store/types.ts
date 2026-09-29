@@ -195,6 +195,8 @@ export interface SyncSlice {
   session: Session | null;
   pendingMutations: PendingMutation[];
   isSyncing?: boolean;
+  lastSyncSuccess: string | null;
+  lastSyncError: string | null;
   isModalOpen: boolean;
   sharedData: { title?: string; text?: string; url?: string } | null;
   shouldTriggerScan: boolean;

@@ -130,6 +130,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
   shouldTriggerScan: false,
   pendingMutations: [],
   isSyncing: false,
+  lastSyncSuccess: null,
+  lastSyncError: null,
 
   setSession: (session) => {
     set({ session });
@@ -367,6 +369,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             }
 
             consecutiveSyncFailures++;
+            set({ lastSyncError: error.message || 'Server error' });
             toast.error(`Sync paused: ${error.message || 'Server error'}. Retrying...`, { id: 'sync-paused-error' });
             scheduleSyncRetry(() => get().syncPendingMutations());
             break; 
@@ -374,22 +377,29 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         } catch (e: any) {
            console.error("Sync error:", e);
            consecutiveSyncFailures++;
+           set({ lastSyncError: e.message || 'Sync network error' });
            toast.error(`Sync network error. Retrying in background...`, { id: 'sync-paused-error' });
            scheduleSyncRetry(() => get().syncPendingMutations());
            break;
         }
       }
 
+      if (get().pendingMutations.length === 0) {
+        set({ lastSyncSuccess: new Date().toISOString(), lastSyncError: null });
+      }
+
       if (session && syncedAny && typeof supabase?.channel === 'function') {
         try {
           const syncChannel = supabase.channel(`device-sync-${session.user.id}`);
-          if (typeof syncChannel?.send === 'function') {
-            syncChannel.send({
-              type: 'broadcast',
-              event: 'data_changed',
-              payload: { timestamp: Date.now() }
-            });
-          }
+          syncChannel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              syncChannel.send({
+                type: 'broadcast',
+                event: 'data_changed',
+                payload: { timestamp: Date.now() }
+              });
+            }
+          });
         } catch {
           // Non-blocking
         }
@@ -1395,8 +1405,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         }
       }
-    } catch (error) {
+      set({ lastSyncSuccess: new Date().toISOString(), lastSyncError: null });
+    } catch (error: any) {
       console.error("Failed to fetch cloud data:", error);
+      set({ lastSyncError: error?.message || 'Failed to fetch cloud data' });
     } finally {
       set({ isSyncing: false });
     }
@@ -1416,6 +1428,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       debts: [],
       pendingMutations: [],
       recentlyDeleted: [],
+      lastSyncSuccess: null,
+      lastSyncError: null,
       accounts: [
         { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
         { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
@@ -1626,6 +1640,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       debts: [],
       pendingMutations: [],
       recentlyDeleted: [],
+      lastSyncSuccess: null,
+      lastSyncError: null,
       accounts: [
         { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
         { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
