@@ -241,7 +241,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           } else {
             console.error("Mutation failed:", error, mut);
             // Drop client-level syntax/constraint errors so the queue is never blocked
-            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100'].includes(error.code);
+            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100', '42501'].includes(error.code);
             if (isNonRecoverable) {
               console.warn(`Dropping unrecoverable mutation (${mut.type}) to unblock sync queue:`, error);
               removePendingMutation(mut.id);
@@ -311,139 +311,159 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       ]);
 
       if (subsRes && subsRes.data) {
-        const { pendingMutations } = get();
-        let mergedSubs: Subscription[] = subsRes.data.map(s => ({
-          id: s.id,
-          name: s.name,
-          amount: s.amount,
-          billing_cycle: (s.billing_cycle === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
-          next_billing_date: s.next_billing_date,
-          category: s.category
-        }));
+        const localSubscriptions = get().subscriptions || [];
+        if (subsRes.data.length === 0 && localSubscriptions.length > 0) {
+          console.warn('fetchCloudData: cloud returned 0 subscriptions but local has', localSubscriptions.length, '— skipping overwrite');
+        } else {
+          const { pendingMutations } = get();
+          let mergedSubs: Subscription[] = subsRes.data.map(s => ({
+            id: s.id,
+            name: s.name,
+            amount: s.amount,
+            billing_cycle: (s.billing_cycle === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
+            next_billing_date: s.next_billing_date,
+            category: s.category
+          }));
 
-        pendingMutations.forEach(mut => {
-          if (mut.type === 'INSERT_SUBSCRIPTION') {
-            mergedSubs.push(mut.payload as Subscription);
-          } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
-            mergedSubs = mergedSubs.map(s => s.id === mut.payload.id ? { ...s, ...mut.payload } : s);
-          } else if (mut.type === 'DELETE_SUBSCRIPTION') {
-            mergedSubs = mergedSubs.filter(s => s.id !== mut.payload.id);
-          }
-        });
-        set({ subscriptions: mergedSubs });
+          pendingMutations.forEach(mut => {
+            if (mut.type === 'INSERT_SUBSCRIPTION') {
+              mergedSubs.push(mut.payload as Subscription);
+            } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
+              mergedSubs = mergedSubs.map(s => s.id === mut.payload.id ? { ...s, ...mut.payload } : s);
+            } else if (mut.type === 'DELETE_SUBSCRIPTION') {
+              mergedSubs = mergedSubs.filter(s => s.id !== mut.payload.id);
+            }
+          });
+          set({ subscriptions: mergedSubs });
+        }
       }
 
       if (expensesRes && expensesRes.data) {
-        const { pendingMutations } = get();
-        let mergedExpenses: Expense[] = expensesRes.data.map((e: any) => ({
-          id: e.id,
-          amount: Number(e.amount),
-          description: e.description,
-          category: e.category,
-          date: e.date,
-          notes: e.notes || undefined,
-          receipt_url: e.receipt_url || undefined,
-          recurrence: e.recurrence || 'none',
-          next_occurrence: e.next_occurrence || null,
-          recurring_source_id: e.recurring_source_id || null,
-          account_id: fromCloudAccountId(e.account_id) || undefined,
-          transfer_account_id: fromCloudAccountId(e.transfer_account_id) || undefined,
-        }));
-        
-        pendingMutations.forEach(mut => {
-          if (mut.type === 'INSERT_EXPENSE') {
-            mergedExpenses.push(mut.payload as Expense);
-          } else if (mut.type === 'UPDATE_EXPENSE') {
-            mergedExpenses = mergedExpenses.map(e => e.id === mut.payload.id ? { ...e, ...mut.payload } : e);
-          } else if (mut.type === 'DELETE_EXPENSE') {
-            mergedExpenses = mergedExpenses.filter(e => e.id !== mut.payload.id);
-          }
-        });
-        set((state) => ({
-          expenses: mergedExpenses,
-          settings: {
-            ...state.settings,
-            currentStreak: calculateStreak(mergedExpenses)
-          }
-        }));
-        queryClient.setQueryData(['expenses', session.user.id], mergedExpenses);
-        queryClient.invalidateQueries({ queryKey: ['expenses'] });
+        const localExpenses = get().expenses || [];
+        if (expensesRes.data.length === 0 && localExpenses.length > 0) {
+          console.warn('fetchCloudData: cloud returned 0 expenses but local has', localExpenses.length, '— skipping overwrite');
+        } else {
+          const { pendingMutations } = get();
+          let mergedExpenses: Expense[] = expensesRes.data.map((e: any) => ({
+            id: e.id,
+            amount: Number(e.amount),
+            description: e.description,
+            category: e.category,
+            date: e.date,
+            notes: e.notes || undefined,
+            receipt_url: e.receipt_url || undefined,
+            recurrence: e.recurrence || 'none',
+            next_occurrence: e.next_occurrence || null,
+            recurring_source_id: e.recurring_source_id || null,
+            account_id: fromCloudAccountId(e.account_id) || undefined,
+            transfer_account_id: fromCloudAccountId(e.transfer_account_id) || undefined,
+          }));
+          
+          pendingMutations.forEach(mut => {
+            if (mut.type === 'INSERT_EXPENSE') {
+              mergedExpenses.push(mut.payload as Expense);
+            } else if (mut.type === 'UPDATE_EXPENSE') {
+              mergedExpenses = mergedExpenses.map(e => e.id === mut.payload.id ? { ...e, ...mut.payload } : e);
+            } else if (mut.type === 'DELETE_EXPENSE') {
+              mergedExpenses = mergedExpenses.filter(e => e.id !== mut.payload.id);
+            }
+          });
+          set((state) => ({
+            expenses: mergedExpenses,
+            settings: {
+              ...state.settings,
+              currentStreak: calculateStreak(mergedExpenses)
+            }
+          }));
+          queryClient.setQueryData(['expenses', session.user.id], mergedExpenses);
+          queryClient.invalidateQueries({ queryKey: ['expenses'] });
+        }
       }
 
       if (billsRes && billsRes.data) {
-        const { pendingMutations } = get();
-        let mergedBills: Bill[] = billsRes.data.map(b => ({
-          id: b.id,
-          title: b.title,
-          amount: b.amount,
-          autoDeduct: b.auto_deduct,
-          category: b.category,
-          due_day: b.due_day ?? (b.due_date ? new Date(b.due_date).getDate() : 1),
-          due_date: b.due_date || undefined
-        }));
-        
-        pendingMutations.forEach(mut => {
-          if (mut.type === 'INSERT_BILL') {
-            mergedBills.push({
-              id: mut.payload.id,
-              title: mut.payload.title,
-              amount: mut.payload.amount,
-              autoDeduct: mut.payload.auto_deduct,
-              category: mut.payload.category,
-              due_day: mut.payload.due_day,
-              due_date: mut.payload.due_date
-            });
-          } else if (mut.type === 'UPDATE_BILL') {
-            mergedBills = mergedBills.map(b => b.id === mut.payload.id ? {
-              ...b,
-              title: mut.payload.title ?? b.title,
-              amount: mut.payload.amount ?? b.amount,
-              autoDeduct: mut.payload.auto_deduct ?? b.autoDeduct,
-              category: mut.payload.category ?? b.category,
-              due_day: mut.payload.due_day ?? b.due_day,
-              due_date: mut.payload.due_date ?? b.due_date
-            } : b);
-          } else if (mut.type === 'DELETE_BILL') {
-            mergedBills = mergedBills.filter(b => b.id !== mut.payload.id);
-          }
-        });
-        set({ bills: mergedBills });
-        queryClient.invalidateQueries({ queryKey: ['bills'] });
+        const localBills = get().bills || [];
+        if (billsRes.data.length === 0 && localBills.length > 0) {
+          console.warn('fetchCloudData: cloud returned 0 bills but local has', localBills.length, '— skipping overwrite');
+        } else {
+          const { pendingMutations } = get();
+          let mergedBills: Bill[] = billsRes.data.map(b => ({
+            id: b.id,
+            title: b.title,
+            amount: b.amount,
+            autoDeduct: b.auto_deduct,
+            category: b.category,
+            due_day: b.due_day ?? (b.due_date ? new Date(b.due_date).getDate() : 1),
+            due_date: b.due_date || undefined
+          }));
+          
+          pendingMutations.forEach(mut => {
+            if (mut.type === 'INSERT_BILL') {
+              mergedBills.push({
+                id: mut.payload.id,
+                title: mut.payload.title,
+                amount: mut.payload.amount,
+                autoDeduct: mut.payload.auto_deduct,
+                category: mut.payload.category,
+                due_day: mut.payload.due_day,
+                due_date: mut.payload.due_date
+              });
+            } else if (mut.type === 'UPDATE_BILL') {
+              mergedBills = mergedBills.map(b => b.id === mut.payload.id ? {
+                ...b,
+                title: mut.payload.title ?? b.title,
+                amount: mut.payload.amount ?? b.amount,
+                autoDeduct: mut.payload.auto_deduct ?? b.autoDeduct,
+                category: mut.payload.category ?? b.category,
+                due_day: mut.payload.due_day ?? b.due_day,
+                due_date: mut.payload.due_date ?? b.due_date
+              } : b);
+            } else if (mut.type === 'DELETE_BILL') {
+              mergedBills = mergedBills.filter(b => b.id !== mut.payload.id);
+            }
+          });
+          set({ bills: mergedBills });
+          queryClient.invalidateQueries({ queryKey: ['bills'] });
+        }
       }
 
       if (budgetsRes && budgetsRes.data) {
-        const { pendingMutations } = get();
-        let mergedBudgets: Budget[] = budgetsRes.data.map(b => ({
-          id: b.id,
-          category: b.category,
-          monthlyLimit: b.monthly_limit,
-          month: b.month,
-          userId: b.user_id
-        }));
-        
-        pendingMutations.forEach(mut => {
-          if (mut.type === 'UPSERT_BUDGET') {
-            const existing = mergedBudgets.find(b => b.id === mut.payload.id);
-            if (existing) {
-              mergedBudgets = mergedBudgets.map(b => b.id === mut.payload.id ? {
-                ...b,
-                monthlyLimit: mut.payload.monthly_limit
-              } : b);
-            } else {
-              mergedBudgets.push({
-                id: mut.payload.id,
-                category: mut.payload.category,
-                monthlyLimit: mut.payload.monthly_limit,
-                month: mut.payload.month,
-                userId: mut.payload.user_id
-              });
+        const localBudgets = get().budgets || [];
+        if (budgetsRes.data.length === 0 && localBudgets.length > 0) {
+          console.warn('fetchCloudData: cloud returned 0 budgets but local has', localBudgets.length, '— skipping overwrite');
+        } else {
+          const { pendingMutations } = get();
+          let mergedBudgets: Budget[] = budgetsRes.data.map(b => ({
+            id: b.id,
+            category: b.category,
+            monthlyLimit: b.monthly_limit,
+            month: b.month,
+            userId: b.user_id
+          }));
+          
+          pendingMutations.forEach(mut => {
+            if (mut.type === 'UPSERT_BUDGET') {
+              const existing = mergedBudgets.find(b => b.id === mut.payload.id);
+              if (existing) {
+                mergedBudgets = mergedBudgets.map(b => b.id === mut.payload.id ? {
+                  ...b,
+                  monthlyLimit: mut.payload.monthly_limit
+                } : b);
+              } else {
+                mergedBudgets.push({
+                  id: mut.payload.id,
+                  category: mut.payload.category,
+                  monthlyLimit: mut.payload.monthly_limit,
+                  month: mut.payload.month,
+                  userId: mut.payload.user_id
+                });
+              }
+            } else if (mut.type === 'DELETE_BUDGET') {
+              mergedBudgets = mergedBudgets.filter(b => b.id !== mut.payload.id);
             }
-          } else if (mut.type === 'DELETE_BUDGET') {
-            mergedBudgets = mergedBudgets.filter(b => b.id !== mut.payload.id);
-          }
-        });
-        set({ budgets: mergedBudgets });
-        queryClient.invalidateQueries({ queryKey: ['budgets'] });
+          });
+          set({ budgets: mergedBudgets });
+          queryClient.invalidateQueries({ queryKey: ['budgets'] });
+        }
       }
 
       // Prune stale UPDATE_SETTINGS mutations:
@@ -516,35 +536,45 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       }
 
       if (wishlistRes && wishlistRes.data) {
-        const { pendingMutations } = get();
-        let mergedWishlist = wishlistRes.data as WishlistItem[];
-        
-        pendingMutations.forEach(mut => {
-          if (mut.type === 'INSERT_WISHLIST_ITEM') {
-            mergedWishlist.push(mut.payload as WishlistItem);
-          } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
-            mergedWishlist = mergedWishlist.map(w => w.id === mut.payload.id ? { ...w, ...mut.payload } : w);
-          } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
-            mergedWishlist = mergedWishlist.filter(w => w.id !== mut.payload.id);
-          }
-        });
-        set({ wishlistItems: mergedWishlist });
+        const localWishlist = get().wishlistItems || [];
+        if (wishlistRes.data.length === 0 && localWishlist.length > 0) {
+          console.warn('fetchCloudData: cloud returned 0 wishlist items but local has', localWishlist.length, '— skipping overwrite');
+        } else {
+          const { pendingMutations } = get();
+          let mergedWishlist = wishlistRes.data as WishlistItem[];
+          
+          pendingMutations.forEach(mut => {
+            if (mut.type === 'INSERT_WISHLIST_ITEM') {
+              mergedWishlist.push(mut.payload as WishlistItem);
+            } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
+              mergedWishlist = mergedWishlist.map(w => w.id === mut.payload.id ? { ...w, ...mut.payload } : w);
+            } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
+              mergedWishlist = mergedWishlist.filter(w => w.id !== mut.payload.id);
+            }
+          });
+          set({ wishlistItems: mergedWishlist });
+        }
       }
 
       if (debtsRes?.data) {
-        const { pendingMutations } = get();
-        let mergedDebts = debtsRes.data as Debt[];
-        
-        pendingMutations.forEach(mut => {
-          if (mut.type === 'INSERT_DEBT') {
-            mergedDebts.push(mut.payload as Debt);
-          } else if (mut.type === 'UPDATE_DEBT') {
-            mergedDebts = mergedDebts.map(d => d.id === mut.payload.id ? { ...d, ...mut.payload } : d);
-          } else if (mut.type === 'DELETE_DEBT') {
-            mergedDebts = mergedDebts.filter(d => d.id !== mut.payload.id);
-          }
-        });
-        set({ debts: mergedDebts });
+        const localDebts = get().debts || [];
+        if (debtsRes.data.length === 0 && localDebts.length > 0) {
+          console.warn('fetchCloudData: cloud returned 0 debts but local has', localDebts.length, '— skipping overwrite');
+        } else {
+          const { pendingMutations } = get();
+          let mergedDebts = debtsRes.data as Debt[];
+          
+          pendingMutations.forEach(mut => {
+            if (mut.type === 'INSERT_DEBT') {
+              mergedDebts.push(mut.payload as Debt);
+            } else if (mut.type === 'UPDATE_DEBT') {
+              mergedDebts = mergedDebts.map(d => d.id === mut.payload.id ? { ...d, ...mut.payload } : d);
+            } else if (mut.type === 'DELETE_DEBT') {
+              mergedDebts = mergedDebts.filter(d => d.id !== mut.payload.id);
+            }
+          });
+          set({ debts: mergedDebts });
+        }
       }
 
       if (accountsRes && !accountsRes.error && accountsRes.data) {
