@@ -23,24 +23,25 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
 
   updateSettings: (newSettings) => {
     set((state) => ({ settings: { ...state.settings, ...newSettings } }));
-    const { session, settings, addPendingMutation, syncPendingMutations } = get();
+    // IMPORTANT: read settings from get() AFTER set() so we capture the merged/updated values
+    const { session, settings: updatedSettings, addPendingMutation, syncPendingMutations } = get();
     if (session) {
       addPendingMutation({
         type: 'UPDATE_SETTINGS',
         payload: {
           user_id: session.user.id,
-          monthly_income: settings.monthlyIncome,
-          currency: settings.currency,
-          dark_mode: settings.darkMode,
-          categories: settings.categories,
-          carry_forward: settings.carryForward,
-          category_budgets: settings.categoryBudgets,
-          quick_adds: settings.quickAdds,
-          privacy_mode: settings.privacyMode,
-          theme: settings.theme,
-          category_emojis: settings.categoryEmojis,
-          notifications_enabled: settings.notificationsEnabled,
-          user_name: settings.userName,
+          monthly_income: updatedSettings.monthlyIncome,
+          currency: updatedSettings.currency,
+          dark_mode: updatedSettings.darkMode,
+          categories: updatedSettings.categories,
+          carry_forward: updatedSettings.carryForward,
+          category_budgets: updatedSettings.categoryBudgets,
+          quick_adds: updatedSettings.quickAdds,
+          privacy_mode: updatedSettings.privacyMode,
+          theme: updatedSettings.theme,
+          category_emojis: updatedSettings.categoryEmojis,
+          notifications_enabled: updatedSettings.notificationsEnabled,
+          user_name: updatedSettings.userName,
           updated_at: new Date().toISOString()
         }
       });

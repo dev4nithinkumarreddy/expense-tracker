@@ -74,7 +74,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
   setModalOpen: (isModalOpen) => set({ isModalOpen }),
 
   addPendingMutation: (mutation) => {
-    set((state) => ({ pendingMutations: [...state.pendingMutations, { ...mutation, id: crypto.randomUUID() }] }));
+    set((state) => ({ pendingMutations: [...state.pendingMutations, { ...mutation, id: crypto.randomUUID(), createdAt: Date.now() }] }));
   },
 
   removePendingMutation: (id) => {
@@ -288,6 +288,17 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     
     set({ isSyncing: true });
     try {
+      // Prune zombie pending mutations older than 24 hours.
+      // These are mutations from a previous session that never flushed — keeping them
+      // causes phantom data differences between devices (they get merged with cloud data).
+      const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+      const pruneNow = Date.now();
+      set((state) => ({
+        pendingMutations: state.pendingMutations.filter(
+          m => !m.createdAt || (pruneNow - m.createdAt) < TWENTY_FOUR_HOURS_MS
+        )
+      }));
+
       const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes, accountsRes] = await Promise.all([
         supabase.from('expenses').select('*').eq('user_id', session.user.id),
         supabase.from('bills').select('*').eq('user_id', session.user.id),
@@ -433,6 +444,32 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         });
         set({ budgets: mergedBudgets });
         queryClient.invalidateQueries({ queryKey: ['budgets'] });
+      }
+
+      // Prune stale UPDATE_SETTINGS mutations: if older than 1 hour, they are from a dead
+      // session and should not block cloud settings from being applied on this device.
+      const ONE_HOUR_MS = 60 * 60 * 1000;
+      const now = Date.now();
+      const { pendingMutations: allMuts } = get();
+      const staleSettingIds = allMuts
+        .filter(m => m.type === 'UPDATE_SETTINGS' && m.createdAt && (now - m.createdAt) > ONE_HOUR_MS)
+        .map(m => m.id);
+      if (staleSettingIds.length > 0) {
+        set((state) => ({
+          pendingMutations: state.pendingMutations.filter(m => !staleSettingIds.includes(m.id))
+        }));
+      }
+
+      // Also deduplicate UPDATE_SETTINGS: keep only the most recent one
+      const { pendingMutations: deduped } = get();
+      const settingMuts = deduped.filter(m => m.type === 'UPDATE_SETTINGS');
+      if (settingMuts.length > 1) {
+        // Sort descending by createdAt, drop all but the newest
+        const sorted = [...settingMuts].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+        const idsToRemove = sorted.slice(1).map(m => m.id);
+        set((state) => ({
+          pendingMutations: state.pendingMutations.filter(m => !idsToRemove.includes(m.id))
+        }));
       }
 
       const { pendingMutations: activeMutations } = get();

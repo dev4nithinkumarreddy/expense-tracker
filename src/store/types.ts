@@ -85,6 +85,7 @@ export interface PendingMutation {
   id: string;
   type: MutationType;
   payload: any;
+  createdAt?: number;
 }
 
 export interface Bill {
