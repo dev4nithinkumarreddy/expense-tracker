@@ -39,6 +39,60 @@ export function fromCloudAccountId(id?: string | null): string {
   return id;
 }
 
+export function isValidUUID(id?: string | null): boolean {
+  if (!id) return false;
+  return UUID_REGEX.test(id);
+}
+
+export function getRecordTimestamp(record: any): number {
+  const ts = record?.updated_at || record?.created_at || record?.date;
+  if (!ts) return 0;
+  const parsed = new Date(ts).getTime();
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+export async function chunkedUpsert<T extends Record<string, any>>(
+  table: string,
+  records: T[],
+  chunkSize: number = 100
+): Promise<{ success: T[]; failed: { record: T; error: any }[] }> {
+  if (records.length === 0) return { success: [], failed: [] };
+
+  const success: T[] = [];
+  const failed: { record: T; error: any }[] = [];
+
+  for (let i = 0; i < records.length; i += chunkSize) {
+    const chunk = records.slice(i, i + chunkSize);
+    const { error } = await supabase.from(table as any).upsert(chunk as any);
+    if (!error) {
+      success.push(...chunk);
+    } else {
+      console.warn(`[Sync] Chunk upsert to ${table} failed, trying individually:`, error);
+      for (const item of chunk) {
+        let itemRes = await supabase.from(table as any).upsert(item as any);
+        if (
+          itemRes.error &&
+          table === 'expenses' &&
+          (itemRes.error.code === '23503' || itemRes.error.message?.includes('account_id') || itemRes.error.message?.includes('transfer_account_id'))
+        ) {
+          const fallback = { ...item };
+          delete (fallback as any).account_id;
+          delete (fallback as any).transfer_account_id;
+          itemRes = await supabase.from(table as any).upsert(fallback as any);
+        }
+
+        if (!itemRes.error) {
+          success.push(item);
+        } else {
+          failed.push({ record: item, error: itemRes.error });
+        }
+      }
+    }
+  }
+
+  return { success, failed };
+}
+
 // Module-scoped synchronization lock & retry state (never stored on window)
 let isSyncingLock = false;
 let syncRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -310,165 +364,818 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         (supabase.from('accounts' as any).select('*').eq('user_id', session.user.id) as any).catch(() => ({ data: null }))
       ]);
 
-      if (subsRes && subsRes.data) {
-        const localSubscriptions = get().subscriptions || [];
-        if (subsRes.data.length === 0 && localSubscriptions.length > 0) {
-          console.warn('fetchCloudData: cloud returned 0 subscriptions but local has', localSubscriptions.length, '— skipping overwrite');
-        } else {
-          const { pendingMutations } = get();
-          let mergedSubs: Subscription[] = subsRes.data.map(s => ({
-            id: s.id,
-            name: s.name,
-            amount: s.amount,
-            billing_cycle: (s.billing_cycle === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
-            next_billing_date: s.next_billing_date,
-            category: s.category
-          }));
+      // =====================================================================
+      // PHASE 1: ROBUST TWO-WAY MERGE & LOCAL-TO-CLOUD SEEDING
+      // =====================================================================
 
-          pendingMutations.forEach(mut => {
-            if (mut.type === 'INSERT_SUBSCRIPTION') {
-              mergedSubs.push(mut.payload as Subscription);
-            } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
-              mergedSubs = mergedSubs.map(s => s.id === mut.payload.id ? { ...s, ...mut.payload } : s);
-            } else if (mut.type === 'DELETE_SUBSCRIPTION') {
-              mergedSubs = mergedSubs.filter(s => s.id !== mut.payload.id);
-            }
-          });
-          set({ subscriptions: mergedSubs });
+      // --- 1. ACCOUNTS (Merged first to satisfy foreign key constraints) ---
+      if (accountsRes && !accountsRes.error && accountsRes.data) {
+        const localAccounts: Account[] = (get().accounts && get().accounts.length > 0)
+          ? get().accounts
+          : [
+              { id: 'acc-bank-1', name: 'Main Bank', type: 'bank' as const, balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
+              { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash' as const, balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
+            ];
+
+        let remappedAccountsCount = 0;
+        const accountRemap = new Map<string, string>();
+
+        const sanitizedLocal = localAccounts.map((acc: Account) => {
+          if (acc.id === 'acc-bank-1' || acc.id === 'acc-cash-1' || acc.id === 'acc-card-1') {
+            return acc;
+          }
+          if (!isValidUUID(acc.id)) {
+            const newId = crypto.randomUUID();
+            accountRemap.set(acc.id, newId);
+            remappedAccountsCount++;
+            return { ...acc, id: newId };
+          }
+          return acc;
+        });
+
+        const cloudMapped: Account[] = accountsRes.data.map((a: any) => ({
+          id: fromCloudAccountId(a.id),
+          name: a.name,
+          type: a.type,
+          balance: Number(a.balance) || 0,
+          currency: a.currency || '₹',
+          color: a.color || undefined,
+          icon: a.icon || undefined,
+          credit_limit: a.credit_limit != null ? Number(a.credit_limit) : undefined,
+          statement_day: a.statement_day || undefined,
+          due_day: a.due_day || undefined,
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(a => [toCloudAccountId(a.id) || a.id, a]));
+        const localMap = new Map(sanitizedLocal.map(a => [toCloudAccountId(a.id) || a.id, a]));
+
+        const localOnly = sanitizedLocal.filter(a => !cloudMap.has(toCloudAccountId(a.id) || a.id));
+        const cloudOnly = cloudMapped.filter(a => !localMap.has(toCloudAccountId(a.id) || a.id));
+
+        const inBothLocal = sanitizedLocal.filter(a => cloudMap.has(toCloudAccountId(a.id) || a.id));
+        const localWins: Account[] = [];
+        const cloudWins: Account[] = [];
+        let accountConflicts = 0;
+
+        for (const localAcc of inBothLocal) {
+          const cloudAcc = cloudMap.get(toCloudAccountId(localAcc.id) || localAcc.id)!;
+          accountConflicts++;
+          const localTs = getRecordTimestamp(localAcc);
+          const cloudTs = getRecordTimestamp(cloudAcc);
+          if (localTs > cloudTs) {
+            localWins.push(localAcc);
+          } else {
+            cloudWins.push(cloudAcc);
+          }
         }
+
+        const accountsToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = accountsToUpload.map(acc => ({
+          id: toCloudAccountId(acc.id) || acc.id,
+          user_id: session.user.id,
+          name: acc.name,
+          type: acc.type,
+          balance: acc.balance ?? 0,
+          currency: acc.currency || '₹',
+          color: acc.color || null,
+          icon: acc.icon || null,
+          credit_limit: acc.credit_limit || null,
+          statement_day: acc.statement_day || null,
+          due_day: acc.due_day || null,
+        }));
+
+        const { success: accSuccess, failed: accFailed } = await chunkedUpsert('accounts', uploadPayloads);
+
+        accFailed.forEach(({ record, error }) => {
+          console.error('[Sync] Account upload failed, re-queuing:', record.id, error);
+          get().addPendingMutation({
+            type: 'INSERT_ACCOUNT',
+            payload: record,
+          });
+        });
+
+        const mergedAccountMap = new Map<string, Account>();
+        cloudOnly.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
+        cloudWins.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
+        localOnly.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
+        localWins.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
+
+        let finalAccounts = Array.from(mergedAccountMap.values());
+
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_ACCOUNT') {
+            const localId = fromCloudAccountId(mut.payload.id);
+            if (!finalAccounts.some(a => a.id === localId)) {
+              finalAccounts.push({ ...mut.payload, id: localId });
+            }
+          } else if (mut.type === 'UPDATE_ACCOUNT') {
+            const localId = fromCloudAccountId(mut.payload.id);
+            finalAccounts = finalAccounts.map(a => a.id === localId ? { ...a, ...mut.payload, id: localId } : a);
+          } else if (mut.type === 'DELETE_ACCOUNT') {
+            const localId = fromCloudAccountId(mut.payload.id);
+            finalAccounts = finalAccounts.filter(a => a.id !== localId);
+          }
+        });
+
+        set({ accounts: finalAccounts });
+        get().reconcileAccountsWithBudget?.();
+        console.log(`[Sync] accounts: uploaded ${accSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${accountConflicts}, remapped ${remappedAccountsCount}`);
       }
 
-      if (expensesRes && expensesRes.data) {
+      // --- 2. EXPENSES MERGE & SEED ---
+      if (expensesRes && !expensesRes.error && expensesRes.data) {
         const localExpenses = get().expenses || [];
-        if (expensesRes.data.length === 0 && localExpenses.length > 0) {
-          console.warn('fetchCloudData: cloud returned 0 expenses but local has', localExpenses.length, '— skipping overwrite');
-        } else {
-          const { pendingMutations } = get();
-          let mergedExpenses: Expense[] = expensesRes.data.map((e: any) => ({
-            id: e.id,
-            amount: Number(e.amount),
-            description: e.description,
-            category: e.category,
-            date: e.date,
-            notes: e.notes || undefined,
-            receipt_url: e.receipt_url || undefined,
-            recurrence: e.recurrence || 'none',
-            next_occurrence: e.next_occurrence || null,
-            recurring_source_id: e.recurring_source_id || null,
-            account_id: fromCloudAccountId(e.account_id) || undefined,
-            transfer_account_id: fromCloudAccountId(e.transfer_account_id) || undefined,
-          }));
-          
-          pendingMutations.forEach(mut => {
-            if (mut.type === 'INSERT_EXPENSE') {
-              mergedExpenses.push(mut.payload as Expense);
-            } else if (mut.type === 'UPDATE_EXPENSE') {
-              mergedExpenses = mergedExpenses.map(e => e.id === mut.payload.id ? { ...e, ...mut.payload } : e);
-            } else if (mut.type === 'DELETE_EXPENSE') {
-              mergedExpenses = mergedExpenses.filter(e => e.id !== mut.payload.id);
-            }
-          });
+        let remappedExpensesCount = 0;
+        const expenseRemap = new Map<string, string>();
+
+        const sanitizedLocal = localExpenses.map((exp: Expense) => {
+          if (!isValidUUID(exp.id)) {
+            const newId = crypto.randomUUID();
+            expenseRemap.set(exp.id, newId);
+            remappedExpensesCount++;
+            return { ...exp, id: newId };
+          }
+          return exp;
+        }).map((exp: Expense) => {
+          if (exp.recurring_source_id && expenseRemap.has(exp.recurring_source_id)) {
+            return { ...exp, recurring_source_id: expenseRemap.get(exp.recurring_source_id)! };
+          }
+          return exp;
+        });
+
+        if (expenseRemap.size > 0) {
           set((state) => ({
-            expenses: mergedExpenses,
-            settings: {
-              ...state.settings,
-              currentStreak: calculateStreak(mergedExpenses)
-            }
+            pendingMutations: state.pendingMutations.map((m) => {
+              if (m.payload?.id && expenseRemap.has(m.payload.id)) {
+                return { ...m, payload: { ...m.payload, id: expenseRemap.get(m.payload.id)! } };
+              }
+              return m;
+            }),
           }));
-          queryClient.setQueryData(['expenses', session.user.id], mergedExpenses);
-          queryClient.invalidateQueries({ queryKey: ['expenses'] });
         }
+
+        const cloudMapped: Expense[] = expensesRes.data.map((e: any) => ({
+          id: e.id,
+          amount: Number(e.amount),
+          description: e.description,
+          category: e.category,
+          date: e.date,
+          notes: e.notes || undefined,
+          receipt_url: e.receipt_url || undefined,
+          recurrence: (e.recurrence || 'none') as 'none' | 'daily' | 'weekly' | 'monthly',
+          next_occurrence: e.next_occurrence || null,
+          recurring_source_id: e.recurring_source_id || null,
+          account_id: fromCloudAccountId(e.account_id) || undefined,
+          transfer_account_id: fromCloudAccountId(e.transfer_account_id) || undefined,
+          updated_at: e.updated_at || e.created_at || e.date,
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(e => [e.id, e]));
+        const localMap = new Map(sanitizedLocal.map(e => [e.id, e]));
+
+        const localOnly = sanitizedLocal.filter(e => !cloudMap.has(e.id));
+        const cloudOnly = cloudMapped.filter(e => !localMap.has(e.id));
+
+        const inBothLocal = sanitizedLocal.filter(e => cloudMap.has(e.id));
+        const localWins: Expense[] = [];
+        const cloudWins: Expense[] = [];
+        let expenseConflicts = 0;
+
+        for (const localExp of inBothLocal) {
+          const cloudExp = cloudMap.get(localExp.id)!;
+          expenseConflicts++;
+          const localTs = getRecordTimestamp(localExp);
+          const cloudTs = getRecordTimestamp(cloudExp);
+          if (localTs > cloudTs) {
+            localWins.push(localExp);
+          } else {
+            cloudWins.push(cloudExp);
+          }
+        }
+
+        const expensesToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = expensesToUpload.map(e => ({
+          id: e.id,
+          user_id: session.user.id,
+          amount: e.amount,
+          description: e.description,
+          category: e.category,
+          date: e.date,
+          notes: e.notes || null,
+          receipt_url: e.receipt_url || null,
+          recurrence: e.recurrence || 'none',
+          next_occurrence: e.next_occurrence || null,
+          recurring_source_id: e.recurring_source_id || null,
+          account_id: toCloudAccountId(e.account_id),
+          transfer_account_id: toCloudAccountId(e.transfer_account_id),
+        }));
+
+        const { success: expSuccess, failed: expFailed } = await chunkedUpsert('expenses', uploadPayloads);
+
+        expFailed.forEach(({ record, error }) => {
+          console.error('[Sync] Expense upload failed, re-queuing:', record.id, error);
+          get().addPendingMutation({
+            type: 'INSERT_EXPENSE',
+            payload: record,
+          });
+        });
+
+        const mergedExpenseMap = new Map<string, Expense>();
+        cloudOnly.forEach(e => mergedExpenseMap.set(e.id, e));
+        cloudWins.forEach(e => mergedExpenseMap.set(e.id, e));
+        localOnly.forEach(e => mergedExpenseMap.set(e.id, e));
+        localWins.forEach(e => mergedExpenseMap.set(e.id, e));
+
+        let finalExpenses = Array.from(mergedExpenseMap.values());
+
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_EXPENSE') {
+            if (!finalExpenses.some(e => e.id === mut.payload.id)) {
+              finalExpenses.push(mut.payload as Expense);
+            }
+          } else if (mut.type === 'UPDATE_EXPENSE') {
+            finalExpenses = finalExpenses.map(e => e.id === mut.payload.id ? { ...e, ...mut.payload } : e);
+          } else if (mut.type === 'DELETE_EXPENSE') {
+            finalExpenses = finalExpenses.filter(e => e.id !== mut.payload.id);
+          }
+        });
+
+        set((state) => ({
+          expenses: finalExpenses,
+          settings: {
+            ...state.settings,
+            currentStreak: calculateStreak(finalExpenses)
+          }
+        }));
+        queryClient.setQueryData(['expenses', session.user.id], finalExpenses);
+        queryClient.invalidateQueries({ queryKey: ['expenses'] });
+        console.log(`[Sync] expenses: uploaded ${expSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${expenseConflicts}, remapped ${remappedExpensesCount}`);
       }
 
-      if (billsRes && billsRes.data) {
+      // --- 3. BILLS MERGE & SEED ---
+      if (billsRes && !billsRes.error && billsRes.data) {
         const localBills = get().bills || [];
-        if (billsRes.data.length === 0 && localBills.length > 0) {
-          console.warn('fetchCloudData: cloud returned 0 bills but local has', localBills.length, '— skipping overwrite');
-        } else {
-          const { pendingMutations } = get();
-          let mergedBills: Bill[] = billsRes.data.map(b => ({
-            id: b.id,
-            title: b.title,
-            amount: b.amount,
-            autoDeduct: b.auto_deduct,
-            category: b.category,
-            due_day: b.due_day ?? (b.due_date ? new Date(b.due_date).getDate() : 1),
-            due_date: b.due_date || undefined
+        let remappedBillsCount = 0;
+        const billRemap = new Map<string, string>();
+
+        const sanitizedLocal = localBills.map((b: Bill) => {
+          if (!isValidUUID(b.id)) {
+            const newId = crypto.randomUUID();
+            billRemap.set(b.id, newId);
+            remappedBillsCount++;
+            return { ...b, id: newId };
+          }
+          return b;
+        });
+
+        if (billRemap.size > 0) {
+          set((state) => ({
+            pendingMutations: state.pendingMutations.map((m) => {
+              if (m.payload?.id && billRemap.has(m.payload.id)) {
+                return { ...m, payload: { ...m.payload, id: billRemap.get(m.payload.id)! } };
+              }
+              return m;
+            }),
           }));
-          
-          pendingMutations.forEach(mut => {
-            if (mut.type === 'INSERT_BILL') {
-              mergedBills.push({
+        }
+
+        const cloudMapped: Bill[] = billsRes.data.map((b: any) => ({
+          id: b.id,
+          title: b.title,
+          amount: b.amount,
+          autoDeduct: Boolean(b.auto_deduct),
+          category: b.category,
+          due_day: b.due_day ?? (b.due_date ? new Date(b.due_date).getDate() : 1),
+          due_date: b.due_date || undefined,
+          updated_at: b.updated_at || b.created_at,
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(b => [b.id, b]));
+        const localMap = new Map(sanitizedLocal.map(b => [b.id, b]));
+
+        const localOnly = sanitizedLocal.filter(b => !cloudMap.has(b.id));
+        const cloudOnly = cloudMapped.filter(b => !localMap.has(b.id));
+
+        const inBothLocal = sanitizedLocal.filter(b => cloudMap.has(b.id));
+        const localWins: Bill[] = [];
+        const cloudWins: Bill[] = [];
+        let billConflicts = 0;
+
+        for (const localBill of inBothLocal) {
+          const cloudBill = cloudMap.get(localBill.id)!;
+          billConflicts++;
+          const localTs = getRecordTimestamp(localBill);
+          const cloudTs = getRecordTimestamp(cloudBill);
+          if (localTs > cloudTs) {
+            localWins.push(localBill);
+          } else {
+            cloudWins.push(cloudBill);
+          }
+        }
+
+        const billsToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = billsToUpload.map(b => ({
+          id: b.id,
+          user_id: session.user.id,
+          title: b.title,
+          amount: b.amount,
+          auto_deduct: b.autoDeduct,
+          category: b.category,
+          due_day: b.due_day || null,
+          due_date: b.due_date || null,
+        }));
+
+        const { success: billSuccess, failed: billFailed } = await chunkedUpsert('bills', uploadPayloads);
+
+        billFailed.forEach(({ record, error }) => {
+          console.error('[Sync] Bill upload failed, re-queuing:', record.id, error);
+          get().addPendingMutation({
+            type: 'INSERT_BILL',
+            payload: record,
+          });
+        });
+
+        const mergedBillMap = new Map<string, Bill>();
+        cloudOnly.forEach(b => mergedBillMap.set(b.id, b));
+        cloudWins.forEach(b => mergedBillMap.set(b.id, b));
+        localOnly.forEach(b => mergedBillMap.set(b.id, b));
+        localWins.forEach(b => mergedBillMap.set(b.id, b));
+
+        let finalBills = Array.from(mergedBillMap.values());
+
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_BILL') {
+            if (!finalBills.some(b => b.id === mut.payload.id)) {
+              finalBills.push({
                 id: mut.payload.id,
                 title: mut.payload.title,
                 amount: mut.payload.amount,
-                autoDeduct: mut.payload.auto_deduct,
+                autoDeduct: mut.payload.auto_deduct ?? mut.payload.autoDeduct ?? false,
                 category: mut.payload.category,
                 due_day: mut.payload.due_day,
                 due_date: mut.payload.due_date
               });
-            } else if (mut.type === 'UPDATE_BILL') {
-              mergedBills = mergedBills.map(b => b.id === mut.payload.id ? {
-                ...b,
-                title: mut.payload.title ?? b.title,
-                amount: mut.payload.amount ?? b.amount,
-                autoDeduct: mut.payload.auto_deduct ?? b.autoDeduct,
-                category: mut.payload.category ?? b.category,
-                due_day: mut.payload.due_day ?? b.due_day,
-                due_date: mut.payload.due_date ?? b.due_date
-              } : b);
-            } else if (mut.type === 'DELETE_BILL') {
-              mergedBills = mergedBills.filter(b => b.id !== mut.payload.id);
             }
-          });
-          set({ bills: mergedBills });
-          queryClient.invalidateQueries({ queryKey: ['bills'] });
-        }
+          } else if (mut.type === 'UPDATE_BILL') {
+            finalBills = finalBills.map(b => b.id === mut.payload.id ? {
+              ...b,
+              title: mut.payload.title ?? b.title,
+              amount: mut.payload.amount ?? b.amount,
+              autoDeduct: mut.payload.auto_deduct ?? mut.payload.autoDeduct ?? b.autoDeduct,
+              category: mut.payload.category ?? b.category,
+              due_day: mut.payload.due_day ?? b.due_day,
+              due_date: mut.payload.due_date ?? b.due_date
+            } : b);
+          } else if (mut.type === 'DELETE_BILL') {
+            finalBills = finalBills.filter(b => b.id !== mut.payload.id);
+          }
+        });
+
+        set({ bills: finalBills });
+        queryClient.invalidateQueries({ queryKey: ['bills'] });
+        console.log(`[Sync] bills: uploaded ${billSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${billConflicts}, remapped ${remappedBillsCount}`);
       }
 
-      if (budgetsRes && budgetsRes.data) {
+      // --- 4. BUDGETS MERGE & SEED ---
+      if (budgetsRes && !budgetsRes.error && budgetsRes.data) {
         const localBudgets = get().budgets || [];
-        if (budgetsRes.data.length === 0 && localBudgets.length > 0) {
-          console.warn('fetchCloudData: cloud returned 0 budgets but local has', localBudgets.length, '— skipping overwrite');
-        } else {
-          const { pendingMutations } = get();
-          let mergedBudgets: Budget[] = budgetsRes.data.map(b => ({
-            id: b.id,
-            category: b.category,
-            monthlyLimit: b.monthly_limit,
-            month: b.month,
-            userId: b.user_id
-          }));
-          
-          pendingMutations.forEach(mut => {
-            if (mut.type === 'UPSERT_BUDGET') {
-              const existing = mergedBudgets.find(b => b.id === mut.payload.id);
-              if (existing) {
-                mergedBudgets = mergedBudgets.map(b => b.id === mut.payload.id ? {
-                  ...b,
-                  monthlyLimit: mut.payload.monthly_limit
-                } : b);
-              } else {
-                mergedBudgets.push({
-                  id: mut.payload.id,
-                  category: mut.payload.category,
-                  monthlyLimit: mut.payload.monthly_limit,
-                  month: mut.payload.month,
-                  userId: mut.payload.user_id
-                });
+        let remappedBudgetsCount = 0;
+        const budgetRemap = new Map<string, string>();
+
+        const sanitizedLocal = localBudgets.map((b: Budget) => {
+          if (!isValidUUID(b.id)) {
+            const newId = crypto.randomUUID();
+            budgetRemap.set(b.id, newId);
+            remappedBudgetsCount++;
+            return { ...b, id: newId };
+          }
+          return b;
+        });
+
+        if (budgetRemap.size > 0) {
+          set((state) => ({
+            pendingMutations: state.pendingMutations.map((m) => {
+              if (m.payload?.id && budgetRemap.has(m.payload.id)) {
+                return { ...m, payload: { ...m.payload, id: budgetRemap.get(m.payload.id)! } };
               }
-            } else if (mut.type === 'DELETE_BUDGET') {
-              mergedBudgets = mergedBudgets.filter(b => b.id !== mut.payload.id);
-            }
-          });
-          set({ budgets: mergedBudgets });
-          queryClient.invalidateQueries({ queryKey: ['budgets'] });
+              return m;
+            }),
+          }));
         }
+
+        const cloudMapped: Budget[] = budgetsRes.data.map((b: any) => ({
+          id: b.id,
+          category: b.category,
+          monthlyLimit: Number(b.monthly_limit),
+          month: b.month,
+          userId: b.user_id,
+          updated_at: b.updated_at || b.created_at,
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(b => [b.id, b]));
+        const localMap = new Map(sanitizedLocal.map(b => [b.id, b]));
+
+        const localOnly = sanitizedLocal.filter(b => !cloudMap.has(b.id));
+        const cloudOnly = cloudMapped.filter(b => !localMap.has(b.id));
+
+        const inBothLocal = sanitizedLocal.filter(b => cloudMap.has(b.id));
+        const localWins: Budget[] = [];
+        const cloudWins: Budget[] = [];
+        let budgetConflicts = 0;
+
+        for (const localBudget of inBothLocal) {
+          const cloudBudget = cloudMap.get(localBudget.id)!;
+          budgetConflicts++;
+          const localTs = getRecordTimestamp(localBudget);
+          const cloudTs = getRecordTimestamp(cloudBudget);
+          if (localTs > cloudTs) {
+            localWins.push(localBudget);
+          } else {
+            cloudWins.push(cloudBudget);
+          }
+        }
+
+        const budgetsToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = budgetsToUpload.map(b => ({
+          id: b.id,
+          user_id: session.user.id,
+          category: b.category,
+          monthly_limit: b.monthlyLimit,
+          month: b.month,
+        }));
+
+        const { success: budgetSuccess, failed: budgetFailed } = await chunkedUpsert('budgets', uploadPayloads);
+
+        budgetFailed.forEach(({ record, error }) => {
+          console.error('[Sync] Budget upload failed, re-queuing:', record.id, error);
+          get().addPendingMutation({
+            type: 'UPSERT_BUDGET',
+            payload: record,
+          });
+        });
+
+        const mergedBudgetMap = new Map<string, Budget>();
+        cloudOnly.forEach(b => mergedBudgetMap.set(b.id, b));
+        cloudWins.forEach(b => mergedBudgetMap.set(b.id, b));
+        localOnly.forEach(b => mergedBudgetMap.set(b.id, b));
+        localWins.forEach(b => mergedBudgetMap.set(b.id, b));
+
+        let finalBudgets = Array.from(mergedBudgetMap.values());
+
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'UPSERT_BUDGET') {
+            const existing = finalBudgets.find(b => b.id === mut.payload.id);
+            if (existing) {
+              finalBudgets = finalBudgets.map(b => b.id === mut.payload.id ? {
+                ...b,
+                monthlyLimit: mut.payload.monthly_limit ?? mut.payload.monthlyLimit
+              } : b);
+            } else {
+              finalBudgets.push({
+                id: mut.payload.id,
+                category: mut.payload.category,
+                monthlyLimit: mut.payload.monthly_limit ?? mut.payload.monthlyLimit,
+                month: mut.payload.month,
+                userId: mut.payload.user_id || session.user.id
+              });
+            }
+          } else if (mut.type === 'DELETE_BUDGET') {
+            finalBudgets = finalBudgets.filter(b => b.id !== mut.payload.id);
+          }
+        });
+
+        set({ budgets: finalBudgets });
+        queryClient.invalidateQueries({ queryKey: ['budgets'] });
+        console.log(`[Sync] budgets: uploaded ${budgetSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${budgetConflicts}, remapped ${remappedBudgetsCount}`);
       }
 
-      // Prune stale UPDATE_SETTINGS mutations:
-      // - No createdAt = legacy mutation from before the fix → treat as stale, drop it
-      // - Has createdAt but older than 1 hour = from a dead session → drop it
+      // --- 5. SUBSCRIPTIONS MERGE & SEED ---
+      if (subsRes && !subsRes.error && subsRes.data) {
+        const localSubscriptions = get().subscriptions || [];
+        let remappedSubsCount = 0;
+        const subRemap = new Map<string, string>();
+
+        const sanitizedLocal = localSubscriptions.map((s: Subscription) => {
+          if (!isValidUUID(s.id)) {
+            const newId = crypto.randomUUID();
+            subRemap.set(s.id, newId);
+            remappedSubsCount++;
+            return { ...s, id: newId };
+          }
+          return s;
+        });
+
+        if (subRemap.size > 0) {
+          set((state) => ({
+            pendingMutations: state.pendingMutations.map((m) => {
+              if (m.payload?.id && subRemap.has(m.payload.id)) {
+                return { ...m, payload: { ...m.payload, id: subRemap.get(m.payload.id)! } };
+              }
+              return m;
+            }),
+          }));
+        }
+
+        const cloudMapped: Subscription[] = subsRes.data.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          amount: s.amount,
+          billing_cycle: (s.billing_cycle === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
+          next_billing_date: s.next_billing_date,
+          category: s.category,
+          updated_at: s.updated_at || s.created_at,
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(s => [s.id, s]));
+        const localMap = new Map(sanitizedLocal.map(s => [s.id, s]));
+
+        const localOnly = sanitizedLocal.filter(s => !cloudMap.has(s.id));
+        const cloudOnly = cloudMapped.filter(s => !localMap.has(s.id));
+
+        const inBothLocal = sanitizedLocal.filter(s => cloudMap.has(s.id));
+        const localWins: Subscription[] = [];
+        const cloudWins: Subscription[] = [];
+        let subConflicts = 0;
+
+        for (const localSub of inBothLocal) {
+          const cloudSub = cloudMap.get(localSub.id)!;
+          subConflicts++;
+          const localTs = getRecordTimestamp(localSub);
+          const cloudTs = getRecordTimestamp(cloudSub);
+          if (localTs > cloudTs) {
+            localWins.push(localSub);
+          } else {
+            cloudWins.push(cloudSub);
+          }
+        }
+
+        const subsToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = subsToUpload.map(s => ({
+          id: s.id,
+          user_id: session.user.id,
+          name: s.name,
+          amount: s.amount,
+          billing_cycle: s.billing_cycle,
+          next_billing_date: s.next_billing_date,
+          category: s.category,
+        }));
+
+        const { success: subSuccess, failed: subFailed } = await chunkedUpsert('subscriptions', uploadPayloads);
+
+        subFailed.forEach(({ record, error }) => {
+          console.error('[Sync] Subscription upload failed, re-queuing:', record.id, error);
+          get().addPendingMutation({
+            type: 'INSERT_SUBSCRIPTION',
+            payload: record,
+          });
+        });
+
+        const mergedSubMap = new Map<string, Subscription>();
+        cloudOnly.forEach(s => mergedSubMap.set(s.id, s));
+        cloudWins.forEach(s => mergedSubMap.set(s.id, s));
+        localOnly.forEach(s => mergedSubMap.set(s.id, s));
+        localWins.forEach(s => mergedSubMap.set(s.id, s));
+
+        let finalSubs = Array.from(mergedSubMap.values());
+
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_SUBSCRIPTION') {
+            if (!finalSubs.some(s => s.id === mut.payload.id)) {
+              finalSubs.push(mut.payload as Subscription);
+            }
+          } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
+            finalSubs = finalSubs.map(s => s.id === mut.payload.id ? { ...s, ...mut.payload } : s);
+          } else if (mut.type === 'DELETE_SUBSCRIPTION') {
+            finalSubs = finalSubs.filter(s => s.id !== mut.payload.id);
+          }
+        });
+
+        set({ subscriptions: finalSubs });
+        console.log(`[Sync] subscriptions: uploaded ${subSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${subConflicts}, remapped ${remappedSubsCount}`);
+      }
+
+      // --- 6. WISHLIST MERGE & SEED ---
+      if (wishlistRes && !wishlistRes.error && wishlistRes.data) {
+        const localWishlist = get().wishlistItems || [];
+        let remappedWishlistCount = 0;
+        const wishlistRemap = new Map<string, string>();
+
+        const sanitizedLocal = localWishlist.map((w: WishlistItem) => {
+          if (!isValidUUID(w.id)) {
+            const newId = crypto.randomUUID();
+            wishlistRemap.set(w.id, newId);
+            remappedWishlistCount++;
+            return { ...w, id: newId };
+          }
+          return w;
+        });
+
+        if (wishlistRemap.size > 0) {
+          set((state) => ({
+            pendingMutations: state.pendingMutations.map((m) => {
+              if (m.payload?.id && wishlistRemap.has(m.payload.id)) {
+                return { ...m, payload: { ...m.payload, id: wishlistRemap.get(m.payload.id)! } };
+              }
+              return m;
+            }),
+          }));
+        }
+
+        const cloudMapped: WishlistItem[] = wishlistRes.data.map((w: any) => ({
+          id: w.id,
+          item_name: w.item_name,
+          estimated_amount: w.estimated_amount != null ? Number(w.estimated_amount) : undefined,
+          category: w.category || undefined,
+          is_purchased: Boolean(w.is_purchased),
+          created_at: w.created_at || new Date().toISOString(),
+          updated_at: w.updated_at || w.created_at,
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(w => [w.id, w]));
+        const localMap = new Map(sanitizedLocal.map(w => [w.id, w]));
+
+        const localOnly = sanitizedLocal.filter(w => !cloudMap.has(w.id));
+        const cloudOnly = cloudMapped.filter(w => !localMap.has(w.id));
+
+        const inBothLocal = sanitizedLocal.filter(w => cloudMap.has(w.id));
+        const localWins: WishlistItem[] = [];
+        const cloudWins: WishlistItem[] = [];
+        let wishlistConflicts = 0;
+
+        for (const localItem of inBothLocal) {
+          const cloudItem = cloudMap.get(localItem.id)!;
+          wishlistConflicts++;
+          const localTs = getRecordTimestamp(localItem);
+          const cloudTs = getRecordTimestamp(cloudItem);
+          if (localTs > cloudTs) {
+            localWins.push(localItem);
+          } else {
+            cloudWins.push(cloudItem);
+          }
+        }
+
+        const wishlistToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = wishlistToUpload.map(w => ({
+          id: w.id,
+          user_id: session.user.id,
+          item_name: w.item_name,
+          estimated_amount: w.estimated_amount || null,
+          category: w.category || null,
+          is_purchased: w.is_purchased,
+        }));
+
+        const { success: wishSuccess, failed: wishFailed } = await chunkedUpsert('wishlist', uploadPayloads);
+
+        wishFailed.forEach(({ record, error }) => {
+          console.error('[Sync] Wishlist upload failed, re-queuing:', record.id, error);
+          get().addPendingMutation({
+            type: 'INSERT_WISHLIST_ITEM',
+            payload: record,
+          });
+        });
+
+        const mergedWishlistMap = new Map<string, WishlistItem>();
+        cloudOnly.forEach(w => mergedWishlistMap.set(w.id, w));
+        cloudWins.forEach(w => mergedWishlistMap.set(w.id, w));
+        localOnly.forEach(w => mergedWishlistMap.set(w.id, w));
+        localWins.forEach(w => mergedWishlistMap.set(w.id, w));
+
+        let finalWishlist = Array.from(mergedWishlistMap.values());
+
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_WISHLIST_ITEM') {
+            if (!finalWishlist.some(w => w.id === mut.payload.id)) {
+              finalWishlist.push(mut.payload as WishlistItem);
+            }
+          } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
+            finalWishlist = finalWishlist.map(w => w.id === mut.payload.id ? { ...w, ...mut.payload } : w);
+          } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
+            finalWishlist = finalWishlist.filter(w => w.id !== mut.payload.id);
+          }
+        });
+
+        set({ wishlistItems: finalWishlist });
+        console.log(`[Sync] wishlist: uploaded ${wishSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${wishlistConflicts}, remapped ${remappedWishlistCount}`);
+      }
+
+      // --- 7. DEBTS MERGE & SEED ---
+      if (debtsRes && !debtsRes.error && debtsRes.data) {
+        const localDebts = get().debts || [];
+        let remappedDebtsCount = 0;
+        const debtRemap = new Map<string, string>();
+
+        const sanitizedLocal = localDebts.map((d: Debt) => {
+          if (!isValidUUID(d.id)) {
+            const newId = crypto.randomUUID();
+            debtRemap.set(d.id, newId);
+            remappedDebtsCount++;
+            return { ...d, id: newId };
+          }
+          return d;
+        });
+
+        if (debtRemap.size > 0) {
+          set((state) => ({
+            pendingMutations: state.pendingMutations.map((m) => {
+              if (m.payload?.id && debtRemap.has(m.payload.id)) {
+                return { ...m, payload: { ...m.payload, id: debtRemap.get(m.payload.id)! } };
+              }
+              return m;
+            }),
+          }));
+        }
+
+        const cloudMapped: Debt[] = debtsRes.data.map((d: any) => ({
+          id: d.id,
+          person_name: d.person_name,
+          amount: Number(d.amount),
+          type: (d.type === 'borrowed' ? 'borrowed' : 'lent') as 'lent' | 'borrowed',
+          status: (d.status === 'settled' ? 'settled' : 'pending') as 'pending' | 'settled',
+          date: d.date,
+          due_date: d.due_date || undefined,
+          notes: d.notes || undefined,
+          created_at: d.created_at,
+          updated_at: d.updated_at || d.created_at || d.date,
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(d => [d.id, d]));
+        const localMap = new Map(sanitizedLocal.map(d => [d.id, d]));
+
+        const localOnly = sanitizedLocal.filter(d => !cloudMap.has(d.id));
+        const cloudOnly = cloudMapped.filter(d => !localMap.has(d.id));
+
+        const inBothLocal = sanitizedLocal.filter(d => cloudMap.has(d.id));
+        const localWins: Debt[] = [];
+        const cloudWins: Debt[] = [];
+        let debtConflicts = 0;
+
+        for (const localDebt of inBothLocal) {
+          const cloudDebt = cloudMap.get(localDebt.id)!;
+          debtConflicts++;
+          const localTs = getRecordTimestamp(localDebt);
+          const cloudTs = getRecordTimestamp(cloudDebt);
+          if (localTs > cloudTs) {
+            localWins.push(localDebt);
+          } else {
+            cloudWins.push(cloudDebt);
+          }
+        }
+
+        const debtsToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = debtsToUpload.map(d => ({
+          id: d.id,
+          user_id: session.user.id,
+          person_name: d.person_name,
+          amount: d.amount,
+          type: d.type,
+          status: d.status,
+          date: d.date,
+          due_date: d.due_date || null,
+          notes: d.notes || null,
+        }));
+
+        const { success: debtSuccess, failed: debtFailed } = await chunkedUpsert('debts', uploadPayloads);
+
+        debtFailed.forEach(({ record, error }) => {
+          console.error('[Sync] Debt upload failed, re-queuing:', record.id, error);
+          get().addPendingMutation({
+            type: 'INSERT_DEBT',
+            payload: record,
+          });
+        });
+
+        const mergedDebtMap = new Map<string, Debt>();
+        cloudOnly.forEach(d => mergedDebtMap.set(d.id, d));
+        cloudWins.forEach(d => mergedDebtMap.set(d.id, d));
+        localOnly.forEach(d => mergedDebtMap.set(d.id, d));
+        localWins.forEach(d => mergedDebtMap.set(d.id, d));
+
+        let finalDebts = Array.from(mergedDebtMap.values());
+
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_DEBT') {
+            if (!finalDebts.some(d => d.id === mut.payload.id)) {
+              finalDebts.push(mut.payload as Debt);
+            }
+          } else if (mut.type === 'UPDATE_DEBT') {
+            finalDebts = finalDebts.map(d => d.id === mut.payload.id ? { ...d, ...mut.payload } : d);
+          } else if (mut.type === 'DELETE_DEBT') {
+            finalDebts = finalDebts.filter(d => d.id !== mut.payload.id);
+          }
+        });
+
+        set({ debts: finalDebts });
+        console.log(`[Sync] debts: uploaded ${debtSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${debtConflicts}, remapped ${remappedDebtsCount}`);
+      }
+
+      // --- 8. SETTINGS (Preserved for Phase 2) ---
       const ONE_HOUR_MS = 60 * 60 * 1000;
       const now = Date.now();
       const { pendingMutations: allMuts } = get();
@@ -481,11 +1188,9 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         }));
       }
 
-      // Also deduplicate UPDATE_SETTINGS: keep only the most recent one
       const { pendingMutations: deduped } = get();
       const settingMuts = deduped.filter(m => m.type === 'UPDATE_SETTINGS');
       if (settingMuts.length > 1) {
-        // Sort descending by createdAt, drop all but the newest
         const sorted = [...settingMuts].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
         const idsToRemove = sorted.slice(1).map(m => m.id);
         set((state) => ({
@@ -516,7 +1221,6 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         }));
       } else if (!hasPendingSettings && !settingsRes?.data) {
-        // Upload initial local settings to Supabase so subsequent devices get it
         const currentSettings = get().settings;
         await supabase.from('user_settings').upsert({
           user_id: session.user.id,
@@ -533,110 +1237,6 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           notifications_enabled: currentSettings.notificationsEnabled,
           user_name: currentSettings.userName,
         });
-      }
-
-      if (wishlistRes && wishlistRes.data) {
-        const localWishlist = get().wishlistItems || [];
-        if (wishlistRes.data.length === 0 && localWishlist.length > 0) {
-          console.warn('fetchCloudData: cloud returned 0 wishlist items but local has', localWishlist.length, '— skipping overwrite');
-        } else {
-          const { pendingMutations } = get();
-          let mergedWishlist = wishlistRes.data as WishlistItem[];
-          
-          pendingMutations.forEach(mut => {
-            if (mut.type === 'INSERT_WISHLIST_ITEM') {
-              mergedWishlist.push(mut.payload as WishlistItem);
-            } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
-              mergedWishlist = mergedWishlist.map(w => w.id === mut.payload.id ? { ...w, ...mut.payload } : w);
-            } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
-              mergedWishlist = mergedWishlist.filter(w => w.id !== mut.payload.id);
-            }
-          });
-          set({ wishlistItems: mergedWishlist });
-        }
-      }
-
-      if (debtsRes?.data) {
-        const localDebts = get().debts || [];
-        if (debtsRes.data.length === 0 && localDebts.length > 0) {
-          console.warn('fetchCloudData: cloud returned 0 debts but local has', localDebts.length, '— skipping overwrite');
-        } else {
-          const { pendingMutations } = get();
-          let mergedDebts = debtsRes.data as Debt[];
-          
-          pendingMutations.forEach(mut => {
-            if (mut.type === 'INSERT_DEBT') {
-              mergedDebts.push(mut.payload as Debt);
-            } else if (mut.type === 'UPDATE_DEBT') {
-              mergedDebts = mergedDebts.map(d => d.id === mut.payload.id ? { ...d, ...mut.payload } : d);
-            } else if (mut.type === 'DELETE_DEBT') {
-              mergedDebts = mergedDebts.filter(d => d.id !== mut.payload.id);
-            }
-          });
-          set({ debts: mergedDebts });
-        }
-      }
-
-      if (accountsRes && !accountsRes.error && accountsRes.data) {
-        if (accountsRes.data.length === 0) {
-          // Cloud has no accounts yet. Seed default/local accounts to Supabase:
-          const currentAccounts: Account[] = (get().accounts && get().accounts.length > 0)
-            ? get().accounts
-            : [
-                { id: 'acc-bank-1', name: 'Main Bank', type: 'bank' as const, balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
-                { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash' as const, balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
-              ];
-
-          const seedPayloads = currentAccounts.map((acc: any) => ({
-            id: toCloudAccountId(acc.id) || acc.id,
-            user_id: session.user.id,
-            name: acc.name,
-            type: acc.type,
-            balance: acc.balance ?? 0,
-            currency: acc.currency || '₹',
-            color: acc.color || null,
-            icon: acc.icon || null,
-            credit_limit: acc.credit_limit || null,
-            statement_day: acc.statement_day || null,
-            due_day: acc.due_day || null
-          }));
-
-          try {
-            await (supabase.from('accounts' as any).upsert(seedPayloads) as any);
-          } catch (e) {
-            console.warn('Failed to seed cloud accounts:', e);
-          }
-          set({ accounts: currentAccounts });
-        } else {
-          const { pendingMutations } = get();
-          let mergedAccounts: Account[] = accountsRes.data.map((a: any) => ({
-            id: fromCloudAccountId(a.id),
-            name: a.name,
-            type: a.type,
-            balance: Number(a.balance) || 0,
-            currency: a.currency || '₹',
-            color: a.color,
-            icon: a.icon,
-            credit_limit: a.credit_limit,
-            statement_day: a.statement_day,
-            due_day: a.due_day,
-          }));
-
-          pendingMutations.forEach(mut => {
-            if (mut.type === 'INSERT_ACCOUNT') {
-              const localId = fromCloudAccountId(mut.payload.id);
-              mergedAccounts.push({ ...mut.payload, id: localId });
-            } else if (mut.type === 'UPDATE_ACCOUNT') {
-              const localId = fromCloudAccountId(mut.payload.id);
-              mergedAccounts = mergedAccounts.map(a => a.id === localId ? { ...a, ...mut.payload, id: localId } : a);
-            } else if (mut.type === 'DELETE_ACCOUNT') {
-              const localId = fromCloudAccountId(mut.payload.id);
-              mergedAccounts = mergedAccounts.filter(a => a.id !== localId);
-            }
-          });
-          set({ accounts: mergedAccounts });
-          get().reconcileAccountsWithBudget?.();
-        }
       }
     } catch (error) {
       console.error("Failed to fetch cloud data:", error);

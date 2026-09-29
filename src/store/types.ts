@@ -48,6 +48,7 @@ export interface Debt {
   date: string;
   notes?: string;
   created_at?: string;
+  due_date?: string | null;
 }
 
 export interface Subscription {
