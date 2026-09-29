@@ -10,14 +10,14 @@ export const createDebtSlice: StateCreator<ExpenseState, [], [], DebtSlice> = (s
     set((state) => ({ debts: [...state.debts, newDebt] }));
     
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'INSERT_DEBT',
+      payload: {
+        ...newDebt,
+        user_id: session?.user?.id || ''
+      }
+    });
     if (session) {
-      addPendingMutation({
-        type: 'INSERT_DEBT',
-        payload: {
-          ...newDebt,
-          user_id: session.user.id
-        }
-      });
       syncPendingMutations();
     }
   },
@@ -28,11 +28,11 @@ export const createDebtSlice: StateCreator<ExpenseState, [], [], DebtSlice> = (s
     }));
     
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'UPDATE_DEBT',
+      payload: { id, ...updates }
+    });
     if (session) {
-      addPendingMutation({
-        type: 'UPDATE_DEBT',
-        payload: { id, ...updates }
-      });
       syncPendingMutations();
     }
   },
@@ -40,8 +40,8 @@ export const createDebtSlice: StateCreator<ExpenseState, [], [], DebtSlice> = (s
   deleteDebt: (id) => {
     set((state) => ({ debts: state.debts.filter(d => d.id !== id) }));
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({ type: 'DELETE_DEBT', payload: { id } });
     if (session) {
-      addPendingMutation({ type: 'DELETE_DEBT', payload: { id } });
       syncPendingMutations();
     }
   }

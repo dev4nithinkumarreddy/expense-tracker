@@ -10,19 +10,19 @@ export const createWishlistSlice: StateCreator<ExpenseState, [], [], WishlistSli
     set((state) => ({ wishlistItems: [...state.wishlistItems, newItem] }));
     
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'INSERT_WISHLIST_ITEM',
+      payload: {
+        id: newItem.id,
+        user_id: session?.user?.id || '',
+        item_name: newItem.item_name,
+        estimated_amount: newItem.estimated_amount,
+        category: newItem.category,
+        is_purchased: newItem.is_purchased,
+        created_at: newItem.created_at
+      }
+    });
     if (session) {
-      addPendingMutation({
-        type: 'INSERT_WISHLIST_ITEM',
-        payload: {
-          id: newItem.id,
-          user_id: session.user.id,
-          item_name: newItem.item_name,
-          estimated_amount: newItem.estimated_amount,
-          category: newItem.category,
-          is_purchased: newItem.is_purchased,
-          created_at: newItem.created_at
-        }
-      });
       syncPendingMutations();
     }
   },
@@ -33,11 +33,11 @@ export const createWishlistSlice: StateCreator<ExpenseState, [], [], WishlistSli
     }));
     
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'UPDATE_WISHLIST_ITEM',
+      payload: { id, ...updates }
+    });
     if (session) {
-      addPendingMutation({
-        type: 'UPDATE_WISHLIST_ITEM',
-        payload: { id, ...updates }
-      });
       syncPendingMutations();
     }
   },
@@ -45,8 +45,8 @@ export const createWishlistSlice: StateCreator<ExpenseState, [], [], WishlistSli
   deleteWishlistItem: (id) => {
     set((state) => ({ wishlistItems: state.wishlistItems.filter(w => w.id !== id) }));
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({ type: 'DELETE_WISHLIST_ITEM', payload: { id } });
     if (session) {
-      addPendingMutation({ type: 'DELETE_WISHLIST_ITEM', payload: { id } });
       syncPendingMutations();
     }
   }

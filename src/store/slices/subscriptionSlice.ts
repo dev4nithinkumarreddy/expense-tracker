@@ -10,14 +10,14 @@ export const createSubscriptionSlice: StateCreator<ExpenseState, [], [], Subscri
     set((state) => ({ subscriptions: [...state.subscriptions, newSub] }));
     
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'INSERT_SUBSCRIPTION',
+      payload: {
+        ...newSub,
+        user_id: session?.user?.id || ''
+      }
+    });
     if (session) {
-      addPendingMutation({
-        type: 'INSERT_SUBSCRIPTION',
-        payload: {
-          ...newSub,
-          user_id: session.user.id
-        }
-      });
       syncPendingMutations();
     }
   },
@@ -28,11 +28,11 @@ export const createSubscriptionSlice: StateCreator<ExpenseState, [], [], Subscri
     }));
     
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'UPDATE_SUBSCRIPTION',
+      payload: { id, ...updates }
+    });
     if (session) {
-      addPendingMutation({
-        type: 'UPDATE_SUBSCRIPTION',
-        payload: { id, ...updates }
-      });
       syncPendingMutations();
     }
   },
@@ -40,8 +40,8 @@ export const createSubscriptionSlice: StateCreator<ExpenseState, [], [], Subscri
   deleteSubscription: (id) => {
     set((state) => ({ subscriptions: state.subscriptions.filter(s => s.id !== id) }));
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({ type: 'DELETE_SUBSCRIPTION', payload: { id } });
     if (session) {
-      addPendingMutation({ type: 'DELETE_SUBSCRIPTION', payload: { id } });
       syncPendingMutations();
     }
   }

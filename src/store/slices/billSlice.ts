@@ -15,19 +15,21 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
       queryClient.setQueryData(['bills', session.user.id], (old: any) => {
          return old ? [...old, newBill] : [newBill];
       });
-      const payload: Record<string, any> = {
-        id: newBill.id,
-        user_id: session.user.id,
-        title: newBill.title,
-        amount: newBill.amount,
-        auto_deduct: newBill.autoDeduct,
-        category: newBill.category,
-        due_day: newBill.due_day ?? 1
-      };
-      if (newBill.due_date) {
-        payload.due_date = newBill.due_date;
-      }
-      addPendingMutation({ type: 'INSERT_BILL', payload });
+    }
+    const payload: Record<string, any> = {
+      id: newBill.id,
+      user_id: session?.user?.id || '',
+      title: newBill.title,
+      amount: newBill.amount,
+      auto_deduct: newBill.autoDeduct,
+      category: newBill.category,
+      due_day: newBill.due_day ?? 1
+    };
+    if (newBill.due_date) {
+      payload.due_date = newBill.due_date;
+    }
+    addPendingMutation({ type: 'INSERT_BILL', payload });
+    if (session) {
       syncPendingMutations();
     }
   },
@@ -38,24 +40,27 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
     }));
     
     const { session, bills, addPendingMutation, syncPendingMutations } = get();
-    if (session) {
-      const bill = bills.find(b => b.id === id);
-      if (bill) {
+    const bill = bills.find(b => b.id === id);
+    if (bill) {
+      if (session) {
         queryClient.setQueryData(['bills', session.user.id], (old: any) => {
            return old ? old.map((b: any) => b.id === id ? { ...b, ...updatedFields } : b) : [];
         });
-        const payload: Record<string, any> = {
-          id: bill.id,
-          title: bill.title,
-          amount: bill.amount,
-          auto_deduct: bill.autoDeduct,
-          category: bill.category,
-          due_day: bill.due_day ?? 1
-        };
-        if (bill.due_date) {
-          payload.due_date = bill.due_date;
-        }
-        addPendingMutation({ type: 'UPDATE_BILL', payload });
+      }
+      const payload: Record<string, any> = {
+        id: bill.id,
+        user_id: session?.user?.id || '',
+        title: bill.title,
+        amount: bill.amount,
+        auto_deduct: bill.autoDeduct,
+        category: bill.category,
+        due_day: bill.due_day ?? 1
+      };
+      if (bill.due_date) {
+        payload.due_date = bill.due_date;
+      }
+      addPendingMutation({ type: 'UPDATE_BILL', payload });
+      if (session) {
         syncPendingMutations();
       }
     }
@@ -68,7 +73,9 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
       queryClient.setQueryData(['bills', session.user.id], (old: any) => {
          return old ? old.filter((b: any) => b.id !== id) : [];
       });
-      addPendingMutation({ type: 'DELETE_BILL', payload: { id } });
+    }
+    addPendingMutation({ type: 'DELETE_BILL', payload: { id } });
+    if (session) {
       syncPendingMutations();
     }
   }

@@ -131,7 +131,12 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
   pendingMutations: [],
   isSyncing: false,
 
-  setSession: (session) => set({ session }),
+  setSession: (session) => {
+    set({ session });
+    if (session) {
+      get().syncPendingMutations();
+    }
+  },
   setSharedData: (data) => set({ sharedData: data }),
   setShouldTriggerScan: (shouldTriggerScan) => set({ shouldTriggerScan }),
   setModalOpen: (isModalOpen) => set({ isModalOpen }),
@@ -165,7 +170,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         try {
           let error: any = null;
           if (mut.type === 'INSERT_EXPENSE') {
-            const payload = { ...mut.payload };
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
             if (payload.account_id) {
               payload.account_id = toCloudAccountId(payload.account_id);
             }
@@ -189,7 +197,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             }
             error = res.error;
           } else if (mut.type === 'UPDATE_EXPENSE') {
-            const payload = { ...mut.payload };
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
             if (payload.account_id) {
               payload.account_id = toCloudAccountId(payload.account_id);
             }
@@ -216,12 +227,18 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const res = await supabase.from('expenses').delete().eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'INSERT_BILL') {
-            const payload = { ...mut.payload };
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
             if (payload.due_date === null || payload.due_date === undefined) delete payload.due_date;
             const res = await supabase.from('bills').upsert(payload);
             error = res.error;
           } else if (mut.type === 'UPDATE_BILL') {
-            const payload = { ...mut.payload };
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
             if (payload.due_date === null || payload.due_date === undefined) delete payload.due_date;
             const res = await supabase.from('bills').update(payload).eq('id', payload.id);
             error = res.error;
@@ -229,40 +246,72 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const res = await supabase.from('bills').delete().eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'UPSERT_BUDGET') {
-            const res = await supabase.from('budgets').upsert(mut.payload);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('budgets').upsert(payload);
             error = res.error;
           } else if (mut.type === 'DELETE_BUDGET') {
             const res = await supabase.from('budgets').delete().eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'INSERT_WISHLIST_ITEM') {
-            const res = await supabase.from('wishlist').upsert(mut.payload);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('wishlist').upsert(payload);
             error = res.error;
           } else if (mut.type === 'UPDATE_WISHLIST_ITEM') {
-            const res = await supabase.from('wishlist').update(mut.payload).eq('id', mut.payload.id);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('wishlist').update(payload).eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'DELETE_WISHLIST_ITEM') {
             const res = await supabase.from('wishlist').delete().eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'INSERT_DEBT') {
-            const res = await supabase.from('debts').upsert(mut.payload);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('debts').upsert(payload);
             error = res.error;
           } else if (mut.type === 'UPDATE_DEBT') {
-            const res = await supabase.from('debts').update(mut.payload).eq('id', mut.payload.id);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('debts').update(payload).eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'DELETE_DEBT') {
             const res = await supabase.from('debts').delete().eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'INSERT_SUBSCRIPTION') {
-            const res = await supabase.from('subscriptions').upsert(mut.payload);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('subscriptions').upsert(payload);
             error = res.error;
           } else if (mut.type === 'UPDATE_SUBSCRIPTION') {
-            const res = await supabase.from('subscriptions').update(mut.payload).eq('id', mut.payload.id);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('subscriptions').update(payload).eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'DELETE_SUBSCRIPTION') {
             const res = await supabase.from('subscriptions').delete().eq('id', mut.payload.id);
             error = res.error;
           } else if (mut.type === 'UPDATE_SETTINGS') {
-            const res = await supabase.from('user_settings').upsert(mut.payload);
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await supabase.from('user_settings').upsert(payload);
             error = res.error;
           } else if (mut.type === 'INSERT_ACCOUNT') {
             const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
@@ -275,7 +324,11 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             error = res.error;
           } else if (mut.type === 'UPDATE_ACCOUNT') {
             const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
-            const payload = { ...mut.payload, id: cloudId };
+            const payload = {
+              ...mut.payload,
+              id: cloudId,
+              user_id: mut.payload.user_id || session.user.id
+            };
             const res = await (supabase.from('accounts' as any).update(payload).eq('id', cloudId) as any);
             error = res.error;
           } else if (mut.type === 'DELETE_ACCOUNT') {
@@ -303,8 +356,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             }
           } else {
             console.error("Mutation failed:", error, mut);
-            // Drop client-level syntax/constraint errors so the queue is never blocked
-            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100', '42501'].includes(error.code);
+            // Drop client-level syntax/constraint errors so the queue is never blocked.
+            // Note: 42501 (insufficient_privilege / RLS error) is intentionally NOT dropped;
+            // it indicates session/token not ready, so keep in queue and retry with backoff.
+            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100'].includes(error.code);
             if (isNonRecoverable) {
               console.warn(`Dropping unrecoverable mutation (${mut.type}) to unblock sync queue:`, error);
               removePendingMutation(mut.id);
@@ -352,14 +407,13 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     set({ isSyncing: true });
     try {
       // Prune zombie pending mutations older than 24 hours.
-      // Mutations with no createdAt were created before this fix — treat them as stale.
-      // Only keep mutations that have a fresh createdAt within the 24h window.
+      // If createdAt is missing on a mutation, do not prune it; assign Date.now() and keep it.
       const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
       const pruneNow = Date.now();
       set((state) => ({
-        pendingMutations: state.pendingMutations.filter(
-          m => m.createdAt != null && (pruneNow - m.createdAt) < TWENTY_FOUR_HOURS_MS
-        )
+        pendingMutations: state.pendingMutations
+          .map((m) => (m.createdAt != null ? m : { ...m, createdAt: pruneNow }))
+          .filter((m) => (pruneNow - m.createdAt!) < TWENTY_FOUR_HOURS_MS)
       }));
 
       const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes, accountsRes] = await Promise.all([
@@ -1189,7 +1243,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       const now = Date.now();
       const { pendingMutations: allMuts } = get();
       const staleSettingIds = allMuts
-        .filter(m => m.type === 'UPDATE_SETTINGS' && (!m.createdAt || (now - m.createdAt) > ONE_HOUR_MS))
+        .filter(m => m.type === 'UPDATE_SETTINGS' && (now - (m.createdAt ?? now)) > ONE_HOUR_MS)
         .map(m => m.id);
       if (staleSettingIds.length > 0) {
         set((state) => ({

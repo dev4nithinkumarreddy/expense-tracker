@@ -17,7 +17,9 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
           queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
             return old ? old.filter((b: any) => b.id !== existingBudget.id) : [];
           });
-          addPendingMutation({ type: 'DELETE_BUDGET', payload: { id: existingBudget.id } });
+        }
+        addPendingMutation({ type: 'DELETE_BUDGET', payload: { id: existingBudget.id } });
+        if (session) {
           syncPendingMutations();
         }
       }
@@ -32,16 +34,18 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
         queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
           return old ? old.map((b: any) => b.id === existingBudget.id ? { ...b, monthlyLimit } : b) : [];
         });
-        addPendingMutation({ 
-          type: 'UPSERT_BUDGET', 
-          payload: {
-            id: existingBudget.id,
-            user_id: session.user.id,
-            category,
-            monthly_limit: monthlyLimit,
-            month
-          } 
-        });
+      }
+      addPendingMutation({ 
+        type: 'UPSERT_BUDGET', 
+        payload: {
+          id: existingBudget.id,
+          user_id: session?.user?.id || '',
+          category,
+          monthly_limit: monthlyLimit,
+          month
+        } 
+      });
+      if (session) {
         syncPendingMutations();
       }
     } else {
@@ -57,16 +61,18 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
         queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
           return old ? [...old, newBudget] : [newBudget];
         });
-        addPendingMutation({ 
-          type: 'UPSERT_BUDGET', 
-          payload: {
-            id: newBudget.id,
-            user_id: newBudget.userId,
-            category,
-            monthly_limit: newBudget.monthlyLimit,
-            month: newBudget.month
-          } 
-        });
+      }
+      addPendingMutation({ 
+        type: 'UPSERT_BUDGET', 
+        payload: {
+          id: newBudget.id,
+          user_id: session?.user?.id || '',
+          category,
+          monthly_limit: newBudget.monthlyLimit,
+          month: newBudget.month
+        } 
+      });
+      if (session) {
         syncPendingMutations();
       }
     }
@@ -76,7 +82,12 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
     set(state => ({ budgets: state.budgets.filter(b => b.id !== id) }));
     const { session, addPendingMutation, syncPendingMutations } = get();
     if (session) {
-      addPendingMutation({ type: 'DELETE_BUDGET', payload: { id } });
+      queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
+        return old ? old.filter((b: any) => b.id !== id) : [];
+      });
+    }
+    addPendingMutation({ type: 'DELETE_BUDGET', payload: { id } });
+    if (session) {
       syncPendingMutations();
     }
   }

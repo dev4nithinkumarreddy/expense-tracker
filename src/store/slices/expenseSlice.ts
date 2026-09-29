@@ -75,22 +75,23 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
          return old ? [...old, newExpense] : [newExpense];
       });
-      
-      const payload = {
-        id: newExpense.id,
-        user_id: session.user.id,
-        amount: newExpense.amount,
-        description: newExpense.description,
-        category: newExpense.category,
-        date: newExpense.date,
-        notes: newExpense.notes,
-        receipt_url: newExpense.receipt_url,
-        recurrence: newExpense.recurrence || 'none',
-        next_occurrence: newExpense.next_occurrence || null,
-        account_id: newExpense.account_id || null,
-        transfer_account_id: newExpense.transfer_account_id || null
-      };
-      addPendingMutation({ type: 'INSERT_EXPENSE', payload });
+    }
+    const payload = {
+      id: newExpense.id,
+      user_id: session?.user?.id || '',
+      amount: newExpense.amount,
+      description: newExpense.description,
+      category: newExpense.category,
+      date: newExpense.date,
+      notes: newExpense.notes,
+      receipt_url: newExpense.receipt_url,
+      recurrence: newExpense.recurrence || 'none',
+      next_occurrence: newExpense.next_occurrence || null,
+      account_id: newExpense.account_id || null,
+      transfer_account_id: newExpense.transfer_account_id || null
+    };
+    addPendingMutation({ type: 'INSERT_EXPENSE', payload });
+    if (session) {
       syncPendingMutations();
     }
     return id;
@@ -115,26 +116,29 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     });
     
     const { session, expenses, addPendingMutation, syncPendingMutations } = get();
-    if (session) {
-      const expense = expenses.find(e => e.id === id);
-      if (expense) {
+    const expense = expenses.find(e => e.id === id);
+    if (expense) {
+      if (session) {
         queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
            return old ? old.map((e: any) => e.id === id ? { ...e, ...updatedFields } : e) : [];
         });
-        const payload = {
-          id: expense.id,
-          amount: expense.amount,
-          description: expense.description,
-          category: expense.category,
-          date: expense.date,
-          notes: expense.notes,
-          receipt_url: expense.receipt_url,
-          recurrence: expense.recurrence,
-          next_occurrence: expense.next_occurrence,
-          account_id: expense.account_id || null,
-          transfer_account_id: expense.transfer_account_id || null
-        };
-        addPendingMutation({ type: 'UPDATE_EXPENSE', payload });
+      }
+      const payload = {
+        id: expense.id,
+        user_id: session?.user?.id || '',
+        amount: expense.amount,
+        description: expense.description,
+        category: expense.category,
+        date: expense.date,
+        notes: expense.notes,
+        receipt_url: expense.receipt_url,
+        recurrence: expense.recurrence,
+        next_occurrence: expense.next_occurrence,
+        account_id: expense.account_id || null,
+        transfer_account_id: expense.transfer_account_id || null
+      };
+      addPendingMutation({ type: 'UPDATE_EXPENSE', payload });
+      if (session) {
         syncPendingMutations();
       }
     }
@@ -166,7 +170,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
          return old ? old.filter((e: any) => e.id !== id) : [];
       });
-      addPendingMutation({ type: 'DELETE_EXPENSE', payload: { id } });
+    }
+    addPendingMutation({ type: 'DELETE_EXPENSE', payload: { id } });
+    if (session) {
       syncPendingMutations();
     }
 
@@ -204,21 +210,23 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
         return old ? [...old, restoredExpense] : [restoredExpense];
       });
-      const payload = {
-        id: restoredExpense.id,
-        user_id: session.user.id,
-        amount: restoredExpense.amount,
-        description: restoredExpense.description,
-        category: restoredExpense.category,
-        date: restoredExpense.date,
-        notes: restoredExpense.notes,
-        receipt_url: restoredExpense.receipt_url,
-        recurrence: restoredExpense.recurrence || 'none',
-        next_occurrence: restoredExpense.next_occurrence || null,
-        account_id: restoredExpense.account_id || null,
-        transfer_account_id: restoredExpense.transfer_account_id || null
-      };
-      addPendingMutation({ type: 'INSERT_EXPENSE', payload });
+    }
+    const payload = {
+      id: restoredExpense.id,
+      user_id: session?.user?.id || '',
+      amount: restoredExpense.amount,
+      description: restoredExpense.description,
+      category: restoredExpense.category,
+      date: restoredExpense.date,
+      notes: restoredExpense.notes,
+      receipt_url: restoredExpense.receipt_url,
+      recurrence: restoredExpense.recurrence || 'none',
+      next_occurrence: restoredExpense.next_occurrence || null,
+      account_id: restoredExpense.account_id || null,
+      transfer_account_id: restoredExpense.transfer_account_id || null
+    };
+    addPendingMutation({ type: 'INSERT_EXPENSE', payload });
+    if (session) {
       syncPendingMutations();
     }
 

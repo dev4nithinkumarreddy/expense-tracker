@@ -20,23 +20,23 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
     }));
 
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'INSERT_ACCOUNT',
+      payload: {
+        id: newAccount.id,
+        user_id: session?.user?.id || '',
+        name: newAccount.name,
+        type: newAccount.type,
+        balance: newAccount.balance,
+        currency: newAccount.currency || '₹',
+        color: newAccount.color,
+        icon: newAccount.icon,
+        credit_limit: newAccount.credit_limit,
+        statement_day: newAccount.statement_day,
+        due_day: newAccount.due_day,
+      },
+    });
     if (session) {
-      addPendingMutation({
-        type: 'INSERT_ACCOUNT',
-        payload: {
-          id: newAccount.id,
-          user_id: session.user.id,
-          name: newAccount.name,
-          type: newAccount.type,
-          balance: newAccount.balance,
-          currency: newAccount.currency || '₹',
-          color: newAccount.color,
-          icon: newAccount.icon,
-          credit_limit: newAccount.credit_limit,
-          statement_day: newAccount.statement_day,
-          due_day: newAccount.due_day,
-        },
-      });
       syncPendingMutations();
     }
 
@@ -50,24 +50,25 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
     }));
 
     const { session, accounts, addPendingMutation, syncPendingMutations } = get();
-    if (session) {
-      const updated = accounts.find((a) => a.id === id);
-      if (updated) {
-        addPendingMutation({
-          type: 'UPDATE_ACCOUNT',
-          payload: {
-            id: updated.id,
-            name: updated.name,
-            type: updated.type,
-            balance: updated.balance,
-            currency: updated.currency,
-            color: updated.color,
-            icon: updated.icon,
-            credit_limit: updated.credit_limit,
-            statement_day: updated.statement_day,
-            due_day: updated.due_day,
-          },
-        });
+    const updated = accounts.find((a) => a.id === id);
+    if (updated) {
+      addPendingMutation({
+        type: 'UPDATE_ACCOUNT',
+        payload: {
+          id: updated.id,
+          user_id: session?.user?.id || '',
+          name: updated.name,
+          type: updated.type,
+          balance: updated.balance,
+          currency: updated.currency,
+          color: updated.color,
+          icon: updated.icon,
+          credit_limit: updated.credit_limit,
+          statement_day: updated.statement_day,
+          due_day: updated.due_day,
+        },
+      });
+      if (session) {
         syncPendingMutations();
       }
     }
@@ -79,11 +80,11 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
     }));
 
     const { session, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'DELETE_ACCOUNT',
+      payload: { id },
+    });
     if (session) {
-      addPendingMutation({
-        type: 'DELETE_ACCOUNT',
-        payload: { id },
-      });
       syncPendingMutations();
     }
 
@@ -214,29 +215,30 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
 
     set({ accounts: updatedAccounts });
 
-    // Sync changed account balances to Supabase if session exists
+    // Sync changed account balances to Supabase
     const { session, addPendingMutation, syncPendingMutations } = get();
+    updatedAccounts.forEach((acc) => {
+      const prev = accounts.find((p) => p.id === acc.id);
+      if (prev && prev.balance !== acc.balance) {
+        addPendingMutation({
+          type: 'UPDATE_ACCOUNT',
+          payload: {
+            id: acc.id,
+            user_id: session?.user?.id || '',
+            name: acc.name,
+            type: acc.type,
+            balance: acc.balance,
+            currency: acc.currency,
+            color: acc.color,
+            icon: acc.icon,
+            credit_limit: acc.credit_limit,
+            statement_day: acc.statement_day,
+            due_day: acc.due_day,
+          },
+        });
+      }
+    });
     if (session) {
-      updatedAccounts.forEach((acc) => {
-        const prev = accounts.find((p) => p.id === acc.id);
-        if (prev && prev.balance !== acc.balance) {
-          addPendingMutation({
-            type: 'UPDATE_ACCOUNT',
-            payload: {
-              id: acc.id,
-              name: acc.name,
-              type: acc.type,
-              balance: acc.balance,
-              currency: acc.currency,
-              color: acc.color,
-              icon: acc.icon,
-              credit_limit: acc.credit_limit,
-              statement_day: acc.statement_day,
-              due_day: acc.due_day,
-            },
-          });
-        }
-      });
       syncPendingMutations();
     }
 

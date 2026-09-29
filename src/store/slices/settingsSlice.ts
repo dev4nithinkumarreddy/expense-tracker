@@ -35,26 +35,26 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
     }));
     // IMPORTANT: read settings from get() AFTER set() so we capture the merged/updated values
     const { session, settings: updatedSettings, addPendingMutation, syncPendingMutations } = get();
+    addPendingMutation({
+      type: 'UPDATE_SETTINGS',
+      payload: {
+        user_id: session?.user?.id || '',
+        monthly_income: updatedSettings.monthlyIncome,
+        currency: updatedSettings.currency,
+        dark_mode: updatedSettings.darkMode,
+        categories: updatedSettings.categories,
+        carry_forward: updatedSettings.carryForward,
+        category_budgets: updatedSettings.categoryBudgets,
+        quick_adds: updatedSettings.quickAdds,
+        privacy_mode: updatedSettings.privacyMode,
+        theme: updatedSettings.theme,
+        category_emojis: updatedSettings.categoryEmojis,
+        notifications_enabled: updatedSettings.notificationsEnabled,
+        user_name: updatedSettings.userName,
+        updated_at: updatedAt
+      }
+    });
     if (session) {
-      addPendingMutation({
-        type: 'UPDATE_SETTINGS',
-        payload: {
-          user_id: session.user.id,
-          monthly_income: updatedSettings.monthlyIncome,
-          currency: updatedSettings.currency,
-          dark_mode: updatedSettings.darkMode,
-          categories: updatedSettings.categories,
-          carry_forward: updatedSettings.carryForward,
-          category_budgets: updatedSettings.categoryBudgets,
-          quick_adds: updatedSettings.quickAdds,
-          privacy_mode: updatedSettings.privacyMode,
-          theme: updatedSettings.theme,
-          category_emojis: updatedSettings.categoryEmojis,
-          notifications_enabled: updatedSettings.notificationsEnabled,
-          user_name: updatedSettings.userName,
-          updated_at: updatedAt
-        }
-      });
       syncPendingMutations();
     }
   },
