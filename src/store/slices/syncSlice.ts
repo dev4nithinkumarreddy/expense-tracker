@@ -1403,6 +1403,11 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
   },
 
   clearData: async () => {
+    const { pendingMutations } = get();
+    if (pendingMutations && pendingMutations.length > 0) {
+      console.warn("[Sync] clearData called but pending mutations exist. Skipping to prevent data loss.");
+      return;
+    }
     set({
       expenses: [],
       bills: [],
@@ -1410,7 +1415,31 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       wishlistItems: [],
       debts: [],
       pendingMutations: [],
-      recentlyDeleted: []
+      recentlyDeleted: [],
+      accounts: [
+        { id: 'acc-bank-1', name: 'Main Bank', type: 'bank', balance: 0, currency: '₹', color: '#007AFF', icon: '🏦' },
+        { id: 'acc-cash-1', name: 'Cash Wallet', type: 'cash', balance: 0, currency: '₹', color: '#34C759', icon: '💵' },
+      ],
+      settings: {
+        monthlyIncome: 45000,
+        currency: '₹',
+        darkMode: true,
+        categories: defaultCategories,
+        carryForward: false,
+        categoryBudgets: {},
+        quickAdds: [
+          { description: "Coffee", amount: 100, category: "Food", icon: "☕" },
+          { description: "Fuel", amount: 500, category: "Fuel", icon: "🚗" },
+          { description: "Grocery", amount: 200, category: "Grocery", icon: "🛒" }
+        ],
+        privacyMode: true,
+        theme: 'default',
+        categoryEmojis: {},
+        userName: '',
+        soundEnabled: false,
+        settingsInitialized: false,
+        updated_at: undefined
+      }
     });
   },
 

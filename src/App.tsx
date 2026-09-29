@@ -20,32 +20,67 @@ import { formatCurrency } from "./lib/formatCurrency";
 import { SecurityLockOverlay } from "./components/ui/SecurityLockOverlay";
 import { NotificationPrompt } from "./components/notifications/NotificationPrompt";
 
+// Module-scoped in-flight lock for sequential sync passes
+let isSyncPassInProgress = false;
+let syncPassQueued = false;
+
+const runSequentialSync = async () => {
+  if (isSyncPassInProgress) {
+    syncPassQueued = true;
+    return;
+  }
+  isSyncPassInProgress = true;
+  try {
+    const { syncPendingMutations, fetchCloudData } = useExpenseStore.getState();
+    await syncPendingMutations();
+    await fetchCloudData();
+  } catch (err) {
+    console.error("[Sync] Sequential sync failed:", err);
+  } finally {
+    isSyncPassInProgress = false;
+    if (syncPassQueued) {
+      syncPassQueued = false;
+      runSequentialSync();
+    }
+  }
+};
+
 export default function App() {
-  const { settings, checkMonthRollover, setSession, session, fetchCloudData, syncPendingMutations, isModalOpen, setModalOpen } = useExpenseStore();
+  const { settings, checkMonthRollover, setSession, session, isModalOpen, setModalOpen } = useExpenseStore();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
       if (currentSession) {
-        syncPendingMutations();
-        fetchCloudData();
+        runSequentialSync();
       }
       setLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
       if (newSession) {
-        syncPendingMutations();
-        fetchCloudData();
+        runSequentialSync();
+      } else if (event === 'SIGNED_OUT') {
+        const { pendingMutations, clearData } = useExpenseStore.getState();
+        if (pendingMutations && pendingMutations.length > 0) {
+          console.warn(`[Auth] User signed out with ${pendingMutations.length} pending mutations. Preserving local IndexedDB data.`);
+          toast.warning(`You have ${pendingMutations.length} unsynced changes. Local data is preserved.`, {
+            id: 'signout-pending-warning',
+            duration: 6000
+          });
+        } else {
+          console.log("[Auth] User signed out with empty mutation queue. Clearing local state.");
+          await clearData();
+        }
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession, fetchCloudData, syncPendingMutations]);
+  }, [setSession]);
 
   useEffect(() => {
     if (session) {
@@ -55,12 +90,11 @@ export default function App() {
 
   useEffect(() => {
     const handleOnline = () => {
-      syncPendingMutations();
-      fetchCloudData();
+      runSequentialSync();
     };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [syncPendingMutations, fetchCloudData]);
+  }, []);
 
   // Live Cross-Device Realtime Synchronization
   useEffect(() => {
@@ -73,7 +107,7 @@ export default function App() {
 
     // 1. Instant peer-to-peer broadcast from other devices
     channel = channel.on('broadcast', { event: 'data_changed' }, () => {
-      fetchCloudData();
+      runSequentialSync();
     });
 
     // 2. Realtime Postgres DB changes per table
@@ -87,7 +121,7 @@ export default function App() {
           filter: `user_id=eq.${session.user.id}`
         },
         () => {
-          fetchCloudData();
+          runSequentialSync();
         }
       );
     });
@@ -97,7 +131,7 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.user?.id, fetchCloudData]);
+  }, [session?.user?.id]);
 
   // Sync on App Resume / Tab Focus (Mobile & Desktop) & Periodic Liveness
   useEffect(() => {
@@ -105,8 +139,7 @@ export default function App() {
 
     const handleSyncOnResume = () => {
       if (document.visibilityState === 'visible') {
-        syncPendingMutations();
-        fetchCloudData();
+        runSequentialSync();
       }
     };
 
@@ -116,8 +149,7 @@ export default function App() {
     // Heartbeat sync every 30s when online and app is open
     const interval = setInterval(() => {
       if (navigator.onLine && document.visibilityState === 'visible') {
-        syncPendingMutations();
-        fetchCloudData();
+        runSequentialSync();
       }
     }, 30000);
 
@@ -126,7 +158,7 @@ export default function App() {
       window.removeEventListener('focus', handleSyncOnResume);
       clearInterval(interval);
     };
-  }, [session, syncPendingMutations, fetchCloudData]);
+  }, [session]);
 
   // Intercept Web Share Target API & PWA Shortcuts
   useEffect(() => {

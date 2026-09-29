@@ -45,6 +45,17 @@ export const useExpenseStore = create<ExpenseState>()(
     {
       name: 'expense-tracker-storage',
       storage: indexedDBStorage,
+      partialize: (state) => {
+        const {
+          session,
+          isSyncing,
+          isModalOpen,
+          sharedData,
+          shouldTriggerScan,
+          ...persistedState
+        } = state;
+        return persistedState;
+      },
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.reconcileAccountsWithBudget?.();
