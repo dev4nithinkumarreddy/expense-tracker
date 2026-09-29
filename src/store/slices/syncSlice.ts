@@ -289,13 +289,13 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     set({ isSyncing: true });
     try {
       // Prune zombie pending mutations older than 24 hours.
-      // These are mutations from a previous session that never flushed — keeping them
-      // causes phantom data differences between devices (they get merged with cloud data).
+      // Mutations with no createdAt were created before this fix — treat them as stale.
+      // Only keep mutations that have a fresh createdAt within the 24h window.
       const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
       const pruneNow = Date.now();
       set((state) => ({
         pendingMutations: state.pendingMutations.filter(
-          m => !m.createdAt || (pruneNow - m.createdAt) < TWENTY_FOUR_HOURS_MS
+          m => m.createdAt != null && (pruneNow - m.createdAt) < TWENTY_FOUR_HOURS_MS
         )
       }));
 
@@ -446,13 +446,14 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         queryClient.invalidateQueries({ queryKey: ['budgets'] });
       }
 
-      // Prune stale UPDATE_SETTINGS mutations: if older than 1 hour, they are from a dead
-      // session and should not block cloud settings from being applied on this device.
+      // Prune stale UPDATE_SETTINGS mutations:
+      // - No createdAt = legacy mutation from before the fix → treat as stale, drop it
+      // - Has createdAt but older than 1 hour = from a dead session → drop it
       const ONE_HOUR_MS = 60 * 60 * 1000;
       const now = Date.now();
       const { pendingMutations: allMuts } = get();
       const staleSettingIds = allMuts
-        .filter(m => m.type === 'UPDATE_SETTINGS' && m.createdAt && (now - m.createdAt) > ONE_HOUR_MS)
+        .filter(m => m.type === 'UPDATE_SETTINGS' && (!m.createdAt || (now - m.createdAt) > ONE_HOUR_MS))
         .map(m => m.id);
       if (staleSettingIds.length > 0) {
         set((state) => ({
