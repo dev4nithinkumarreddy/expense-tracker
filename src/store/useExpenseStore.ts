@@ -47,11 +47,11 @@ export const useExpenseStore = create<ExpenseState>()(
       storage: indexedDBStorage,
       partialize: (state) => {
         const {
-          session,
-          isSyncing,
-          isModalOpen,
-          sharedData,
-          shouldTriggerScan,
+          session: _session,
+          isSyncing: _isSyncing,
+          isModalOpen: _isModalOpen,
+          sharedData: _sharedData,
+          shouldTriggerScan: _shouldTriggerScan,
           ...persistedState
         } = state;
         return persistedState;

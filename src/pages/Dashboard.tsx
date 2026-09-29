@@ -562,7 +562,7 @@ export default function Dashboard() {
                         formatFn={(val) => formatCurrency(val, settings.currency, settings.privacyMode)}
                       />
                       {!settings.privacyMode && extraIncome > 0 && (
-                        <span className="text-xs text-green-600 font-medium">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">+{formatCurrency(extraIncome, settings.currency, settings.privacyMode)}</span>
                       )}
                     </p>
                   </div>

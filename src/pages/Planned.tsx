@@ -922,7 +922,7 @@ function BillsTab() {
                         onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
                         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                       >
-                        <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted"}`} />
+                        <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted-foreground/40"}`} />
                         Auto Deduct
                       </button>
                       <Button 

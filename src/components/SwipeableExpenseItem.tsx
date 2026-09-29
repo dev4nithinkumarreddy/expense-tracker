@@ -148,7 +148,7 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
         <div className="flex items-center gap-3">
           <div className={cn(
             "w-10 h-10 rounded-2xl flex items-center justify-center text-sm shrink-0 shadow-xs", 
-            isIncome ? "bg-green-500/15 text-green-600 font-bold" :
+            isIncome ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold" :
             expense.category === 'Transfer' ? "bg-sky-500/15 text-sky-600" :
             "bg-primary/10 text-primary font-semibold"
           )}>
@@ -215,7 +215,7 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
 
           <span className={cn(
             "font-semibold text-sm whitespace-nowrap display-number", 
-            isIncome ? "text-green-600" :
+            isIncome ? "text-emerald-600 dark:text-emerald-400" :
             expense.category === 'Transfer' ? "text-sky-600 dark:text-sky-400" :
             ""
           )}>
