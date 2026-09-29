@@ -239,6 +239,8 @@ export default function Dashboard() {
   const weekIntelligence = { dailyAvg, dailySpends: weekDailySpends, maxDaySpend, paceStatus };
 
   const isOverBudget = remaining < 0;
+  const isBudgetDanger = isOverBudget || budgetUsedPercent >= 90;
+  const isBudgetWarning = budgetUsedPercent >= 75 && !isBudgetDanger;
 
   // Recent expenses (last 5, showing latest non-income transactions across month boundaries)
   const recentExpenses = [...expenses]
@@ -527,11 +529,16 @@ export default function Dashboard() {
                 ? "bg-destructive/10 border-destructive/25 shadow-destructive/10" 
                 : "bg-card/85 dark:bg-card/65 border-white/20 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.4)]"
             )}>
-              {/* Dynamic Ambient Rim Bloom */}
+              {/* Dynamic Ambient Rim Bloom (mirrors BudgetRing health tiers) */}
               <div 
+                aria-hidden="true"
                 className={cn(
-                  "absolute -top-14 -right-14 w-52 h-52 rounded-full blur-3xl pointer-events-none transition-colors duration-1000",
-                  isOverBudget ? "bg-rose-500/30" : "bg-primary/20"
+                  "absolute -top-14 -right-14 w-56 h-56 rounded-full blur-3xl pointer-events-none transition-all duration-700 ease-out",
+                  isBudgetDanger
+                    ? "bg-gradient-to-br from-rose-500/35 via-rose-600/25 to-red-500/20 dark:from-rose-500/30 dark:via-rose-600/20 dark:to-red-500/15"
+                    : isBudgetWarning
+                    ? "bg-gradient-to-br from-amber-400/30 via-amber-500/20 to-orange-400/15 dark:from-amber-500/25 dark:via-amber-600/20 dark:to-orange-500/15"
+                    : "bg-gradient-to-br from-emerald-400/25 via-teal-400/20 to-primary/15 dark:from-emerald-500/20 dark:via-teal-500/15 dark:to-primary/10"
                 )} 
               />
               {/* Subtle inner sheen */}
@@ -578,7 +585,14 @@ export default function Dashboard() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Remaining Budget</p>
-                    <h2 className={cn("text-3xl font-bold display-number tracking-tight", isOverBudget ? "text-destructive" : "text-primary")}>
+                    <h2 className={cn(
+                      "text-3xl font-bold display-number tracking-tight transition-colors duration-500",
+                      isBudgetDanger 
+                        ? "text-rose-600 dark:text-rose-400" 
+                        : isBudgetWarning 
+                        ? "text-amber-600 dark:text-amber-400" 
+                        : "text-primary"
+                    )}>
                       <AnimatedNumber
                         value={remaining}
                         formatFn={(val) => formatCurrency(val, settings.currency)}
