@@ -434,7 +434,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         supabase.from('wishlist').select('*').eq('user_id', session.user.id),
         supabase.from('debts').select('*').eq('user_id', session.user.id),
         supabase.from('subscriptions').select('*').eq('user_id', session.user.id),
-        (supabase.from('accounts' as any).select('*').eq('user_id', session.user.id) as any).catch(() => ({ data: null }))
+        Promise.resolve(supabase.from('accounts' as any).select('*').eq('user_id', session.user.id)).catch(() => ({ data: null, error: null })) as any
       ]);
 
       // =====================================================================
