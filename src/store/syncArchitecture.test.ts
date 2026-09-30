@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useExpenseStore } from './useExpenseStore';
 import { supabase } from '../lib/supabase';
+import { toCloudAccountId, fromCloudAccountId, CLOUD_BANK_UUID } from './slices/syncSlice';
 
 // Mock crypto.randomUUID
 vi.stubGlobal('crypto', {
@@ -346,4 +347,73 @@ describe('Cross-Device Sync Architecture (Phases 1-5)', () => {
     expect(state.lastSyncSuccess).not.toBeNull();
     expect(state.lastSyncError).toBeNull();
   });
+
+  // --- MULTI-USER ACCOUNT ISOLATION & AUTO-HEALING TESTS ---
+  it('Multi-User: generates distinct deterministic UUIDs for different users and preserves legacy UUID for owner', () => {
+    const userA = 'user-uuid-1111-aaaa';
+    const userB = 'user-uuid-2222-bbbb';
+
+    const cloudIdA = toCloudAccountId('acc-bank-1', userA);
+    const cloudIdB = toCloudAccountId('acc-bank-1', userB);
+
+    // Two distinct users must NEVER share the same account UUID for acc-bank-1
+    expect(cloudIdA).not.toBe(cloudIdB);
+    expect(cloudIdA).not.toBe(CLOUD_BANK_UUID);
+    expect(cloudIdB).not.toBe(CLOUD_BANK_UUID);
+
+    // If user A already has the legacy UUID in their cloud data, it must be preserved
+    const legacyCloudId = toCloudAccountId('acc-bank-1', userA, true);
+    expect(legacyCloudId).toBe(CLOUD_BANK_UUID);
+
+    // fromCloudAccountId maps both legacy and deterministic UUID back to local acc-bank-1
+    expect(fromCloudAccountId(CLOUD_BANK_UUID, userA)).toBe('acc-bank-1');
+    expect(fromCloudAccountId(cloudIdA, userA)).toBe('acc-bank-1');
+    expect(fromCloudAccountId(cloudIdB, userB)).toBe('acc-bank-1');
+  });
+
+  it('Multi-User: auto-heals stuck legacy account mutations in pending queue', async () => {
+    const newUserId = 'kittu-user-uuid-90321';
+    useExpenseStore.setState({
+      session: { user: { id: newUserId } } as any,
+      pendingMutations: [
+        {
+          id: 'mut-stuck-acc',
+          type: 'INSERT_ACCOUNT',
+          payload: {
+            id: CLOUD_BANK_UUID,
+            user_id: newUserId,
+            name: 'Primary Bank',
+            type: 'bank',
+            balance: 5000,
+          },
+          createdAt: Date.now(),
+        },
+      ],
+    });
+
+    const upsertSpy = vi.fn(() => Promise.resolve({ error: null }));
+    (supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'accounts') {
+        return {
+          upsert: upsertSpy,
+        };
+      }
+      return {
+        upsert: vi.fn(() => Promise.resolve({ error: null })),
+      };
+    });
+
+    await useExpenseStore.getState().syncPendingMutations();
+
+    const state = useExpenseStore.getState();
+    // Mutation must be successfully resolved and queue drained
+    expect(state.pendingMutations.length).toBe(0);
+
+    // Upsert must have been called with the user-specific deterministic UUID, NOT CLOUD_BANK_UUID
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
+    const uploadedRecord = (upsertSpy.mock.calls as any)[0][0];
+    expect(uploadedRecord?.id).not.toBe(CLOUD_BANK_UUID);
+    expect(uploadedRecord?.id).toBe(toCloudAccountId('acc-bank-1', newUserId));
+  });
 });
+

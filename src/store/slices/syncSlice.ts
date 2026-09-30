@@ -18,24 +18,44 @@ import {
   type Account
 } from '../types';
 
-// Standard UUID identifiers for default cloud accounts
+// Standard UUID identifiers for legacy cloud accounts (preserved for backward compatibility)
 export const CLOUD_BANK_UUID = 'a0000000-0000-4000-8000-000000000001';
 export const CLOUD_CASH_UUID = 'a0000000-0000-4000-8000-000000000002';
+export const CLOUD_CARD_UUID = 'a0000000-0000-4000-8000-000000000003';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function toCloudAccountId(id?: string | null): string | null {
+export function toCloudAccountId(
+  id?: string | null,
+  userId?: string | null,
+  userHasLegacyCloudId: boolean = false
+): string | null {
   if (!id) return null;
-  if (id === 'acc-bank-1') return CLOUD_BANK_UUID;
-  if (id === 'acc-cash-1') return CLOUD_CASH_UUID;
-  if (id === 'acc-card-1') return 'a0000000-0000-4000-8000-000000000003';
+  if (id === 'acc-bank-1') {
+    if (userHasLegacyCloudId) return CLOUD_BANK_UUID;
+    return userId ? generateDeterministicUUID(userId, 'acc-bank-1') : CLOUD_BANK_UUID;
+  }
+  if (id === 'acc-cash-1') {
+    if (userHasLegacyCloudId) return CLOUD_CASH_UUID;
+    return userId ? generateDeterministicUUID(userId, 'acc-cash-1') : CLOUD_CASH_UUID;
+  }
+  if (id === 'acc-card-1') {
+    if (userHasLegacyCloudId) return CLOUD_CARD_UUID;
+    return userId ? generateDeterministicUUID(userId, 'acc-card-1') : CLOUD_CARD_UUID;
+  }
   if (UUID_REGEX.test(id)) return id;
   return null;
 }
 
-export function fromCloudAccountId(id?: string | null): string {
+export function fromCloudAccountId(id?: string | null, userId?: string | null): string {
   if (!id) return '';
+  if (userId) {
+    if (id === generateDeterministicUUID(userId, 'acc-bank-1')) return 'acc-bank-1';
+    if (id === generateDeterministicUUID(userId, 'acc-cash-1')) return 'acc-cash-1';
+    if (id === generateDeterministicUUID(userId, 'acc-card-1')) return 'acc-card-1';
+  }
   if (id === CLOUD_BANK_UUID) return 'acc-bank-1';
   if (id === CLOUD_CASH_UUID) return 'acc-cash-1';
+  if (id === CLOUD_CARD_UUID) return 'acc-card-1';
   return id;
 }
 
@@ -168,7 +188,59 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
 
       let syncedAny = false;
 
-      for (const mut of pendingMutations) {
+      // Auto-heal stuck legacy account mutations that used the global static UUIDs for a different user
+      const healedMutations = pendingMutations.map((m) => {
+        if ((m.type === 'INSERT_ACCOUNT' || m.type === 'UPDATE_ACCOUNT') && m.payload) {
+          const payloadId = m.payload.id;
+          if (payloadId === CLOUD_BANK_UUID || payloadId === 'acc-bank-1') {
+            return {
+              ...m,
+              payload: {
+                ...m.payload,
+                id: toCloudAccountId('acc-bank-1', session.user.id),
+                user_id: session.user.id
+              }
+            };
+          }
+          if (payloadId === CLOUD_CASH_UUID || payloadId === 'acc-cash-1') {
+            return {
+              ...m,
+              payload: {
+                ...m.payload,
+                id: toCloudAccountId('acc-cash-1', session.user.id),
+                user_id: session.user.id
+              }
+            };
+          }
+          if (payloadId === CLOUD_CARD_UUID || payloadId === 'acc-card-1') {
+            return {
+              ...m,
+              payload: {
+                ...m.payload,
+                id: toCloudAccountId('acc-card-1', session.user.id),
+                user_id: session.user.id
+              }
+            };
+          }
+        }
+        if (m.type.includes('EXPENSE') && m.payload) {
+          if (m.payload.account_id === CLOUD_BANK_UUID) {
+            return {
+              ...m,
+              payload: { ...m.payload, account_id: toCloudAccountId('acc-bank-1', session.user.id) }
+            };
+          }
+          if (m.payload.account_id === CLOUD_CASH_UUID) {
+            return {
+              ...m,
+              payload: { ...m.payload, account_id: toCloudAccountId('acc-cash-1', session.user.id) }
+            };
+          }
+        }
+        return m;
+      });
+
+      for (const mut of healedMutations) {
         try {
           let error: any = null;
           if (mut.type === 'INSERT_EXPENSE') {
@@ -177,10 +249,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               user_id: mut.payload.user_id || session.user.id
             };
             if (payload.account_id) {
-              payload.account_id = toCloudAccountId(payload.account_id);
+              payload.account_id = toCloudAccountId(payload.account_id, session.user.id);
             }
             if (payload.transfer_account_id) {
-              payload.transfer_account_id = toCloudAccountId(payload.transfer_account_id);
+              payload.transfer_account_id = toCloudAccountId(payload.transfer_account_id, session.user.id);
             }
             let res = await supabase.from('expenses').upsert(payload);
             if (res.error && (
@@ -204,10 +276,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               user_id: mut.payload.user_id || session.user.id
             };
             if (payload.account_id) {
-              payload.account_id = toCloudAccountId(payload.account_id);
+              payload.account_id = toCloudAccountId(payload.account_id, session.user.id);
             }
             if (payload.transfer_account_id) {
-              payload.transfer_account_id = toCloudAccountId(payload.transfer_account_id);
+              payload.transfer_account_id = toCloudAccountId(payload.transfer_account_id, session.user.id);
             }
             let res = await supabase.from('expenses').update(payload).eq('id', mut.payload.id);
             if (res.error && (
@@ -316,7 +388,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const res = await supabase.from('user_settings').upsert(payload);
             error = res.error;
           } else if (mut.type === 'INSERT_ACCOUNT') {
-            const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
+            const cloudId = toCloudAccountId(mut.payload.id, session.user.id) || mut.payload.id;
             const payload = {
               ...mut.payload,
               id: cloudId,
@@ -325,7 +397,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const res = await (supabase.from('accounts' as any).upsert(payload) as any);
             error = res.error;
           } else if (mut.type === 'UPDATE_ACCOUNT') {
-            const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
+            const cloudId = toCloudAccountId(mut.payload.id, session.user.id) || mut.payload.id;
             const payload = {
               ...mut.payload,
               id: cloudId,
@@ -334,7 +406,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const res = await (supabase.from('accounts' as any).update(payload).eq('id', cloudId) as any);
             error = res.error;
           } else if (mut.type === 'DELETE_ACCOUNT') {
-            const cloudId = toCloudAccountId(mut.payload.id) || mut.payload.id;
+            const cloudId = toCloudAccountId(mut.payload.id, session.user.id) || mut.payload.id;
             const res = await (supabase.from('accounts' as any).delete().eq('id', cloudId) as any);
             error = res.error;
           }
@@ -359,9 +431,9 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           } else {
             console.error("Mutation failed:", error, mut);
             // Drop client-level syntax/constraint errors so the queue is never blocked.
-            // Note: 42501 (insufficient_privilege / RLS error) is intentionally NOT dropped;
-            // it indicates session/token not ready, so keep in queue and retry with backoff.
-            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100'].includes(error.code);
+            // Also drop account mutations that violate RLS (alien IDs from older clients) to unblock sync.
+            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100'].includes(error.code) ||
+              (error.message?.includes('violates row-level security policy') && mut.type.includes('ACCOUNT'));
             if (isNonRecoverable) {
               console.warn(`Dropping unrecoverable mutation (${mut.type}) to unblock sync queue:`, error);
               removePendingMutation(mut.id);
@@ -441,6 +513,11 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       // PHASE 1: ROBUST TWO-WAY MERGE & LOCAL-TO-CLOUD SEEDING
       // =====================================================================
 
+      // Check if this user already has the legacy global UUIDs in their cloud account rows
+      const userHasLegacyCloudId = Array.isArray(accountsRes?.data) && accountsRes.data.some(
+        (a: any) => a.id === CLOUD_BANK_UUID || a.id === CLOUD_CASH_UUID || a.id === CLOUD_CARD_UUID
+      );
+
       // --- 1. ACCOUNTS (Merged first to satisfy foreign key constraints) ---
       if (accountsRes && !accountsRes.error && accountsRes.data) {
         const localAccounts: Account[] = (get().accounts && get().accounts.length > 0)
@@ -467,7 +544,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         });
 
         const cloudMapped: Account[] = accountsRes.data.map((a: any) => ({
-          id: fromCloudAccountId(a.id),
+          id: fromCloudAccountId(a.id, session.user.id),
           name: a.name,
           type: a.type,
           balance: Number(a.balance) || 0,
@@ -479,19 +556,19 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           due_day: a.due_day || undefined,
         }));
 
-        const cloudMap = new Map(cloudMapped.map(a => [toCloudAccountId(a.id) || a.id, a]));
-        const localMap = new Map(sanitizedLocal.map(a => [toCloudAccountId(a.id) || a.id, a]));
+        const cloudMap = new Map(cloudMapped.map(a => [toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id, a]));
+        const localMap = new Map(sanitizedLocal.map(a => [toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id, a]));
 
-        const localOnly = sanitizedLocal.filter(a => !cloudMap.has(toCloudAccountId(a.id) || a.id));
-        const cloudOnly = cloudMapped.filter(a => !localMap.has(toCloudAccountId(a.id) || a.id));
+        const localOnly = sanitizedLocal.filter(a => !cloudMap.has(toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id));
+        const cloudOnly = cloudMapped.filter(a => !localMap.has(toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id));
 
-        const inBothLocal = sanitizedLocal.filter(a => cloudMap.has(toCloudAccountId(a.id) || a.id));
+        const inBothLocal = sanitizedLocal.filter(a => cloudMap.has(toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id));
         const localWins: Account[] = [];
         const cloudWins: Account[] = [];
         let accountConflicts = 0;
 
         for (const localAcc of inBothLocal) {
-          const cloudAcc = cloudMap.get(toCloudAccountId(localAcc.id) || localAcc.id)!;
+          const cloudAcc = cloudMap.get(toCloudAccountId(localAcc.id, session.user.id, userHasLegacyCloudId) || localAcc.id)!;
           accountConflicts++;
           const localTs = getRecordTimestamp(localAcc);
           const cloudTs = getRecordTimestamp(cloudAcc);
@@ -504,7 +581,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
 
         const accountsToUpload = [...localOnly, ...localWins];
         const uploadPayloads = accountsToUpload.map(acc => ({
-          id: toCloudAccountId(acc.id) || acc.id,
+          id: toCloudAccountId(acc.id, session.user.id, userHasLegacyCloudId) || acc.id,
           user_id: session.user.id,
           name: acc.name,
           type: acc.type,
@@ -521,32 +598,34 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
 
         accFailed.forEach(({ record, error }) => {
           console.error('[Sync] Account upload failed, re-queuing:', record.id, error);
-          get().addPendingMutation({
-            type: 'INSERT_ACCOUNT',
-            payload: record,
-          });
+          if (!error?.message?.includes('violates row-level security policy')) {
+            get().addPendingMutation({
+              type: 'INSERT_ACCOUNT',
+              payload: record,
+            });
+          }
         });
 
         const mergedAccountMap = new Map<string, Account>();
-        cloudOnly.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
-        cloudWins.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
-        localOnly.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
-        localWins.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id) || a.id, a));
+        cloudOnly.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id, a));
+        cloudWins.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id, a));
+        localOnly.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id, a));
+        localWins.forEach(a => mergedAccountMap.set(toCloudAccountId(a.id, session.user.id, userHasLegacyCloudId) || a.id, a));
 
         let finalAccounts = Array.from(mergedAccountMap.values());
 
         const { pendingMutations } = get();
         pendingMutations.forEach(mut => {
           if (mut.type === 'INSERT_ACCOUNT') {
-            const localId = fromCloudAccountId(mut.payload.id);
+            const localId = fromCloudAccountId(mut.payload.id, session.user.id);
             if (!finalAccounts.some(a => a.id === localId)) {
               finalAccounts.push({ ...mut.payload, id: localId });
             }
           } else if (mut.type === 'UPDATE_ACCOUNT') {
-            const localId = fromCloudAccountId(mut.payload.id);
+            const localId = fromCloudAccountId(mut.payload.id, session.user.id);
             finalAccounts = finalAccounts.map(a => a.id === localId ? { ...a, ...mut.payload, id: localId } : a);
           } else if (mut.type === 'DELETE_ACCOUNT') {
-            const localId = fromCloudAccountId(mut.payload.id);
+            const localId = fromCloudAccountId(mut.payload.id, session.user.id);
             finalAccounts = finalAccounts.filter(a => a.id !== localId);
           }
         });
@@ -599,8 +678,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           recurrence: (e.recurrence || 'none') as 'none' | 'daily' | 'weekly' | 'monthly',
           next_occurrence: e.next_occurrence || null,
           recurring_source_id: e.recurring_source_id || null,
-          account_id: fromCloudAccountId(e.account_id) || undefined,
-          transfer_account_id: fromCloudAccountId(e.transfer_account_id) || undefined,
+          account_id: fromCloudAccountId(e.account_id, session.user.id) || undefined,
+          transfer_account_id: fromCloudAccountId(e.transfer_account_id, session.user.id) || undefined,
           updated_at: e.updated_at || e.created_at || e.date,
         }));
 
@@ -640,8 +719,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           recurrence: e.recurrence || 'none',
           next_occurrence: e.next_occurrence || null,
           recurring_source_id: e.recurring_source_id || null,
-          account_id: toCloudAccountId(e.account_id),
-          transfer_account_id: toCloudAccountId(e.transfer_account_id),
+          account_id: toCloudAccountId(e.account_id, session.user.id, userHasLegacyCloudId),
+          transfer_account_id: toCloudAccountId(e.transfer_account_id, session.user.id, userHasLegacyCloudId),
         }));
 
         const { success: expSuccess, failed: expFailed } = await chunkedUpsert('expenses', uploadPayloads);
