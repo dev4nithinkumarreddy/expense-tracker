@@ -224,18 +224,25 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         }
         if (m.type.includes('EXPENSE') && m.payload) {
-          if (m.payload.account_id === CLOUD_BANK_UUID) {
-            return {
-              ...m,
-              payload: { ...m.payload, account_id: toCloudAccountId('acc-bank-1', session.user.id) }
-            };
+          const updatedPayload = { ...m.payload };
+          if (updatedPayload.account_id === CLOUD_BANK_UUID) {
+            updatedPayload.account_id = toCloudAccountId('acc-bank-1', session.user.id);
+          } else if (updatedPayload.account_id === CLOUD_CASH_UUID) {
+            updatedPayload.account_id = toCloudAccountId('acc-cash-1', session.user.id);
+          } else if (updatedPayload.account_id === CLOUD_CARD_UUID) {
+            updatedPayload.account_id = toCloudAccountId('acc-card-1', session.user.id);
           }
-          if (m.payload.account_id === CLOUD_CASH_UUID) {
-            return {
-              ...m,
-              payload: { ...m.payload, account_id: toCloudAccountId('acc-cash-1', session.user.id) }
-            };
+          if (updatedPayload.transfer_account_id === CLOUD_BANK_UUID) {
+            updatedPayload.transfer_account_id = toCloudAccountId('acc-bank-1', session.user.id);
+          } else if (updatedPayload.transfer_account_id === CLOUD_CASH_UUID) {
+            updatedPayload.transfer_account_id = toCloudAccountId('acc-cash-1', session.user.id);
+          } else if (updatedPayload.transfer_account_id === CLOUD_CARD_UUID) {
+            updatedPayload.transfer_account_id = toCloudAccountId('acc-card-1', session.user.id);
           }
+          return {
+            ...m,
+            payload: updatedPayload
+          };
         }
         return m;
       });
