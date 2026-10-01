@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense, lazy } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { BottomNav } from "./components/layout/BottomNav";
 import { useExpenseStore } from "./store/useExpenseStore";
@@ -19,6 +19,8 @@ import { formatCurrency } from "./lib/formatCurrency";
 
 import { SecurityLockOverlay } from "./components/ui/SecurityLockOverlay";
 import { NotificationPrompt } from "./components/notifications/NotificationPrompt";
+
+const PayLandingPage = lazy(() => import("./pages/PayLandingPage"));
 
 // Module-scoped in-flight lock for sequential sync passes
 let isSyncPassInProgress = false;
@@ -224,6 +226,26 @@ export default function App() {
       meta.setAttribute('content', settings.darkMode ? '#09090b' : '#ffffff');
     });
   }, [settings.darkMode, settings.theme]);
+
+  const isPayRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/pay');
+
+  if (isPayRoute) {
+    return (
+      <ErrorBoundary>
+        <div className="min-h-screen bg-background text-foreground relative flex items-center justify-center p-3 sm:p-4">
+          <AmbientBackground />
+          <Suspense fallback={<LoadingScreen message="Loading Payment..." />}>
+            <PayLandingPage />
+          </Suspense>
+          <Toaster 
+            theme={settings.darkMode ? "dark" : "light"} 
+            position="top-center" 
+            richColors 
+          />
+        </div>
+      </ErrorBoundary>
+    );
+  }
 
   if (loading) {
     return <LoadingScreen fullScreen message="Expense Tracker" submessage="Syncing your workspace..." />;

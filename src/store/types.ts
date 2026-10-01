@@ -49,6 +49,17 @@ export interface Debt {
   notes?: string;
   created_at?: string;
   due_date?: string | null;
+  expense_id?: string | null;
+  upi_id?: string | null;
+}
+
+export interface SplitParticipant {
+  id: string;
+  name: string;
+  amount: number;
+  percentage?: number;
+  isSelf: boolean;
+  upiId?: string;
 }
 
 export interface Subscription {
@@ -114,6 +125,7 @@ export interface Settings {
   currentStreak?: number;
   lastLogDate?: string;
   userName?: string;
+  upiId?: string;
   soundEnabled?: boolean;
   appLockEnabled?: boolean;
   appLockPin?: string;

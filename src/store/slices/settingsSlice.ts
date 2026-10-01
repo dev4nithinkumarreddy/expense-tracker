@@ -18,6 +18,7 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
     theme: 'default',
     categoryEmojis: {},
     userName: '',
+    upiId: '',
     soundEnabled: false,
     settingsInitialized: false,
     updated_at: undefined
@@ -51,6 +52,7 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
         category_emojis: updatedSettings.categoryEmojis,
         notifications_enabled: updatedSettings.notificationsEnabled,
         user_name: updatedSettings.userName,
+        upi_id: updatedSettings.upiId,
         updated_at: updatedAt
       }
     });

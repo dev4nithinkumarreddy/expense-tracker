@@ -358,14 +358,40 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               ...mut.payload,
               user_id: mut.payload.user_id || session.user.id
             };
-            const res = await supabase.from('debts').upsert(payload);
+            let res = await supabase.from('debts').upsert(payload);
+            if (res.error && (
+              res.error.code === 'PGRST204' ||
+              res.error.message?.includes('expense_id') ||
+              res.error.message?.includes('due_date') ||
+              res.error.message?.includes('upi_id')
+            )) {
+              console.warn("Retrying debt upsert without extended columns:", res.error);
+              const fallbackPayload = { ...payload };
+              delete (fallbackPayload as any).expense_id;
+              delete (fallbackPayload as any).due_date;
+              delete (fallbackPayload as any).upi_id;
+              res = await supabase.from('debts').upsert(fallbackPayload);
+            }
             error = res.error;
           } else if (mut.type === 'UPDATE_DEBT') {
             const payload = {
               ...mut.payload,
               user_id: mut.payload.user_id || session.user.id
             };
-            const res = await supabase.from('debts').update(payload).eq('id', mut.payload.id);
+            let res = await supabase.from('debts').update(payload).eq('id', mut.payload.id);
+            if (res.error && (
+              res.error.code === 'PGRST204' ||
+              res.error.message?.includes('expense_id') ||
+              res.error.message?.includes('due_date') ||
+              res.error.message?.includes('upi_id')
+            )) {
+              console.warn("Retrying debt update without extended columns:", res.error);
+              const fallbackPayload = { ...payload };
+              delete (fallbackPayload as any).expense_id;
+              delete (fallbackPayload as any).due_date;
+              delete (fallbackPayload as any).upi_id;
+              res = await supabase.from('debts').update(fallbackPayload).eq('id', mut.payload.id);
+            }
             error = res.error;
           } else if (mut.type === 'DELETE_DEBT') {
             const res = await supabase.from('debts').delete().eq('id', mut.payload.id);
@@ -1259,6 +1285,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           date: d.date,
           due_date: d.due_date || undefined,
           notes: d.notes || undefined,
+          expense_id: d.expense_id || undefined,
+          upi_id: d.upi_id || undefined,
           created_at: d.created_at,
           updated_at: d.updated_at || d.created_at || d.date,
         }));
@@ -1297,6 +1325,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           date: d.date,
           due_date: d.due_date || null,
           notes: d.notes || null,
+          expense_id: d.expense_id || null,
+          upi_id: d.upi_id || null,
         }));
 
         const { success: debtSuccess, failed: debtFailed } = await chunkedUpsert('debts', uploadPayloads);
@@ -1376,6 +1406,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             categoryEmojis: (s.category_emojis as Record<string, string>) || {},
             notificationsEnabled: s.notifications_enabled || false,
             userName: s.user_name || '',
+            upiId: s.upi_id || '',
             settingsInitialized: true,
             updated_at: s.updated_at,
             currentStreak: calculateStreak(state.expenses)
@@ -1421,6 +1452,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               category_emojis: localSettings.categoryEmojis,
               notifications_enabled: localSettings.notificationsEnabled || false,
               user_name: localSettings.userName || null,
+              upi_id: localSettings.upiId || null,
               updated_at: repairUpdatedAt
             });
           }
@@ -1446,6 +1478,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
                 category_emojis: localSettings.categoryEmojis,
                 notifications_enabled: localSettings.notificationsEnabled || false,
                 user_name: localSettings.userName || null,
+                upi_id: localSettings.upiId || null,
                 updated_at: localSettings.updated_at || new Date().toISOString()
               });
             } else {
@@ -1484,6 +1517,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               category_emojis: localSettings.categoryEmojis,
               notifications_enabled: localSettings.notificationsEnabled || false,
               user_name: localSettings.userName || null,
+              upi_id: localSettings.upiId || null,
               updated_at: seedUpdatedAt
             });
           } else {

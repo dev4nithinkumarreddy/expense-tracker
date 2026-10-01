@@ -4,7 +4,7 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins, Users, Share2 } from "lucide-react";
 import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { toast } from "sonner";
@@ -12,6 +12,8 @@ import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { playSuccessSound } from "../lib/sound";
 import { EmptyState } from "../components/ui/EmptyState";
 import { calculateCashflowSummary, getBillDueStatus, getSubscriptionDueStatus } from "../lib/cashflow";
+import { SplitBillModal } from "../components/split/SplitBillModal";
+import { SplitShareSheet } from "../components/split/SplitShareSheet";
 
 export default function Planned() {
   const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
@@ -624,6 +626,8 @@ function WishlistTab() {
 function IOUTab() {
   const { debts, addDebt, updateDebt, deleteDebt, addExpense, settings } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
+  const [shareDebt, setShareDebt] = useState<any | null>(null);
   const [personName, setPersonName] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"lent" | "borrowed">("lent");
@@ -679,9 +683,14 @@ function IOUTab() {
     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">IOUs</h2>
-        <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">
-          <Plus className="w-4 h-4 mr-1" /> Add IOU
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => setIsSplitModalOpen(true)} className="gap-1.5 font-medium shadow-xs">
+            <Users className="w-4 h-4" /> Split a Bill
+          </Button>
+          <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">
+            <Plus className="w-4 h-4 mr-1" /> Add IOU
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -771,7 +780,7 @@ function IOUTab() {
                       {formatCurrency(debt.amount, settings.currency)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-2 mt-3">
                     <Button 
                       variant="secondary" 
                       size="sm" 
@@ -781,6 +790,17 @@ function IOUTab() {
                       <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                       Mark Settled
                     </Button>
+                    {debt.type === 'lent' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 gap-1"
+                        onClick={() => setShareDebt(debt)}
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        Request UPI
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <Button 
@@ -796,6 +816,28 @@ function IOUTab() {
           ))
         )}
       </div>
+
+      <SplitBillModal
+        isOpen={isSplitModalOpen}
+        onClose={() => setIsSplitModalOpen(false)}
+      />
+
+      {shareDebt && (
+        <SplitShareSheet
+          isOpen={Boolean(shareDebt)}
+          onClose={() => setShareDebt(null)}
+          splitTitle={shareDebt.notes || `IOU: ${shareDebt.person_name}`}
+          totalAmount={shareDebt.amount}
+          participants={[{
+            name: shareDebt.person_name,
+            amount: shareDebt.amount,
+            debtId: shareDebt.id,
+          }]}
+          payerUpiId={settings.upiId}
+          payerName={settings.userName || 'Me'}
+          currency={settings.currency || '₹'}
+        />
+      )}
     </div>
   );
 }

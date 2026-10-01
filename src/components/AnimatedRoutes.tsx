@@ -17,6 +17,7 @@ const Planned = lazy(() => import('../pages/Planned'));
 const Analytics = lazy(() => import('../pages/Analytics'));
 const Settings = lazy(() => import('../pages/Settings'));
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
+const PayLandingPage = lazy(() => import('../pages/PayLandingPage'));
 import { AdminRouteGuard } from './admin/AdminRouteGuard';
 
 export const AnimatedRoutes = () => {
@@ -31,6 +32,7 @@ export const AnimatedRoutes = () => {
         <Route path="/analytics" element={<PageTransition><Suspense fallback={<AnalyticsSkeleton />}><Analytics /></Suspense></PageTransition>} />
         <Route path="/settings" element={<PageTransition><Suspense fallback={<SettingsSkeleton />}><Settings /></Suspense></PageTransition>} />
         <Route path="/admin" element={<PageTransition><AdminRouteGuard><Suspense fallback={<SettingsSkeleton />}><AdminDashboard /></Suspense></AdminRouteGuard></PageTransition>} />
+        <Route path="/pay" element={<PageTransition><Suspense fallback={<SettingsSkeleton />}><PayLandingPage /></Suspense></PageTransition>} />
       </Routes>
     </AnimatePresence>
   );

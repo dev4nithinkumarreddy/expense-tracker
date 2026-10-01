@@ -1,5 +1,5 @@
 import type { Bill, Subscription, Expense } from '../store/useExpenseStore';
-import { isThisMonth, parseISO } from 'date-fns';
+import { isSameMonth, parseISO } from 'date-fns';
 import { isIncomeCategory } from './categoryStyles';
 
 export interface CashflowSummary {
@@ -31,7 +31,7 @@ export function calculateCashflowSummary(
   // Current month non-income expenses and extra income
   const currentMonthRecords = expenses.filter(e => {
     try {
-      return isThisMonth(parseISO(e.date));
+      return isSameMonth(parseISO(e.date), referenceDate);
     } catch {
       return false;
     }
@@ -68,7 +68,7 @@ export function calculateCashflowSummary(
     if (!sub.next_billing_date) return;
     try {
       const subDate = new Date(sub.next_billing_date);
-      if (isThisMonth(subDate)) {
+      if (isSameMonth(subDate, referenceDate)) {
         if (referenceDate >= subDate) {
           dueSubscriptions.push(sub);
         } else {

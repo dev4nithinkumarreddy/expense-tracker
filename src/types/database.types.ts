@@ -132,6 +132,7 @@ export type Database = {
           category_emojis: Json
           notifications_enabled: boolean
           user_name: string | null
+          upi_id: string | null
           updated_at?: string
         }
         Insert: {
@@ -148,6 +149,7 @@ export type Database = {
           category_emojis?: Json
           notifications_enabled?: boolean
           user_name?: string | null
+          upi_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -164,6 +166,7 @@ export type Database = {
           category_emojis?: Json
           notifications_enabled?: boolean
           user_name?: string | null
+          upi_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -212,6 +215,8 @@ export type Database = {
           date: string
           due_date: string | null
           notes: string | null
+          expense_id: string | null
+          upi_id: string | null
           created_at: string
         }
         Insert: {
@@ -224,6 +229,8 @@ export type Database = {
           date?: string
           due_date?: string | null
           notes?: string | null
+          expense_id?: string | null
+          upi_id?: string | null
           created_at?: string
         }
         Update: {
@@ -236,6 +243,8 @@ export type Database = {
           date?: string
           due_date?: string | null
           notes?: string | null
+          expense_id?: string | null
+          upi_id?: string | null
           created_at?: string
         }
         Relationships: []

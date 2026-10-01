@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "../lib/formatCurrency";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { parseBankSMS } from "../lib/smsParser";
+import { SplitBillModal } from "./split/SplitBillModal";
 
 const DEFAULT_CATEGORY_EMOJIS: Record<string, string> = {
   Food: '🍔',
@@ -66,6 +67,7 @@ export function AddExpenseModal({
   const [smartInput, setSmartInput] = useState("");
   const [isSplitting, setIsSplitting] = useState(false);
   const [splitFriends, setSplitFriends] = useState("");
+  const [isFullSplitModalOpen, setIsFullSplitModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen && shouldTriggerScan) {
@@ -717,21 +719,33 @@ export function AddExpenseModal({
                       <p className="text-[10px] text-muted-foreground">Auto-creates IOUs to collect from friends</p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      vibrate(10);
-                      setIsSplitting(!isSplitting);
-                    }}
-                    className={cn(
-                      "px-3 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
-                      isSplitting
-                        ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
-                        : "bg-background/60 text-muted-foreground border-border/50 hover:text-foreground"
-                    )}
-                  >
-                    {isSplitting ? "Enabled" : "Off"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(15);
+                        setIsFullSplitModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground flex items-center gap-1 shadow-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Split & UPI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(10);
+                        setIsSplitting(!isSplitting);
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
+                        isSplitting
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                          : "bg-background/60 text-muted-foreground border-border/50 hover:text-foreground"
+                      )}
+                    >
+                      {isSplitting ? "Quick: On" : "Quick"}
+                    </button>
+                  </div>
                 </div>
 
                 {isSplitting && (
@@ -838,6 +852,19 @@ export function AddExpenseModal({
           </motion.div>
         </div>
       )}
+
+      {/* Full Group Split & UPI Modal */}
+      <SplitBillModal
+        isOpen={isFullSplitModalOpen}
+        onClose={() => {
+          setIsFullSplitModalOpen(false);
+          onClose();
+        }}
+        initialAmount={amount}
+        initialDescription={description}
+        initialCategory={category}
+        initialAccountId={selectedAccountId}
+      />
     </AnimatePresence>
   );
 }

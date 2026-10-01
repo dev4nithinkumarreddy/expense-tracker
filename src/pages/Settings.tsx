@@ -4,7 +4,7 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Moon, Sun, Download, Upload, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Share2, Copy, Check, Shield, Sparkles } from "lucide-react";
+import { Moon, Sun, Download, Upload, RefreshCcw, Plus, Trash2, X, FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck, ChevronRight, Printer, Share2, Copy, Check, Shield, Sparkles, CheckCircle2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls } from "framer-motion";
@@ -497,6 +497,26 @@ export default function Settings() {
                   onChange={(e) => updateSettings({ userName: e.target.value })}
                   className="max-w-xs bg-background"
                 />
+              </div>
+
+              <div className="space-y-1.5 pt-1 border-t">
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium">UPI ID (for Bill Splitting)</label>
+                  {settings.upiId && (
+                    <span className="text-[11px] text-emerald-500 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Configured
+                    </span>
+                  )}
+                </div>
+                <Input 
+                  placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm"
+                  value={settings.upiId || ""}
+                  onChange={(e) => updateSettings({ upiId: e.target.value.trim() })}
+                  className="max-w-xs bg-background text-sm font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Generates 1-tap Google Pay / PhonePe payment links and QR codes when you split bills with friends.
+                </p>
               </div>
 
               <div className="flex justify-between items-center pt-1 border-t">
