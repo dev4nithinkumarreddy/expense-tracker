@@ -7,12 +7,12 @@ import {
   Download, 
   ArrowRight, 
   ShieldCheck, 
-  Smartphone, 
   ExternalLink 
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { generateUpiUrl } from '../lib/upi';
+import { generateUpiUrl, getUpiAppIntentUrl, type UpiAppTarget } from '../lib/upi';
+import { GooglePayIcon, PhonePeIcon, PaytmIcon, UpiIcon } from '../components/split/UpiAppIcons';
 import { formatCurrency } from '../lib/formatCurrency';
 import { vibrate } from '../lib/utils';
 import { toast } from 'sonner';
@@ -56,18 +56,25 @@ export default function PayLandingPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleOpenUpi = (customScheme?: string) => {
-    if (!upiUrl) return;
+  const handleOpenApp = (app: UpiAppTarget) => {
+    if (!pa) return;
     vibrate(20);
-    if (customScheme) {
-      const parsed = new URL(upiUrl);
-      const appUrl = `${customScheme}://${parsed.host}${parsed.search}`;
-      window.location.href = appUrl;
+
+    const intentUrl = getUpiAppIntentUrl(
+      { pa, pn, am, tn, cu },
+      app
+    );
+
+    window.location.href = intentUrl;
+
+    if (app !== 'generic') {
+      const appName = app === 'gpay' ? 'Google Pay' : app === 'phonepe' ? 'PhonePe' : app === 'paytm' ? 'Paytm' : 'BHIM';
       setTimeout(() => {
-        window.location.href = upiUrl;
-      }, 500);
-    } else {
-      window.location.href = upiUrl;
+        toast.info(`Launching ${appName}... If it didn't open, copy the UPI ID below to pay directly.`, {
+          id: 'app-launch-info',
+          duration: 4000,
+        });
+      }, 2000);
     }
   };
 
@@ -174,48 +181,50 @@ export default function PayLandingPage() {
             </div>
 
             {/* Direct Pay Action Button */}
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               <Button
                 type="button"
-                onClick={() => handleOpenUpi()}
-                className="w-full h-12 text-base font-semibold gap-2 shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.98] transition-all"
+                onClick={() => handleOpenApp('generic')}
+                className="w-full h-12 text-base font-semibold gap-2.5 shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.98] transition-all rounded-2xl"
               >
-                <Smartphone className="w-5 h-5" />
-                <span>Pay via UPI App</span>
+                <UpiIcon size={22} className="shrink-0 rounded shadow-xs" />
+                <span>Pay via Any UPI App</span>
                 <ArrowRight className="w-4 h-4 ml-auto" />
               </Button>
 
-              {/* Quick App Intent Shortcuts */}
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              {/* Quick App Intent Shortcuts with Authentic Logos */}
+              <div className="grid grid-cols-3 gap-2.5 pt-1">
                 <button
                   type="button"
-                  onClick={() => handleOpenUpi()}
-                  className="p-2.5 rounded-xl border border-border/60 hover:bg-muted/50 text-xs font-medium flex flex-col items-center gap-1 transition-all active:scale-95"
+                  onClick={() => handleOpenApp('gpay')}
+                  className="p-3 rounded-2xl border border-border/70 hover:border-blue-500/50 bg-card hover:bg-blue-500/5 shadow-xs flex flex-col items-center gap-1.5 transition-all active:scale-95 group"
                 >
-                  <span className="w-6 h-6 rounded-full bg-blue-500/10 text-blue-600 font-bold flex items-center justify-center text-xs">
-                    G
-                  </span>
-                  <span>Google Pay</span>
+                  <div className="p-1.5 rounded-xl bg-white shadow-xs border border-gray-100 dark:border-white/10 group-hover:scale-105 transition-transform flex items-center justify-center">
+                    <GooglePayIcon size={28} />
+                  </div>
+                  <span className="text-xs font-semibold text-foreground/90">Google Pay</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => handleOpenUpi()}
-                  className="p-2.5 rounded-xl border border-border/60 hover:bg-muted/50 text-xs font-medium flex flex-col items-center gap-1 transition-all active:scale-95"
+                  onClick={() => handleOpenApp('phonepe')}
+                  className="p-3 rounded-2xl border border-border/70 hover:border-purple-500/50 bg-card hover:bg-purple-500/5 shadow-xs flex flex-col items-center gap-1.5 transition-all active:scale-95 group"
                 >
-                  <span className="w-6 h-6 rounded-full bg-purple-500/10 text-purple-600 font-bold flex items-center justify-center text-xs">
-                    Pe
-                  </span>
-                  <span>PhonePe</span>
+                  <div className="p-1.5 rounded-xl bg-white shadow-xs border border-gray-100 dark:border-white/10 group-hover:scale-105 transition-transform flex items-center justify-center">
+                    <PhonePeIcon size={28} />
+                  </div>
+                  <span className="text-xs font-semibold text-foreground/90">PhonePe</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => handleOpenUpi()}
-                  className="p-2.5 rounded-xl border border-border/60 hover:bg-muted/50 text-xs font-medium flex flex-col items-center gap-1 transition-all active:scale-95"
+                  onClick={() => handleOpenApp('paytm')}
+                  className="p-3 rounded-2xl border border-border/70 hover:border-cyan-500/50 bg-card hover:bg-cyan-500/5 shadow-xs flex flex-col items-center gap-1.5 transition-all active:scale-95 group"
                 >
-                  <span className="w-6 h-6 rounded-full bg-cyan-500/10 text-cyan-600 font-bold flex items-center justify-center text-xs">
-                    Pay
-                  </span>
-                  <span>Paytm</span>
+                  <div className="p-1.5 rounded-xl bg-white shadow-xs border border-gray-100 dark:border-white/10 group-hover:scale-105 transition-transform flex items-center justify-center">
+                    <PaytmIcon size={28} />
+                  </div>
+                  <span className="text-xs font-semibold text-foreground/90">Paytm</span>
                 </button>
               </div>
             </div>

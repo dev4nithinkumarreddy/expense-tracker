@@ -5,6 +5,7 @@ import {
   generateWhatsAppShareText,
   generatePayWebUrl,
   calculateSplit,
+  getUpiAppIntentUrl,
 } from './upi';
 
 describe('UPI & Split Utilities', () => {
@@ -125,4 +126,51 @@ describe('UPI & Split Utilities', () => {
       expect(result.shares[1].amount).toBe(250);
     });
   });
+
+  describe('getUpiAppIntentUrl', () => {
+    const params = {
+      pa: 'nithin@okaxis',
+      pn: 'Nithin Reddy',
+      am: 500,
+      tn: 'Trip Split',
+    };
+
+    const androidUA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36';
+    const iosUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15';
+    const desktopUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
+
+    it('generates explicit Android package intent for Google Pay', () => {
+      const url = getUpiAppIntentUrl(params, 'gpay', androidUA);
+      expect(url).toContain('intent://pay?');
+      expect(url).toContain('package=com.google.android.apps.nbu.paisa.user');
+      expect(url).toContain('scheme=upi');
+      expect(url).toContain('pa=nithin%40okaxis');
+    });
+
+    it('generates explicit Android package intent for PhonePe', () => {
+      const url = getUpiAppIntentUrl(params, 'phonepe', androidUA);
+      expect(url).toContain('intent://pay?');
+      expect(url).toContain('package=com.phonepe.app');
+      expect(url).toContain('scheme=upi');
+    });
+
+    it('generates explicit Android package intent for Paytm', () => {
+      const url = getUpiAppIntentUrl(params, 'paytm', androidUA);
+      expect(url).toContain('intent://pay?');
+      expect(url).toContain('package=net.one97.paytm');
+      expect(url).toContain('scheme=upi');
+    });
+
+    it('generates iOS deep links for supported apps', () => {
+      expect(getUpiAppIntentUrl(params, 'gpay', iosUA)).toContain('gpay://upi/pay?');
+      expect(getUpiAppIntentUrl(params, 'phonepe', iosUA)).toContain('phonepe://pay?');
+      expect(getUpiAppIntentUrl(params, 'paytm', iosUA)).toContain('paytmmp://pay?');
+    });
+
+    it('falls back to standard upi:// scheme for generic or desktop requests', () => {
+      expect(getUpiAppIntentUrl(params, 'generic', androidUA)).toContain('upi://pay?');
+      expect(getUpiAppIntentUrl(params, 'gpay', desktopUA)).toContain('upi://pay?');
+    });
+  });
 });
+

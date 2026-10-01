@@ -32,6 +32,8 @@ export function isValidUpiId(upiId: string): boolean {
   return upiRegex.test(trimmed);
 }
 
+export type UpiAppTarget = 'gpay' | 'phonepe' | 'paytm' | 'bhim' | 'generic';
+
 /**
  * Generates an NPCI-compliant UPI deep link string.
  * Opens Google Pay, PhonePe, Paytm, BHIM, Cred on mobile.
@@ -48,6 +50,73 @@ export function generateUpiUrl(params: UpiPaymentParams): string {
   searchParams.append('tn', tn.trim());
 
   return `upi://pay?${searchParams.toString()}`;
+}
+
+/**
+ * Returns an app-specific deep link URL.
+ * On Android, uses explicit package intents to bypass default app hijack (such as WhatsApp Payments).
+ * On iOS, uses vendor-specific custom schemes.
+ */
+export function getUpiAppIntentUrl(
+  params: UpiPaymentParams,
+  app: UpiAppTarget,
+  userAgent: string = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+): string {
+  const { pa, pn = 'Expense Payee', am, tn = 'Expense Split', cu = 'INR' } = params;
+  const cleanPa = pa.trim();
+  const formattedAmount = Number(am).toFixed(2);
+  const searchParams = new URLSearchParams();
+  searchParams.set('pa', cleanPa);
+  searchParams.set('pn', pn.trim());
+  searchParams.set('am', formattedAmount);
+  searchParams.set('cu', cu);
+  searchParams.set('tn', tn.trim());
+  const query = searchParams.toString();
+
+  const isAndroid = /android/i.test(userAgent);
+  const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+
+  switch (app) {
+    case 'gpay':
+      if (isAndroid) {
+        return `intent://pay?${query}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+      }
+      if (isIOS) {
+        return `gpay://upi/pay?${query}`;
+      }
+      return `upi://pay?${query}`;
+
+    case 'phonepe':
+      if (isAndroid) {
+        return `intent://pay?${query}#Intent;scheme=upi;package=com.phonepe.app;end`;
+      }
+      if (isIOS) {
+        return `phonepe://pay?${query}`;
+      }
+      return `upi://pay?${query}`;
+
+    case 'paytm':
+      if (isAndroid) {
+        return `intent://pay?${query}#Intent;scheme=upi;package=net.one97.paytm;end`;
+      }
+      if (isIOS) {
+        return `paytmmp://pay?${query}`;
+      }
+      return `upi://pay?${query}`;
+
+    case 'bhim':
+      if (isAndroid) {
+        return `intent://pay?${query}#Intent;scheme=upi;package=in.org.npci.upiapp;end`;
+      }
+      if (isIOS) {
+        return `bhim://pay?${query}`;
+      }
+      return `upi://pay?${query}`;
+
+    case 'generic':
+    default:
+      return `upi://pay?${query}`;
+  }
 }
 
 /**
