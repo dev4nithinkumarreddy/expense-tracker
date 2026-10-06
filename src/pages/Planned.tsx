@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { playSuccessSound } from "../lib/sound";
 import { EmptyState } from "../components/ui/EmptyState";
-import { calculateCashflowSummary, getBillDueStatus, getSubscriptionDueStatus } from "../lib/cashflow";
+import { calculateCashflowSummary, getBillDueStatus, getSubscriptionDueStatus, isBillPaidThisMonth, isSubscriptionPaidThisMonth } from "../lib/cashflow";
 import { SplitBillModal } from "../components/split/SplitBillModal";
 import { SplitShareSheet } from "../components/split/SplitShareSheet";
 
@@ -29,7 +29,7 @@ export default function Planned() {
     );
   }, [settings.monthlyIncome, expenses, bills, subscriptions]);
 
-  const totalDeducted = cashflow.dueBillsAmount + cashflow.dueSubsAmount;
+  const totalDeducted = cashflow.paidObligationsTotal;
   const upcomingTotal = cashflow.upcomingObligationsTotal;
 
   return (
@@ -67,7 +67,9 @@ export default function Planned() {
             {formatCurrency(totalDeducted, settings.currency)}
           </div>
           <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
-            Due date arrived this month
+            {cashflow.dueBillsAmount + cashflow.dueSubsAmount > 0
+              ? `${formatCurrency(cashflow.dueBillsAmount + cashflow.dueSubsAmount, settings.currency)} due today`
+              : 'Paid or auto-deducted this month'}
           </span>
         </div>
 
@@ -141,7 +143,7 @@ function SwipeablePayRow({
 }
 
 function SubscriptionsTab() {
-  const { subscriptions, addSubscription, deleteSubscription, settings, addExpense } = useExpenseStore();
+  const { subscriptions, addSubscription, deleteSubscription, settings, addExpense, expenses } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -241,45 +243,53 @@ function SubscriptionsTab() {
           </div>
         ) : (
           subscriptions.map(sub => {
-            const dueStatus = getSubscriptionDueStatus(sub);
-            return (
-              <SwipeablePayRow key={sub.id} onPay={() => handleLogPayment(sub)} payLabel="Log Payment">
-                <div className="p-4 flex justify-between items-center pl-5 relative">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 rounded-l" />
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold truncate">{sub.name}</p>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                        dueStatus.badgeColor === 'emerald'
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                          : dueStatus.badgeColor === 'amber'
-                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                          : 'bg-muted text-muted-foreground border-border/50'
-                      }`}>
-                        {dueStatus.label}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                      {formatCurrency(sub.amount, settings.currency)} 
-                      <span className="text-[10px] uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-                        {sub.billing_cycle}
-                      </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Next bill: {new Date(sub.next_billing_date).toLocaleDateString()}
-                    </p>
-                    <div className="flex items-center gap-2 mt-3">
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
-                      className="h-7 text-xs px-2"
-                      onClick={() => handleLogPayment(sub)}
-                    >
-                      Log Payment
-                    </Button>
-                    <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
-                      (or swipe right to log)
+            const isPaid = isSubscriptionPaidThisMonth(sub, expenses, new Date());
+            const dueStatus = getSubscriptionDueStatus(sub, new Date(), isPaid);
+            const content = (
+              <div className="p-4 flex justify-between items-center pl-5 relative">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 rounded-l" />
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold truncate">{sub.name}</p>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                      dueStatus.badgeColor === 'emerald'
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                        : dueStatus.badgeColor === 'amber'
+                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                        : 'bg-muted text-muted-foreground border-border/50'
+                    }`}>
+                      {dueStatus.label}
                     </span>
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    {formatCurrency(sub.amount, settings.currency)} 
+                    <span className="text-[10px] uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                      {sub.billing_cycle}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Next bill: {new Date(sub.next_billing_date).toLocaleDateString()}
+                  </p>
+                  <div className="flex items-center gap-2 mt-3">
+                    {isPaid ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                        <Check className="w-3.5 h-3.5" /> Paid for this cycle
+                      </span>
+                    ) : (
+                      <>
+                        <Button 
+                          variant="secondary" 
+                          size="sm" 
+                          className="h-7 text-xs px-2"
+                          onClick={() => handleLogPayment(sub)}
+                        >
+                          Log Payment
+                        </Button>
+                        <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                          (or swipe right to log)
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-start h-full self-start shrink-0">
@@ -291,9 +301,18 @@ function SubscriptionsTab() {
                   </Button>
                 </div>
               </div>
-            </SwipeablePayRow>
-          );
-        }))}
+            );
+
+            return isPaid ? (
+              <div key={sub.id} className="relative overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs select-none">
+                {content}
+              </div>
+            ) : (
+              <SwipeablePayRow key={sub.id} onPay={() => handleLogPayment(sub)} payLabel="Log Payment">
+                {content}
+              </SwipeablePayRow>
+            );
+          }))}
       </div>
     </div>
   );
@@ -842,7 +861,7 @@ function IOUTab() {
   );
 }
 function BillsTab() {
-  const { bills, addBill, deleteBill, updateBill, settings, addExpense } = useExpenseStore();
+  const { bills, addBill, deleteBill, updateBill, settings, addExpense, expenses } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -872,7 +891,7 @@ function BillsTab() {
       description: `Manual Payment: ${bill.title}`,
       category: bill.category || "Bills",
       date: new Date().toISOString(),
-      notes: "Manually logged from Bills page"
+      notes: `Bill payment for ${bill.title} (ID: ${bill.id})`
     });
     toast.success(`${bill.title} marked as paid!`);
   };
@@ -939,56 +958,73 @@ function BillsTab() {
           </div>
         ) : (
           bills.map(bill => {
-            const dueStatus = getBillDueStatus(bill);
-            return (
-              <SwipeablePayRow key={bill.id} onPay={() => handlePayNow(bill)} payLabel="Pay Bill">
-                <div className="p-4 flex justify-between items-center">
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold truncate">{bill.title}</p>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                        dueStatus.badgeColor === 'emerald'
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                          : dueStatus.badgeColor === 'amber'
-                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                          : 'bg-muted text-muted-foreground border-border/50'
-                      }`}>
-                        {dueStatus.label}
-                      </span>
-                    </div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {formatCurrency(bill.amount, settings.currency)} / month
-                    </p>
-                    <div className="flex items-center gap-3 mt-3 flex-wrap">
-                      <button 
-                        onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted-foreground/40"}`} />
-                        Auto Deduct
-                      </button>
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="h-7 text-xs px-2"
-                        onClick={() => handlePayNow(bill)}
-                      >
-                        Pay Now
-                      </Button>
-                      <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
-                        (or swipe right to pay)
-                      </span>
-                    </div>
+            const isPaid = isBillPaidThisMonth(bill, expenses, new Date());
+            const dueStatus = getBillDueStatus(bill, new Date(), isPaid);
+            const content = (
+              <div className="p-4 flex justify-between items-center">
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold truncate">{bill.title}</p>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                      dueStatus.badgeColor === 'emerald'
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                        : dueStatus.badgeColor === 'amber'
+                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                        : 'bg-muted text-muted-foreground border-border/50'
+                    }`}>
+                      {dueStatus.label}
+                    </span>
                   </div>
-                  <div className="flex items-start h-full shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
-                      vibrate();
-                      if(confirm("Delete this bill?")) deleteBill(bill.id);
-                    }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {formatCurrency(bill.amount, settings.currency)} / month
+                  </p>
+                  <div className="flex items-center gap-3 mt-3 flex-wrap">
+                    <button 
+                      onClick={() => updateBill(bill.id, { autoDeduct: !bill.autoDeduct })}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <CheckCircle2 className={`w-4 h-4 ${bill.autoDeduct ? "text-primary" : "text-muted-foreground/40"}`} />
+                      Auto Deduct
+                    </button>
+                    {isPaid ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <Check className="w-3 h-3" /> Paid this month
+                      </span>
+                    ) : (
+                      <>
+                        <Button 
+                          variant="secondary" 
+                          size="sm" 
+                          className="h-7 text-xs px-2"
+                          onClick={() => handlePayNow(bill)}
+                        >
+                          Pay Now
+                        </Button>
+                        <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                          (or swipe right to pay)
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
+                <div className="flex items-start h-full shrink-0">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
+                    vibrate();
+                    if(confirm("Delete this bill?")) deleteBill(bill.id);
+                  }}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            );
+
+            return isPaid ? (
+              <div key={bill.id} className="relative overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs select-none">
+                {content}
+              </div>
+            ) : (
+              <SwipeablePayRow key={bill.id} onPay={() => handlePayNow(bill)} payLabel="Pay Bill">
+                {content}
               </SwipeablePayRow>
             );
           })

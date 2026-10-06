@@ -11,7 +11,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { calculateStreak } from "../lib/streak";
-import { calculateCashflowSummary } from "../lib/cashflow";
+import { calculateCashflowSummary, isSubscriptionPaidThisMonth } from "../lib/cashflow";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { detectAnomalies } from "../lib/anomalyDetector";
 import { SafeToSpendCard } from "../components/dashboard/SafeToSpendCard";
@@ -126,7 +126,9 @@ export default function Dashboard() {
     const dueSub = (subscriptions || []).find(s => {
       if (!s.next_billing_date) return false;
       const d = new Date(s.next_billing_date);
-      return d <= in48h && d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+      const isDueSoon = d <= in48h && d >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+      if (!isDueSoon) return false;
+      return !isSubscriptionPaidThisMonth(s, expenses, now);
     });
 
     if (dueSub && dueSub.id !== dismissedAlertId) {
@@ -139,7 +141,7 @@ export default function Dashboard() {
       };
     }
     return null;
-  }, [subscriptions, dismissedAlertId]);
+  }, [subscriptions, dismissedAlertId, expenses]);
 
   const activeAnomaly = useMemo(() => {
     const list = detectAnomalies(expenses, subscriptions, bills);
@@ -574,11 +576,15 @@ export default function Dashboard() {
                         formatFn={(val) => formatCurrency(val, settings.currency)}
                       />
                     </p>
-                    {upcomingObligations > 0 && (
+                    {upcomingObligations > 0 ? (
                       <p className="text-[10.5px] text-muted-foreground mt-0.5" title="Upcoming bills & subscriptions due later this month">
                         +{formatCurrency(upcomingObligations, settings.currency)} upcoming
                       </p>
-                    )}
+                    ) : cashflow.paidObligationsTotal > 0 ? (
+                      <p className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5" title="Bills & subscriptions paid this month">
+                        ✓ {formatCurrency(cashflow.paidObligationsTotal, settings.currency)} paid
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 

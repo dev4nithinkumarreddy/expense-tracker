@@ -1602,26 +1602,35 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         }
       }
-      
-      state.bills.forEach(bill => {
-        if (bill.autoDeduct) {
+    }
+
+    const now = new Date();
+    const currentDay = now.getDate();
+
+    // --- Process due auto-deduct bills idempotently ---
+    state.bills.forEach(bill => {
+      if (bill.autoDeduct) {
+        const dueDay = bill.due_day ?? (bill.due_date ? new Date(bill.due_date).getDate() : 1);
+        if (currentDay >= dueDay) {
           const autoDeductId = generateDeterministicUUID('auto_deduct', `${bill.id}:${currentMonth}`);
-          if (!state.expenses.some(e => e.id === autoDeductId)) {
+          if (!state.expenses.some(e => e.id === autoDeductId) && !newExpenses.some(e => e.id === autoDeductId)) {
+            const dueYear = now.getFullYear();
+            const dueMonthNum = now.getMonth();
+            const billDate = new Date(dueYear, dueMonthNum, dueDay, 9, 0, 0).toISOString();
             newExpenses.push({
               id: autoDeductId,
               amount: bill.amount,
               description: `Auto-deduct: ${bill.title}`,
               category: bill.category || 'Bills',
-              date: new Date().toISOString(),
-              notes: 'Automatically deducted for the new month'
+              date: billDate,
+              notes: 'Automatically deducted for the current month'
             });
           }
         }
-      });
-    }
+      }
+    });
 
     // --- Process recurring expenses idempotently ---
-    const now = new Date();
     const generatedExpenses: Expense[] = [];
     const updatedExpenses: Expense[] = [];
 
