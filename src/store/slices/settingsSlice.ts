@@ -26,14 +26,21 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
 
   updateSettings: (newSettings) => {
     const updatedAt = new Date().toISOString();
-    set((state) => ({
-      settings: {
-        ...state.settings,
-        ...newSettings,
-        settingsInitialized: true,
-        updated_at: updatedAt
-      }
-    }));
+    set((state) => {
+      const sanitizedCategories = newSettings.categories
+        ? Array.from(new Set(newSettings.categories.map(c => typeof c === 'string' ? c.trim() : '').filter(Boolean)))
+        : state.settings.categories;
+
+      return {
+        settings: {
+          ...state.settings,
+          ...newSettings,
+          categories: sanitizedCategories,
+          settingsInitialized: true,
+          updated_at: updatedAt
+        }
+      };
+    });
     // IMPORTANT: read settings from get() AFTER set() so we capture the merged/updated values
     const { session, settings: updatedSettings, addPendingMutation, syncPendingMutations } = get();
     addPendingMutation({
@@ -62,8 +69,11 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
   },
 
   addCategory: (category) => {
+    const trimmed = typeof category === 'string' ? category.trim() : '';
+    if (!trimmed) return;
     const state = get();
-    state.updateSettings({ categories: [...state.settings.categories, category] });
+    if (state.settings.categories.includes(trimmed)) return;
+    state.updateSettings({ categories: [...state.settings.categories, trimmed] });
   },
   
   deleteCategory: (category) => {

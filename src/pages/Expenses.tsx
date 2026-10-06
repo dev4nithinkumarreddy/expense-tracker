@@ -57,13 +57,14 @@ export default function Expenses() {
   }, [expenses]);
 
   const availableCategories = useMemo(() => {
-    const list = [...settings.categories];
+    const list = (settings.categories || []).filter(c => Boolean(c && c.trim()));
     expenses.forEach((e) => {
-      if (e.category && !list.includes(e.category)) {
-        list.push(e.category);
+      const cat = e.category?.trim();
+      if (cat && !list.includes(cat)) {
+        list.push(cat);
       }
     });
-    return list;
+    return Array.from(new Set(list));
   }, [settings.categories, expenses]);
 
   const filteredExpenses = expenses
@@ -110,7 +111,15 @@ export default function Expenses() {
 
   // Group by date
   const grouped = filteredExpenses.reduce((acc, expense) => {
-    const dateStr = format(parseISO(expense.date), 'yyyy-MM-dd');
+    let dateStr = 'Unknown';
+    if (expense.date) {
+      try {
+        const parsed = parseISO(expense.date);
+        dateStr = !isNaN(parsed.getTime()) ? format(parsed, 'yyyy-MM-dd') : (expense.date.split('T')[0] || 'Unknown');
+      } catch {
+        dateStr = expense.date.split('T')[0] || 'Unknown';
+      }
+    }
     if (!acc[dateStr]) acc[dateStr] = [];
     acc[dateStr].push(expense);
     return acc;
@@ -366,11 +375,22 @@ export default function Expenses() {
                   }}
                 />
               ) : (
-                Object.entries(grouped).map(([dateStr, dayExpenses]) => (
-                  <div key={dateStr}>
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 mt-4 lg:mt-1">
-                      {format(parseISO(dateStr), 'EEEE, MMMM d')}
-                    </h3>
+                Object.entries(grouped).map(([dateStr, dayExpenses]) => {
+                  let formattedHeader = dateStr;
+                  try {
+                    const parsed = parseISO(dateStr);
+                    if (!isNaN(parsed.getTime())) {
+                      formattedHeader = format(parsed, 'EEEE, MMMM d');
+                    }
+                  } catch {
+                    formattedHeader = dateStr;
+                  }
+
+                  return (
+                    <div key={dateStr || 'unknown'}>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 mt-4 lg:mt-1">
+                        {formattedHeader}
+                      </h3>
                     <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
                       {dayExpenses.map(expense => {
                         const isIncome = isIncomeCategory(expense.category);
@@ -386,7 +406,8 @@ export default function Expenses() {
                       })}
                     </div>
                   </div>
-                ))
+                );
+              })
               )}
             </div>
           </PullToRefresh>

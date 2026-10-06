@@ -670,7 +670,7 @@ export default function Dashboard() {
                       const isDanger = percentage >= 100;
 
                       return (
-                        <div key={cat} className="space-y-1.5 lg:p-3 lg:rounded-2xl lg:bg-secondary/30 lg:border lg:border-border/50">
+                        <div key={budget.id || `${cat}-${budget.month}`} className="space-y-1.5 lg:p-3 lg:rounded-2xl lg:bg-secondary/30 lg:border lg:border-border/50">
                           <div className="flex justify-between items-center text-xs sm:text-sm gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-6 h-6 rounded-lg bg-secondary flex items-center justify-center text-sm shrink-0">
@@ -721,9 +721,9 @@ export default function Dashboard() {
                   badge={quickAdds.length}
                 />
                 <div className="flex lg:flex-wrap gap-2.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-3.5 sm:-mx-4 lg:mx-0 px-3.5 sm:px-4 lg:px-0 scrollbar-hide">
-                  {quickAdds.map(qa => (
+                  {quickAdds.map((qa, idx) => (
                     <motion.button 
-                      key={qa.description}
+                      key={`${qa.description}-${idx}`}
                       whileTap={{ scale: 0.94 }}
                       transition={{ type: "spring", stiffness: 500, damping: 24 }}
                       onClick={async () => {
