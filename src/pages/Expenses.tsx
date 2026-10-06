@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2 } from "lucide-react";
-import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth } from "date-fns";
+import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2, Calendar, Zap } from "lucide-react";
+import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth, isThisWeek } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
 import { RecentlyDeletedModal } from '../components/RecentlyDeletedModal';
@@ -10,12 +10,14 @@ import { Button } from "../components/ui/button";
 import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { vibrate } from "../lib/utils";
+import { formatCurrency } from "../lib/formatCurrency";
 import { EmptyState } from "../components/ui/EmptyState";
 import { getCategoryStyle, isIncomeCategory } from "../lib/categoryStyles";
 import { SyncStatusBadge } from "../components/ui/SyncStatusBadge";
+import { isDateInCycle, getCycleRange } from "../lib/cycleDate";
 import { toast } from "sonner";
 
-type QuickFilter = 'all' | 'receipt' | 'high_spend' | 'recurring';
+type QuickFilter = 'all' | 'this_cycle' | 'this_week' | 'receipt' | 'high_spend' | 'recurring';
 
 export default function Expenses() {
   const { expenses, recentlyDeleted = [], settings, fetchCloudData } = useExpenseStore();
@@ -80,7 +82,9 @@ export default function Expenses() {
       let matchesDate = true;
       const expenseDate = parseISO(e.date);
       if (dateFilter === 'this_month') {
-        matchesDate = isThisMonth(expenseDate);
+        matchesDate = (settings.salaryCycleDay || 1) === 1
+          ? isThisMonth(expenseDate)
+          : isDateInCycle(expenseDate, settings.salaryCycleDay || 1);
       } else if (dateFilter === 'last_month') {
         matchesDate = isSameMonth(expenseDate, subMonths(new Date(), 1));
       } else if (dateFilter === 'last_7_days') {
@@ -92,7 +96,11 @@ export default function Expenses() {
       }
 
       let matchesQuick = true;
-      if (quickFilter === 'receipt') {
+      if (quickFilter === 'this_cycle') {
+        matchesQuick = isDateInCycle(expenseDate, settings.salaryCycleDay || 1);
+      } else if (quickFilter === 'this_week') {
+        matchesQuick = isThisWeek(expenseDate);
+      } else if (quickFilter === 'receipt') {
         matchesQuick = !!e.receipt_url;
       } else if (quickFilter === 'high_spend') {
         matchesQuick = e.amount >= 1000;
@@ -108,6 +116,16 @@ export default function Expenses() {
       // Tie-breaker: if dates are identical, show the one added later on top
       return (expenseOrderMap.get(b.id) ?? 0) - (expenseOrderMap.get(a.id) ?? 0);
     });
+
+  const filteredTotal = useMemo(() => {
+    return filteredExpenses.reduce((sum, e) => {
+      return isIncomeCategory(e.category) || e.category === 'Transfer' ? sum : sum + e.amount;
+    }, 0);
+  }, [filteredExpenses]);
+
+  const activeCycle = useMemo(() => {
+    return getCycleRange(new Date(), settings.salaryCycleDay || 1);
+  }, [settings.salaryCycleDay]);
 
   // Group by date
   const grouped = filteredExpenses.reduce((acc, expense) => {
@@ -315,6 +333,30 @@ export default function Expenses() {
               </button>
               <button
                 type="button"
+                onClick={() => { vibrate(10); setQuickFilter('this_cycle'); }}
+                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  quickFilter === 'this_cycle' 
+                    ? 'bg-primary text-primary-foreground shadow-xs' 
+                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                {activeCycle.cycleDay > 1 ? `Cycle (${activeCycle.label})` : 'This Month'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { vibrate(10); setQuickFilter('this_week'); }}
+                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  quickFilter === 'this_week' 
+                    ? 'bg-primary text-primary-foreground shadow-xs' 
+                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                This Week
+              </button>
+              <button
+                type="button"
                 onClick={() => { vibrate(10); setQuickFilter('receipt'); }}
                 className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                   quickFilter === 'receipt' 
@@ -355,6 +397,16 @@ export default function Expenses() {
 
         <div className="lg:col-span-8">
           <PullToRefresh onRefresh={fetchCloudData}>
+            {/* Filtered Count & Spend Summary Pill */}
+            <div className="flex items-center justify-between px-3.5 py-2 mb-3 rounded-2xl bg-card/80 border border-border/70 backdrop-blur-md text-xs shadow-2xs">
+              <span className="font-semibold text-foreground">
+                {filteredExpenses.length} {filteredExpenses.length === 1 ? 'expense' : 'expenses'}
+                {selectedCategory ? ` • ${selectedCategory}` : ''}
+              </span>
+              <span className="font-black text-foreground display-number">
+                Total: {formatCurrency(filteredTotal, settings.currency)}
+              </span>
+            </div>
             <div className="space-y-6 pb-24">
               {Object.entries(grouped).length === 0 ? (
                 <EmptyState

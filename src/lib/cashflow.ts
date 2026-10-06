@@ -2,6 +2,7 @@ import type { Bill, Subscription, Expense } from '../store/useExpenseStore';
 import { isSameMonth, parseISO } from 'date-fns';
 import { isIncomeCategory } from './categoryStyles';
 import { generateDeterministicUUID } from './utils';
+import { isDateInCycle, getCycleRange } from './cycleDate';
 
 export interface CashflowSummary {
   totalBudget: number;
@@ -105,24 +106,30 @@ export function calculateCashflowSummary(
   expenses: Expense[],
   bills: Bill[],
   subscriptions: Subscription[] = [],
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  cycleDay: number = 1
 ): CashflowSummary {
   const currentDay = referenceDate.getDate();
+  const safeCycleDay = Math.max(1, Math.min(31, Math.floor(cycleDay || 1)));
+  const cycleRange = getCycleRange(referenceDate, safeCycleDay);
 
-  // Current month non-income expenses and extra income
-  const currentMonthRecords = expenses.filter(e => {
+  // Current cycle non-income expenses and extra income
+  const currentCycleRecords = expenses.filter(e => {
     try {
-      return isSameMonth(parseISO(e.date), referenceDate);
+      const expDate = parseISO(e.date);
+      return safeCycleDay === 1
+        ? isSameMonth(expDate, referenceDate)
+        : isDateInCycle(expDate, safeCycleDay, referenceDate);
     } catch {
       return false;
     }
   });
 
-  const extraIncome = currentMonthRecords
+  const extraIncome = currentCycleRecords
     .filter(e => isIncomeCategory(e.category))
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-  const totalExpenses = currentMonthRecords
+  const totalExpenses = currentCycleRecords
     .filter(e => !isIncomeCategory(e.category) && e.category !== 'Transfer')
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
@@ -134,12 +141,24 @@ export function calculateCashflowSummary(
   const upcomingBills: Bill[] = [];
 
   bills.forEach(bill => {
-    const isPaid = isBillPaidThisMonth(bill, currentMonthRecords, referenceDate);
+    const isPaid = isBillPaidThisMonth(bill, currentCycleRecords, referenceDate);
     if (isPaid) {
       paidBills.push(bill);
     } else {
       const dueDay = bill.due_day ?? (bill.due_date ? new Date(bill.due_date).getDate() : 1);
-      if (currentDay >= dueDay) {
+      
+      let isDue = false;
+      if (safeCycleDay === 1) {
+        isDue = currentDay >= dueDay;
+      } else {
+        // Calculate bill date within the current cycle
+        const billDate = dueDay >= safeCycleDay
+          ? new Date(cycleRange.startDate.getFullYear(), cycleRange.startDate.getMonth(), Math.min(dueDay, new Date(cycleRange.startDate.getFullYear(), cycleRange.startDate.getMonth() + 1, 0).getDate()))
+          : new Date(cycleRange.endDate.getFullYear(), cycleRange.endDate.getMonth(), Math.min(dueDay, new Date(cycleRange.endDate.getFullYear(), cycleRange.endDate.getMonth() + 1, 0).getDate()));
+        isDue = referenceDate >= billDate;
+      }
+
+      if (isDue) {
         dueBills.push(bill);
       } else {
         upcomingBills.push(bill);
@@ -155,12 +174,16 @@ export function calculateCashflowSummary(
   subscriptions.forEach(sub => {
     if (!sub.next_billing_date) return;
     try {
-      const isPaid = isSubscriptionPaidThisMonth(sub, currentMonthRecords, referenceDate);
+      const isPaid = isSubscriptionPaidThisMonth(sub, currentCycleRecords, referenceDate);
       if (isPaid) {
         paidSubscriptions.push(sub);
       } else {
         const subDate = new Date(sub.next_billing_date);
-        if (isSameMonth(subDate, referenceDate)) {
+        const inCycle = safeCycleDay === 1
+          ? isSameMonth(subDate, referenceDate)
+          : isDateInCycle(subDate, safeCycleDay, referenceDate);
+
+        if (inCycle) {
           if (referenceDate >= subDate) {
             dueSubscriptions.push(sub);
           } else {

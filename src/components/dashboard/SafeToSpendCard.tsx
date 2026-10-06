@@ -3,7 +3,7 @@ import { Card, CardContent } from '../ui/card';
 import { calculateSafeToSpend } from '../../lib/safeToSpend';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { AnimatedNumber } from '../ui/AnimatedNumber';
-import { ShieldCheck, AlertTriangle, AlertCircle, Compass, Sparkles } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, AlertCircle, Compass, Sparkles, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface SafeToSpendCardProps {
@@ -11,6 +11,8 @@ interface SafeToSpendCardProps {
   upcomingObligations: number;
   currency: string;
   totalMonthlyBudget: number;
+  currentSpent?: number;
+  salaryCycleDay?: number;
   variant?: 'card' | 'embedded';
 }
 
@@ -19,19 +21,26 @@ export function SafeToSpendCard({
   upcomingObligations,
   currency,
   totalMonthlyBudget,
+  currentSpent = 0,
+  salaryCycleDay = 1,
   variant = 'card',
 }: SafeToSpendCardProps) {
   const safe = calculateSafeToSpend(
     availableBalance,
     upcomingObligations,
     new Date(),
-    totalMonthlyBudget
+    totalMonthlyBudget,
+    currentSpent,
+    salaryCycleDay
   );
 
   const [simAmount, setSimAmount] = useState<string>('');
   const [showSimInput, setShowSimInput] = useState(false);
+  const [showProjectionDetails, setShowProjectionDetails] = useState(false);
   const parsedSim = parseFloat(simAmount) || 0;
   const simulation = parsedSim > 0 ? safe.simulateSpend(parsedSim) : null;
+
+  const { projection } = safe;
 
   const content = (
     <div className="space-y-3">
@@ -46,7 +55,7 @@ export function SafeToSpendCard({
               <span>Safe Daily Runway</span>
             </h3>
             <p className="text-[11px] text-muted-foreground">
-              {safe.daysRemaining} days remaining this month
+              {safe.daysRemaining} days left in {projection.cycleLabel}
             </p>
           </div>
         </div>
@@ -122,6 +131,69 @@ export function SafeToSpendCard({
           </div>
         )}
       </div>
+
+      {/* End-of-Month Projection Pill & Toggle */}
+      {totalMonthlyBudget > 0 && (
+        <div className="pt-2 border-t border-border/50">
+          <button
+            type="button"
+            onClick={() => setShowProjectionDetails(!showProjectionDetails)}
+            className="w-full flex items-center justify-between p-2 rounded-xl bg-secondary/40 hover:bg-secondary/70 transition-colors text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {projection.projectedStatus === 'surplus' ? (
+                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-3 h-3" />
+                </div>
+              ) : projection.projectedStatus === 'deficit' ? (
+                <div className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <TrendingDown className="w-3 h-3" />
+                </div>
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                  <Compass className="w-3 h-3" />
+                </div>
+              )}
+              <span className="text-xs font-semibold text-foreground truncate">
+                {projection.projectedStatus === 'surplus'
+                  ? `Projected Month-End: +${formatCurrency(projection.projectedSurplus, currency)} surplus`
+                  : projection.projectedStatus === 'deficit'
+                  ? `Projected Deficit: -${formatCurrency(Math.abs(projection.projectedSurplus), currency)} ${projection.expectedDeficitDate ? `around ${projection.expectedDeficitDate}` : ''}`
+                  : `Projected Month-End: On track with budget`}
+              </span>
+            </div>
+            <div className="text-muted-foreground shrink-0 pl-1">
+              {showProjectionDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </div>
+          </button>
+
+          {/* Expanded Projection Trajectory Breakdown */}
+          {showProjectionDetails && (
+            <div className="mt-2 p-2.5 rounded-xl bg-background/80 border border-border/50 text-xs space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="flex justify-between items-center text-muted-foreground">
+                <span>Current Daily Pace:</span>
+                <span className="font-semibold text-foreground">{formatCurrency(projection.avgDailyPace, currency)} / day</span>
+              </div>
+              <div className="flex justify-between items-center text-muted-foreground">
+                <span>Projected Total Spend:</span>
+                <span className="font-semibold text-foreground">{formatCurrency(projection.projectedSpend, currency)}</span>
+              </div>
+              <div className="flex justify-between items-center text-muted-foreground">
+                <span>Monthly Budget:</span>
+                <span className="font-semibold text-foreground">{formatCurrency(totalMonthlyBudget, currency)}</span>
+              </div>
+              <div className="pt-1 border-t border-border/40 flex justify-between items-center font-bold">
+                <span>Estimated Outcome:</span>
+                <span className={cn(
+                  projection.projectedSurplus >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                )}>
+                  {projection.projectedSurplus >= 0 ? "+" : ""}{formatCurrency(projection.projectedSurplus, currency)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 

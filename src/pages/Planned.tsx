@@ -4,7 +4,7 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins, Users, Share2 } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins, Users, Share2, Sparkles, X } from "lucide-react";
 import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { toast } from "sonner";
@@ -14,10 +14,17 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { calculateCashflowSummary, getBillDueStatus, getSubscriptionDueStatus, isBillPaidThisMonth, isSubscriptionPaidThisMonth } from "../lib/cashflow";
 import { SplitBillModal } from "../components/split/SplitBillModal";
 import { SplitShareSheet } from "../components/split/SplitShareSheet";
+import { detectUnplannedSubscriptions, type DetectedRecurringCandidate } from "../lib/subscriptionDetector";
 
 export default function Planned() {
   const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
+  const [dismissedCandidateIds, setDismissedCandidateIds] = useState<string[]>([]);
   const { settings, expenses, bills, subscriptions } = useExpenseStore();
+
+  const detectedCandidates = useMemo(() => {
+    return detectUnplannedSubscriptions(expenses, bills, subscriptions)
+      .filter(c => !dismissedCandidateIds.includes(c.id));
+  }, [expenses, bills, subscriptions, dismissedCandidateIds]);
 
   const cashflow = useMemo(() => {
     return calculateCashflowSummary(
@@ -25,9 +32,10 @@ export default function Planned() {
       expenses,
       bills,
       subscriptions,
-      new Date()
+      new Date(),
+      settings.salaryCycleDay || 1
     );
-  }, [settings.monthlyIncome, expenses, bills, subscriptions]);
+  }, [settings.monthlyIncome, expenses, bills, subscriptions, settings.salaryCycleDay]);
 
   const totalDeducted = cashflow.paidObligationsTotal;
   const upcomingTotal = cashflow.upcomingObligationsTotal;
@@ -89,8 +97,18 @@ export default function Planned() {
         </div>
       </div>
 
-      {activeTab === "bills" && <BillsTab />}
-      {activeTab === "subs" && <SubscriptionsTab />}
+      {activeTab === "bills" && (
+        <BillsTab 
+          detectedCandidates={detectedCandidates}
+          onDismissCandidate={(id) => setDismissedCandidateIds(prev => [...prev, id])}
+        />
+      )}
+      {activeTab === "subs" && (
+        <SubscriptionsTab 
+          detectedCandidates={detectedCandidates}
+          onDismissCandidate={(id) => setDismissedCandidateIds(prev => [...prev, id])}
+        />
+      )}
       {activeTab === "wishlist" && <WishlistTab />}
       {activeTab === "iou" && <IOUTab />}
     </div>
@@ -142,7 +160,13 @@ function SwipeablePayRow({
   );
 }
 
-function SubscriptionsTab() {
+function SubscriptionsTab({
+  detectedCandidates = [],
+  onDismissCandidate,
+}: {
+  detectedCandidates?: DetectedRecurringCandidate[];
+  onDismissCandidate?: (id: string) => void;
+}) {
   const { subscriptions, addSubscription, deleteSubscription, settings, addExpense, expenses } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -181,6 +205,74 @@ function SubscriptionsTab() {
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+      {/* Smart Recurring Subscription Suggestions */}
+      {detectedCandidates.length > 0 && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/25 space-y-2.5 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-foreground">
+                Recurring Subscriptions Detected ({detectedCandidates.length})
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                We detected regular payments. Track them as subscriptions for renewal alerts.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            {detectedCandidates.slice(0, 4).map((candidate) => (
+              <div
+                key={candidate.id}
+                className="flex items-center justify-between p-2.5 rounded-xl bg-card/90 dark:bg-card/80 border border-border/70 text-xs shadow-2xs"
+              >
+                <div className="min-w-0 flex-1 pr-2">
+                  <p className="font-semibold text-foreground truncate">{candidate.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {formatCurrency(candidate.amount, settings.currency)} • Every ~{candidate.intervalDays}d ({candidate.occurrenceCount}x)
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs px-2.5 rounded-lg bg-primary text-primary-foreground shadow-xs cursor-pointer"
+                    onClick={() => {
+                      vibrate(15);
+                      if (settings.soundEnabled) playSuccessSound();
+                      addSubscription({
+                        name: candidate.name,
+                        amount: candidate.amount,
+                        billing_cycle: "monthly",
+                        next_billing_date: candidate.estimatedNextDate,
+                        category: candidate.category || "Bills",
+                      });
+                      onDismissCandidate?.(candidate.id);
+                      toast.success(`Tracked ${candidate.name} as a subscription!`);
+                    }}
+                  >
+                    + Track
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(10);
+                      onDismissCandidate?.(candidate.id);
+                    }}
+                    className="p-1 text-muted-foreground hover:text-foreground rounded-md cursor-pointer"
+                    title="Dismiss"
+                    aria-label={`Dismiss ${candidate.name}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Subscriptions</h2>
         <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">
@@ -860,7 +952,13 @@ function IOUTab() {
     </div>
   );
 }
-function BillsTab() {
+function BillsTab({
+  detectedCandidates = [],
+  onDismissCandidate,
+}: {
+  detectedCandidates?: DetectedRecurringCandidate[];
+  onDismissCandidate?: (id: string) => void;
+}) {
   const { bills, addBill, deleteBill, updateBill, settings, addExpense, expenses } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -898,6 +996,75 @@ function BillsTab() {
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+      {/* Smart Recurring Bill Suggestions */}
+      {detectedCandidates.length > 0 && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/25 space-y-2.5 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
+              <Sparkles className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-foreground">
+                Recurring Expenses Detected ({detectedCandidates.length})
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                We noticed these regular charges. Track them as bills to get due reminders and auto-deductions.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            {detectedCandidates.slice(0, 4).map((candidate) => (
+              <div
+                key={candidate.id}
+                className="flex items-center justify-between p-2.5 rounded-xl bg-card/90 dark:bg-card/80 border border-border/70 text-xs shadow-2xs"
+              >
+                <div className="min-w-0 flex-1 pr-2">
+                  <p className="font-semibold text-foreground truncate">{candidate.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {formatCurrency(candidate.amount, settings.currency)} • Every ~{candidate.intervalDays}d ({candidate.occurrenceCount}x)
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs px-2.5 rounded-lg bg-primary text-primary-foreground shadow-xs cursor-pointer"
+                    onClick={() => {
+                      vibrate(15);
+                      if (settings.soundEnabled) playSuccessSound();
+                      const dueDay = Math.min(31, Math.max(1, new Date(candidate.estimatedNextDate).getDate() || 5));
+                      addBill({
+                        title: candidate.name,
+                        amount: candidate.amount,
+                        autoDeduct: true,
+                        category: candidate.category || "Bills",
+                        due_day: dueDay,
+                      });
+                      onDismissCandidate?.(candidate.id);
+                      toast.success(`Tracked ${candidate.name} as a planned bill!`);
+                    }}
+                  >
+                    + Track
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(10);
+                      onDismissCandidate?.(candidate.id);
+                    }}
+                    className="p-1 text-muted-foreground hover:text-foreground rounded-md cursor-pointer"
+                    title="Dismiss"
+                    aria-label={`Dismiss ${candidate.name}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Monthly Bills</h2>
         <Button size="sm" onClick={() => setIsAdding(!isAdding)} variant="outline">

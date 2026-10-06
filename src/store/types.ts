@@ -143,6 +143,7 @@ export interface Settings {
   appLockBiometrics?: boolean;
   dashboardMode?: 'focus' | 'detailed';
   dashboardWidgets?: DashboardWidgetsConfig;
+  salaryCycleDay?: number;
   isGuestMode?: boolean;
   settingsInitialized?: boolean;
   updated_at?: string;

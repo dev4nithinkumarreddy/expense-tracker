@@ -145,7 +145,8 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
           expense.category === 'Transfer' && "border-sky-500/30 bg-sky-500/5"
         )}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-1 h-5 rounded-full bg-muted-foreground/25 self-center -ml-1 shrink-0 md:hidden" aria-hidden="true" />
           <div className={cn(
             "w-10 h-10 rounded-2xl flex items-center justify-center text-sm shrink-0 shadow-xs", 
             isIncome ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold" :

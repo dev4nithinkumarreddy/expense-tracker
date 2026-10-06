@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
-import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, Sparkles, ClipboardPaste, Users } from "lucide-react";
+import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, Sparkles, ClipboardPaste, Users, Mic } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { cn, vibrate } from "../lib/utils";
 import { format, parseISO, subDays } from "date-fns";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { formatCurrency } from "../lib/formatCurrency";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { parseBankSMS } from "../lib/smsParser";
+import { useVoiceInput } from "../hooks/useVoiceInput";
 import { SplitBillModal } from "./split/SplitBillModal";
 
 const DEFAULT_CATEGORY_EMOJIS: Record<string, string> = {
@@ -207,6 +208,23 @@ export function AddExpenseModal({
       toast.error('Please allow clipboard permission to paste SMS');
     }
   };
+
+  const voice = useVoiceInput({
+    onResult: (text) => {
+      const parsed = parseNLPExpense(text, settings.categories);
+      if (parsed.amount) setAmount(String(parsed.amount));
+      if (parsed.description) setDescription(parsed.description);
+      if (parsed.category) setCategory(parsed.category);
+      if (parsed.tags.length > 0) {
+        setNotes((prev) => (prev ? `${prev} ${parsed.tags.join(' ')}` : parsed.tags.join(' ')));
+      }
+      toast.success(`Voice parsed: ${parsed.description || 'Expense'}`);
+      vibrate(15);
+    },
+    onError: (err) => {
+      toast.error(`Voice: ${err}`);
+    }
+  });
 
   const parsedAmount = parseFloat(amount);
   const isValid = !isNaN(parsedAmount) && parsedAmount > 0 && description.trim().length > 0;
@@ -522,6 +540,27 @@ export function AddExpenseModal({
                   >
                     <ClipboardPaste className="w-4 h-4 text-primary" />
                   </button>
+
+                  {/* Voice Entry Quick Button */}
+                  {voice.isSupported && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(15);
+                        voice.toggleListening();
+                      }}
+                      className={cn(
+                        "relative overflow-hidden w-9 h-9 rounded-xl border transition-all flex items-center justify-center shrink-0 cursor-pointer select-none",
+                        voice.isListening
+                          ? "bg-rose-500 text-white border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.6)] animate-pulse"
+                          : "border-border/60 hover:bg-secondary active:scale-95 text-muted-foreground hover:text-foreground bg-background/50"
+                      )}
+                      title={voice.isListening ? "Listening... tap to stop" : "Speak expense details (e.g. 'Lunch 350')"}
+                      aria-label="Voice expense entry"
+                    >
+                      <Mic className={cn("w-4 h-4", voice.isListening ? "text-white animate-bounce" : "text-primary")} />
+                    </button>
+                  )}
 
                   {/* Camera / Receipt Scan Button */}
                   <label 

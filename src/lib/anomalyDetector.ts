@@ -1,4 +1,5 @@
 import type { Expense, Subscription, Bill } from '../store/types';
+import { detectUnplannedSubscriptions } from './subscriptionDetector';
 
 export interface FinancialAnomaly {
   id: string;
@@ -128,6 +129,19 @@ export function detectAnomalies(
       }
     }
   });
+  // 5. Unplanned Recurring Expenses (Candidates for Bills/Subs)
+  const unplanned = detectUnplannedSubscriptions(expenses, bills, subscriptions);
+  if (unplanned.length > 0) {
+    const top = unplanned[0];
+    anomalies.push({
+      id: `recurring-suggest-${top.id}`,
+      type: 'ghost_subscription',
+      title: `Recurring: ${top.name}`,
+      description: `You've paid ~${top.amount} for ${top.name} ${top.occurrenceCount} times. Track it in Planned for automated due alerts!`,
+      severity: 'info',
+      amount: top.amount,
+    });
+  }
 
   return anomalies;
 }

@@ -6,13 +6,14 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, ReceiptText, ShieldCheck, Sparkles, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders, Mic } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { calculateStreak } from "../lib/streak";
 import { calculateCashflowSummary, isSubscriptionPaidThisMonth } from "../lib/cashflow";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
+import { useVoiceInput } from "../hooks/useVoiceInput";
 import { detectAnomalies } from "../lib/anomalyDetector";
 import { SafeToSpendCard } from "../components/dashboard/SafeToSpendCard";
 import { AccountsSummaryBar } from "../components/accounts/AccountsSummaryBar";
@@ -22,7 +23,6 @@ import { AnimatedNumber } from "../components/ui/AnimatedNumber";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { playSuccessSound } from "../lib/sound";
 import { toast } from "sonner";
-import { CategoryBadge } from "../components/ui/CategoryBadge";
 import { isIncomeCategory } from "../lib/categoryStyles";
 import { EmptyState } from "../components/ui/EmptyState";
 import { SectionHeader } from "../components/ui/SectionHeader";
@@ -32,6 +32,10 @@ import { CustomizeDashboardModal } from "../components/dashboard/CustomizeDashbo
 import { CloudBackupNudge } from "../components/dashboard/CloudBackupNudge";
 import { CategoryDetailModal } from "../components/CategoryDetailModal";
 import { defaultDashboardWidgets } from "../store/slices/settingsSlice";
+import { SwipeableExpenseItem } from "../components/SwipeableExpenseItem";
+import { AddExpenseModal } from "../components/AddExpenseModal";
+import { isDateInCycle } from "../lib/cycleDate";
+import type { Expense } from "../store/types";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-2">
@@ -68,6 +72,18 @@ export default function Dashboard() {
   const [dashboardSmartInput, setDashboardSmartInput] = useState("");
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
+
+  const voice = useVoiceInput({
+    onResult: (text) => {
+      setDashboardSmartInput(text);
+      toast.info(`Heard: "${text}"`, { duration: 2500 });
+    },
+    onError: (err) => {
+      toast.error(`Voice: ${err}`);
+    }
+  });
 
   const dashboardMode = settings.dashboardMode || 'detailed';
   const isFocusMode = dashboardMode === 'focus';
@@ -176,9 +192,10 @@ export default function Dashboard() {
       expenses,
       bills,
       subscriptions,
-      new Date()
+      new Date(),
+      settings.salaryCycleDay || 1
     );
-  }, [settings.monthlyIncome, expenses, bills, subscriptions]);
+  }, [settings.monthlyIncome, expenses, bills, subscriptions, settings.salaryCycleDay]);
 
   const quickAdds = settings.quickAdds || [];
 
@@ -186,7 +203,16 @@ export default function Dashboard() {
     return <DashboardSkeleton />;
   }
 
-  const currentMonthRecords = expenses.filter(e => isThisMonth(parseISO(e.date)));
+  const currentMonthRecords = expenses.filter(e => {
+    try {
+      const expDate = parseISO(e.date);
+      return (settings.salaryCycleDay || 1) === 1
+        ? isThisMonth(expDate)
+        : isDateInCycle(expDate, settings.salaryCycleDay || 1);
+    } catch {
+      return false;
+    }
+  });
   const incomeRecords = currentMonthRecords.filter(e => isIncomeCategory(e.category));
   const currentMonthExpenses = currentMonthRecords.filter(e => !isIncomeCategory(e.category) && e.category !== 'Transfer');
 
@@ -420,6 +446,25 @@ export default function Dashboard() {
                 }}
                 className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
+              {voice.isSupported && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    vibrate(15);
+                    voice.toggleListening();
+                  }}
+                  className={cn(
+                    "p-1.5 rounded-full transition-all cursor-pointer shrink-0 select-none",
+                    voice.isListening
+                      ? "bg-rose-500 text-white animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.6)]"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                  )}
+                  title={voice.isListening ? "Listening... tap to stop" : "Speak expense (e.g. 'Coffee 150')"}
+                  aria-label="Voice expense entry"
+                >
+                  <Mic className={cn("w-3.5 h-3.5", voice.isListening && "animate-bounce")} />
+                </button>
+              )}
               {dashboardSmartInput && (
                 <div className="flex items-center gap-1 shrink-0 animate-in fade-in zoom-in-95 duration-150">
                   <button
@@ -716,6 +761,8 @@ export default function Dashboard() {
                     upcomingObligations={upcomingObligations}
                     currency={settings.currency}
                     totalMonthlyBudget={settings.monthlyIncome}
+                    currentSpent={totalExpenses}
+                    salaryCycleDay={settings.salaryCycleDay || 1}
                     variant="embedded"
                   />
                 </div>
@@ -1063,63 +1110,15 @@ export default function Dashboard() {
                   />
                 ) : (
                   recentExpenses.map((expense) => (
-                    <motion.div
+                    <SwipeableExpenseItem
                       key={expense.id}
-                      whileTap={{ scale: 0.985 }}
-                      transition={{ type: "spring", stiffness: 450, damping: 26 }}
-                      className="flex justify-between items-center p-3 sm:p-3.5 bg-card/92 dark:bg-card/78 backdrop-blur-xl border border-border/80 dark:border-white/10 rounded-2xl shadow-xs hover:border-primary/35 transition-colors"
-                    >
-                      <Link to="/expenses" className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-semibold text-base shrink-0 shadow-2xs">
-                          {settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-sm leading-tight truncate text-foreground">{expense.description}</p>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-[11px] font-medium text-muted-foreground">{format(parseISO(expense.date), 'MMM d')}</span>
-                            <span className="text-muted-foreground/60">•</span>
-                            <CategoryBadge category={expense.category} size="xs" />
-                          </div>
-                        </div>
-                      </Link>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <div className="font-extrabold text-sm sm:text-base display-number text-foreground">
-                          {formatCurrency(expense.amount, settings.currency)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            vibrate(20);
-                            if (settings.soundEnabled) playSuccessSound();
-                            const defaultAccount = useExpenseStore.getState().accounts?.[0]?.id;
-                            const newId = await addExpense({
-                              amount: expense.amount,
-                              description: expense.description,
-                              category: expense.category,
-                              date: new Date().toISOString(),
-                              notes: expense.notes,
-                              account_id: expense.account_id || defaultAccount || undefined,
-                            });
-                            toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
-                              action: {
-                                label: "Undo",
-                                onClick: () => {
-                                  vibrate(15);
-                                  deleteExpense(newId);
-                                  toast.info(`Undone: ${expense.description} removed`);
-                                }
-                              }
-                            });
-                          }}
-                          className="p-1.5 rounded-full bg-secondary/60 text-muted-foreground hover:text-primary hover:bg-primary/12 active:scale-90 transition-all select-none cursor-pointer border border-border/50"
-                          title="Log again for today"
-                          aria-label={`Log ${expense.description} again for today`}
-                        >
-                          <CopyPlus className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </motion.div>
+                      expense={expense}
+                      isIncome={isIncomeCategory(expense.category)}
+                      onEdit={(item) => {
+                        setExpenseToEdit(item);
+                        setIsExpenseModalOpen(true);
+                      }}
+                    />
                   ))
                 )}
               </div>
@@ -1234,6 +1233,16 @@ export default function Dashboard() {
             categoryBudget={budgets.find(b => b.category === selectedCategoryForDrilldown && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || settings.categoryBudgets?.[selectedCategoryForDrilldown]}
           />
         )}
+
+        {/* Edit Expense Modal triggered from swipe/tap */}
+        <AddExpenseModal
+          isOpen={isExpenseModalOpen}
+          onClose={() => {
+            setIsExpenseModalOpen(false);
+            setExpenseToEdit(null);
+          }}
+          expenseToEdit={expenseToEdit}
+        />
       </div>
     </PullToRefresh>
   );

@@ -687,6 +687,38 @@ export default function Settings() {
                   />
                 </div>
               </div>
+
+              <div className="space-y-1.5 pt-2 border-t">
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium">Budget Cycle / Payday</label>
+                  <span className="text-[11px] font-semibold text-primary">
+                    {settings.salaryCycleDay && settings.salaryCycleDay > 1 
+                      ? `${settings.salaryCycleDay}th of month`
+                      : '1st (Calendar)'}
+                  </span>
+                </div>
+                <select
+                  value={settings.salaryCycleDay || 1}
+                  onChange={(e) => {
+                    vibrate(10);
+                    updateSettings({ salaryCycleDay: parseInt(e.target.value, 10) || 1 });
+                    toast.success("Budget cycle updated");
+                  }}
+                  className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                >
+                  <option value={1}>1st of Month (Standard Calendar)</option>
+                  <option value={5}>5th of Month</option>
+                  <option value={10}>10th of Month</option>
+                  <option value={15}>15th of Month</option>
+                  <option value={20}>20th of Month</option>
+                  <option value={25}>25th of Month (Common Payday)</option>
+                  <option value={28}>28th of Month</option>
+                  <option value={30}>30th of Month</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Aligns your monthly spend totals, Safe-to-Spend runway, and reports with the day your salary arrives.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -33,6 +33,7 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
     soundEnabled: false,
     dashboardMode: 'detailed',
     dashboardWidgets: { ...defaultDashboardWidgets },
+    salaryCycleDay: 1,
     isGuestMode: false,
     settingsInitialized: false,
     updated_at: undefined
