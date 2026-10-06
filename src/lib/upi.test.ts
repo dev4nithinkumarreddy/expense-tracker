@@ -6,6 +6,10 @@ import {
   generatePayWebUrl,
   calculateSplit,
   getUpiAppIntentUrl,
+  autoBalanceToSelf,
+  distributeRemainingEqually,
+  convertSharesOnModeChange,
+  type SplitCalculationParticipant,
 } from './upi';
 
 describe('UPI & Split Utilities', () => {
@@ -172,5 +176,69 @@ describe('UPI & Split Utilities', () => {
       expect(getUpiAppIntentUrl(params, 'gpay', desktopUA)).toContain('upi://pay?');
     });
   });
+
+  describe('autoBalanceToSelf', () => {
+    it('sets user share to exact remaining amount in exact mode', () => {
+      const participants = [
+        { id: 'self', name: 'You', isSelf: true, amount: 0 },
+        { id: 'p2', name: 'Rahul', isSelf: false, amount: 450 },
+        { id: 'p3', name: 'Priya', isSelf: false, amount: 200 },
+      ];
+      // Total 1000 - (450 + 200) = 350
+      const balanced = autoBalanceToSelf(1000, participants, 'exact');
+      expect(balanced.find(p => p.isSelf)?.amount).toBe(350);
+      expect(balanced.find(p => p.id === 'p2')?.amount).toBe(450);
+    });
+
+    it('sets user share to exact remaining percentage in percentage mode', () => {
+      const participants = [
+        { id: 'self', name: 'You', isSelf: true, percentage: 0 },
+        { id: 'p2', name: 'Rahul', isSelf: false, percentage: 40 },
+        { id: 'p3', name: 'Priya', isSelf: false, percentage: 25 },
+      ];
+      // 100 - (40 + 25) = 35%
+      const balanced = autoBalanceToSelf(1000, participants, 'percentage');
+      expect(balanced.find(p => p.isSelf)?.percentage).toBe(35);
+    });
+  });
+
+  describe('distributeRemainingEqually', () => {
+    it('distributes remaining exact difference equally across friends', () => {
+      const participants = [
+        { id: 'self', name: 'You', isSelf: true, amount: 400 },
+        { id: 'p2', name: 'Rahul', isSelf: false, amount: 200 },
+        { id: 'p3', name: 'Priya', isSelf: false, amount: 200 },
+      ];
+      // Total 1000. Sum so far = 800. Difference = 200. Split between 2 friends: +100 each.
+      const result = distributeRemainingEqually(1000, participants, 'exact');
+      expect(result.find(p => p.id === 'p2')?.amount).toBe(300);
+      expect(result.find(p => p.id === 'p3')?.amount).toBe(300);
+      expect(result.find(p => p.isSelf)?.amount).toBe(400);
+    });
+  });
+
+  describe('convertSharesOnModeChange', () => {
+    it('preserves calculated amounts when switching from equal to exact', () => {
+      const participants: SplitCalculationParticipant[] = [
+        { id: 'self', name: 'You', isSelf: true },
+        { id: 'p2', name: 'Rahul', isSelf: false },
+      ];
+      // Total 500 split 2 ways: 250 each
+      const converted = convertSharesOnModeChange(500, participants, 'equal', 'exact');
+      expect(converted[0].amount).toBe(250);
+      expect(converted[1].amount).toBe(250);
+    });
+
+    it('preserves calculated percentages when switching from equal to percentage', () => {
+      const participants: SplitCalculationParticipant[] = [
+        { id: 'self', name: 'You', isSelf: true },
+        { id: 'p2', name: 'Rahul', isSelf: false },
+      ];
+      const converted = convertSharesOnModeChange(500, participants, 'equal', 'percentage');
+      expect(converted[0].percentage).toBe(50);
+      expect(converted[1].percentage).toBe(50);
+    });
+  });
 });
+
 

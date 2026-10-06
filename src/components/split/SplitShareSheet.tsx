@@ -40,8 +40,6 @@ export const SplitShareSheet: React.FC<SplitShareSheetProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeQrParticipant, setActiveQrParticipant] = useState<SplitShareItem | null>(null);
 
-  if (!isOpen) return null;
-
   const handleCopyLink = (p: SplitShareItem, upiUrl: string) => {
     vibrate(15);
     navigator.clipboard.writeText(upiUrl);
@@ -121,14 +119,15 @@ export const SplitShareSheet: React.FC<SplitShareSheetProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)]">
-        <motion.div
-          initial={{ opacity: 0, y: 100 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 100 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="w-full max-w-lg bg-card border border-border/60 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] sm:max-h-[85dvh]"
-        >
+      {isOpen && (
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)]">
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="w-full max-w-lg bg-card border border-border/60 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] sm:max-h-[85dvh]"
+          >
           {/* Header */}
           <div className="px-6 py-4 border-b border-border/40 flex items-center justify-between bg-muted/20 shrink-0">
             <div>
@@ -259,7 +258,8 @@ export const SplitShareSheet: React.FC<SplitShareSheetProps> = ({
             </Button>
           </div>
         </motion.div>
-      </div>
+          </div>
+        )}
 
       {/* QR Code Modal */}
       {activeQrParticipant && payerUpiId && (

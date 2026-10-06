@@ -292,3 +292,123 @@ export function calculateSplit(
 
   return { shares, difference: diff, isBalanced };
 }
+
+/**
+ * Automatically sets the current user's ("You") share to the exact remaining unallocated balance.
+ */
+export function autoBalanceToSelf<T extends SplitCalculationParticipant>(
+  totalAmount: number,
+  participants: T[],
+  mode: SplitMode
+): T[] {
+  if (participants.length === 0 || totalAmount <= 0) return participants;
+
+  if (mode === 'exact') {
+    const othersSum = participants
+      .filter((p) => !p.isSelf)
+      .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const selfShare = Math.max(0, Number((totalAmount - othersSum).toFixed(2)));
+
+    return participants.map((p) =>
+      p.isSelf ? { ...p, amount: selfShare } : p
+    );
+  }
+
+  if (mode === 'percentage') {
+    const othersPct = participants
+      .filter((p) => !p.isSelf)
+      .reduce((acc, p) => acc + (Number(p.percentage) || 0), 0);
+    const selfPct = Math.max(0, Number((100 - othersPct).toFixed(1)));
+
+    return participants.map((p) =>
+      p.isSelf ? { ...p, percentage: selfPct } : p
+    );
+  }
+
+  return participants;
+}
+
+/**
+ * Distributes remaining unallocated difference equally across all non-self participants (or all if only 1).
+ */
+export function distributeRemainingEqually<T extends SplitCalculationParticipant>(
+  totalAmount: number,
+  participants: T[],
+  mode: SplitMode
+): T[] {
+  if (participants.length === 0 || totalAmount <= 0) return participants;
+
+  const current = calculateSplit(totalAmount, participants, mode);
+  if (current.isBalanced || current.difference <= 0) return participants;
+
+  const targets = participants.filter((p) => !p.isSelf);
+  const targetGroup = targets.length > 0 ? targets : participants;
+
+  if (mode === 'exact') {
+    const extraPerTarget = Number((current.difference / targetGroup.length).toFixed(2));
+    const targetIds = new Set(targetGroup.map((t) => t.id));
+
+    return participants.map((p) => {
+      if (targetIds.has(p.id)) {
+        const newAmt = Number(((Number(p.amount) || 0) + extraPerTarget).toFixed(2));
+        return { ...p, amount: newAmt };
+      }
+      return p;
+    });
+  }
+
+  if (mode === 'percentage') {
+    const diffPct = Number(((current.difference / totalAmount) * 100).toFixed(1));
+    const extraPctPerTarget = Number((diffPct / targetGroup.length).toFixed(1));
+    const targetIds = new Set(targetGroup.map((t) => t.id));
+
+    return participants.map((p) => {
+      if (targetIds.has(p.id)) {
+        const newPct = Number(((Number(p.percentage) || 0) + extraPctPerTarget).toFixed(1));
+        return { ...p, percentage: newPct };
+      }
+      return p;
+    });
+  }
+
+  return participants;
+}
+
+/**
+ * Seamlessly converts participant shares when switching between split modes.
+ * Prevents dropping numbers to 0 when transitioning to Exact Amounts or Percentages.
+ */
+export function convertSharesOnModeChange<T extends SplitCalculationParticipant>(
+  totalAmount: number,
+  participants: T[],
+  fromMode: SplitMode,
+  toMode: SplitMode
+): T[] {
+  if (fromMode === toMode || participants.length === 0 || totalAmount <= 0) {
+    return participants;
+  }
+
+  const { shares } = calculateSplit(totalAmount, participants, fromMode);
+  const shareMap = new Map(shares.map((s) => [s.id, s]));
+
+  return participants.map((p) => {
+    const share = shareMap.get(p.id);
+    if (!share) return p;
+
+    if (toMode === 'exact') {
+      return {
+        ...p,
+        amount: share.amount,
+      };
+    }
+
+    if (toMode === 'percentage') {
+      return {
+        ...p,
+        percentage: share.percentage,
+      };
+    }
+
+    return p;
+  });
+}

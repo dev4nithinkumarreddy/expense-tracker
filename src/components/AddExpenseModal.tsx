@@ -266,10 +266,12 @@ export function AddExpenseModal({
           notes: `${notes ? notes + ' | ' : ''}Split ${formatCurrency(parsedAmount, settings.currency)} (${totalPeople} ways)`,
         };
 
+        let expenseId: string;
         if (expenseToEdit) {
           updateExpense(expenseToEdit.id, myExpenseData);
+          expenseId = expenseToEdit.id;
         } else {
-          addExpense(myExpenseData);
+          expenseId = await addExpense(myExpenseData);
         }
 
         friendList.forEach((friend) => {
@@ -280,6 +282,7 @@ export function AddExpenseModal({
             status: 'pending',
             date: isoDate,
             notes: `Share of ${description} (${formatCurrency(parsedAmount, settings.currency)} total)`,
+            expense_id: expenseId,
           });
         });
 
@@ -856,7 +859,8 @@ export function AddExpenseModal({
       {/* Full Group Split & UPI Modal */}
       <SplitBillModal
         isOpen={isFullSplitModalOpen}
-        onClose={() => {
+        onClose={() => setIsFullSplitModalOpen(false)}
+        onSplitCompleted={() => {
           setIsFullSplitModalOpen(false);
           onClose();
         }}
@@ -864,6 +868,8 @@ export function AddExpenseModal({
         initialDescription={description}
         initialCategory={category}
         initialAccountId={selectedAccountId}
+        initialFriends={splitFriends ? splitFriends.split(',').map((f) => f.trim()).filter(Boolean) : undefined}
+        existingExpenseId={expenseToEdit?.id}
       />
     </AnimatePresence>
   );
