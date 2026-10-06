@@ -23,6 +23,7 @@ export type {
   PendingMutation,
   Bill,
   Settings,
+  DashboardWidgetsConfig,
   ExpenseState
 } from './types';
 export { defaultCategories } from './types';

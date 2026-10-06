@@ -55,10 +55,10 @@ export default defineConfig({
             ]
           },
           {
-            name: "View Today's Total",
-            short_name: 'Today',
-            description: "Check today's expenses and budget",
-            url: '/?action=today',
+            name: 'Paste SMS / Smart Parse',
+            short_name: 'Paste SMS',
+            description: 'Parse transaction SMS from clipboard',
+            url: '/?action=paste-sms',
             icons: [
               {
                 src: '/icon-192.png',
@@ -68,10 +68,23 @@ export default defineConfig({
             ]
           },
           {
-            name: 'Scan / Upload Receipt',
-            short_name: 'Scan',
-            description: 'Scan or upload a receipt to log expense',
-            url: '/?action=scan-receipt',
+            name: 'Split Bill & UPI',
+            short_name: 'Split Bill',
+            description: 'Split shared bill and generate UPI QR',
+            url: '/?action=split-bill',
+            icons: [
+              {
+                src: '/icon-192.png',
+                sizes: '192x192',
+                type: 'image/png'
+              }
+            ]
+          },
+          {
+            name: "View Today's Total",
+            short_name: 'Today',
+            description: "Check today's expenses and budget",
+            url: '/?action=today',
             icons: [
               {
                 src: '/icon-192.png',

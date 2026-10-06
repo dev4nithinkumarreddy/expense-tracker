@@ -110,6 +110,17 @@ export interface Bill {
   due_date?: string;
 }
 
+export interface DashboardWidgetsConfig {
+  safeToSpend: boolean;
+  budgetRing: boolean;
+  accountsBar: boolean;
+  categoryBudgets: boolean;
+  quickAdds: boolean;
+  weeklyTrend: boolean;
+  upcomingBills: boolean;
+  recentActivity: boolean;
+}
+
 export interface Settings {
   monthlyIncome: number;
   currency: string;
@@ -130,6 +141,9 @@ export interface Settings {
   appLockEnabled?: boolean;
   appLockPin?: string;
   appLockBiometrics?: boolean;
+  dashboardMode?: 'focus' | 'detailed';
+  dashboardWidgets?: DashboardWidgetsConfig;
+  isGuestMode?: boolean;
   settingsInitialized?: boolean;
   updated_at?: string;
 }

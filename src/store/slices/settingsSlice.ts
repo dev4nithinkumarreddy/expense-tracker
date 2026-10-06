@@ -1,6 +1,17 @@
 import type { StateCreator } from 'zustand';
 import { defaultCategories, type ExpenseState, type SettingsSlice } from '../types';
 
+export const defaultDashboardWidgets = {
+  safeToSpend: true,
+  budgetRing: true,
+  accountsBar: true,
+  categoryBudgets: true,
+  quickAdds: true,
+  weeklyTrend: true,
+  upcomingBills: true,
+  recentActivity: true,
+};
+
 export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSlice> = (set, get) => ({
   settings: {
     monthlyIncome: 45000,
@@ -20,6 +31,9 @@ export const createSettingsSlice: StateCreator<ExpenseState, [], [], SettingsSli
     userName: '',
     upiId: '',
     soundEnabled: false,
+    dashboardMode: 'detailed',
+    dashboardWidgets: { ...defaultDashboardWidgets },
+    isGuestMode: false,
     settingsInitialized: false,
     updated_at: undefined
   },

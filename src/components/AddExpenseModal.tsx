@@ -361,7 +361,7 @@ export function AddExpenseModal({
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isOpen && !isFullSplitModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4">
           {/* Backdrop Blur */}
           <motion.div

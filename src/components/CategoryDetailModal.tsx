@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Receipt, TrendingUp, TrendingDown, CopyPlus, PieChart as PieIcon, Wallet } from "lucide-react";
+import { X, Receipt, TrendingUp, TrendingDown, CopyPlus, PieChart as PieIcon, Wallet, Edit2, Check, Plus, Minus } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import type { Expense } from "../store/useExpenseStore";
+import { useState, useEffect } from "react";
+import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { formatCurrency } from "../lib/formatCurrency";
 import { Button } from "./ui/button";
 import { vibrate, cn } from "../lib/utils";
@@ -12,12 +13,14 @@ interface CategoryDetailModalProps {
   category: string;
   emoji?: string;
   monthLabel: string;
+  monthKey?: string;
   currency: string;
   expenses: Expense[];
   previousMonthSpend?: number;
   totalMonthExpenses?: number;
   categoryBudget?: number;
   onLogAgain?: (expense: Expense) => void;
+  onUpdateBudget?: (category: string, amount: number) => void;
 }
 
 export function CategoryDetailModal({
@@ -26,13 +29,46 @@ export function CategoryDetailModal({
   category,
   emoji,
   monthLabel,
+  monthKey,
   currency,
   expenses,
   previousMonthSpend,
   totalMonthExpenses,
   categoryBudget,
-  onLogAgain
+  onLogAgain,
+  onUpdateBudget
 }: CategoryDetailModalProps) {
+  const settings = useExpenseStore((state) => state.settings);
+  const updateSettings = useExpenseStore((state) => state.updateSettings);
+  const updateBudget = useExpenseStore((state) => state.updateBudget);
+
+  const [isEditingBudget, setIsEditingBudget] = useState(false);
+  const [currentLimit, setCurrentLimit] = useState(categoryBudget || 0);
+
+  useEffect(() => {
+    setCurrentLimit(categoryBudget || 0);
+  }, [categoryBudget, isOpen]);
+
+  const handleSaveBudget = (newAmount: number) => {
+    vibrate(20);
+    const validAmount = Math.max(0, newAmount);
+    setCurrentLimit(validAmount);
+    setIsEditingBudget(false);
+
+    if (onUpdateBudget) {
+      onUpdateBudget(category, validAmount);
+    } else {
+      const month = monthKey || new Date().toISOString().slice(0, 7);
+      updateBudget(category, validAmount, month);
+      updateSettings({
+        categoryBudgets: {
+          ...(settings.categoryBudgets || {}),
+          [category]: validAmount
+        }
+      });
+    }
+  };
+
   const totalCurrent = expenses.reduce((sum, e) => sum + e.amount, 0);
   const txCount = expenses.length;
   const avgTx = txCount > 0 ? Math.round(totalCurrent / txCount) : 0;
@@ -67,9 +103,10 @@ export function CategoryDetailModal({
   }
 
   // Category Budget Calculation
-  const isBudgeted = categoryBudget !== undefined && categoryBudget > 0;
-  const budgetUsedPct = isBudgeted ? Math.min(100, Math.round((totalCurrent / categoryBudget) * 100)) : 0;
-  const isOverBudget = isBudgeted && totalCurrent > categoryBudget;
+  const [tempLimit, setTempLimit] = useState<number>(categoryBudget || 0);
+  const isBudgeted = currentLimit > 0;
+  const budgetUsedPct = isBudgeted ? Math.min(100, Math.round((totalCurrent / currentLimit) * 100)) : 0;
+  const isOverBudget = isBudgeted && totalCurrent > currentLimit;
 
   return (
     <AnimatePresence>
@@ -167,29 +204,142 @@ export function CategoryDetailModal({
                 </div>
               </div>
 
-              {/* Category Budget Pacing Gauge */}
-              {isBudgeted && (
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1 text-muted-foreground">
+              {/* Category Budget Section & Inline Adjuster */}
+              <div className="space-y-2 pt-1">
+                {isEditingBudget ? (
+                  <div className="p-3 rounded-2xl bg-background/90 border border-primary/30 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Wallet className="w-3.5 h-3.5 text-primary" />
+                        <span>Set Monthly Limit for {category}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingBudget(false)}
+                        className="text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          vibrate(10);
+                          setTempLimit(prev => Math.max(0, prev - 500));
+                        }}
+                        className="h-8 w-8 rounded-lg bg-secondary hover:bg-secondary/80 flex items-center justify-center text-foreground font-bold shrink-0"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+
+                      <div className="relative flex-1">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                          {currency}
+                        </span>
+                        <input
+                          type="number"
+                          value={tempLimit || ''}
+                          onChange={(e) => setTempLimit(Math.max(0, parseInt(e.target.value) || 0))}
+                          placeholder="e.g. 5000"
+                          className="w-full h-8 pl-6 pr-2 rounded-lg bg-secondary/50 border border-border text-sm font-semibold text-foreground focus:outline-hidden focus:border-primary"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          vibrate(10);
+                          setTempLimit(prev => prev + 500);
+                        }}
+                        className="h-8 w-8 rounded-lg bg-secondary hover:bg-secondary/80 flex items-center justify-center text-foreground font-bold shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+
+                      <Button
+                        size="sm"
+                        onClick={() => handleSaveBudget(tempLimit)}
+                        className="h-8 px-3 rounded-lg bg-primary text-primary-foreground font-semibold text-xs flex items-center gap-1 shrink-0"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save</span>
+                      </Button>
+                    </div>
+
+                    {/* Quick Preset Pills */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] text-muted-foreground mr-1">Presets:</span>
+                      {[1000, 3000, 5000, 10000].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            vibrate(10);
+                            setTempLimit(preset);
+                          }}
+                          className="text-[10px] px-2 py-0.5 rounded-full bg-secondary hover:bg-primary/20 hover:text-primary transition-colors text-muted-foreground font-medium"
+                        >
+                          {formatCurrency(preset, currency)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : isBudgeted ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Wallet className="w-3.5 h-3.5" />
+                          <span>Category Budget</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            vibrate(10);
+                            setTempLimit(currentLimit);
+                            setIsEditingBudget(true);
+                          }}
+                          className="text-[11px] text-primary hover:underline flex items-center gap-0.5 font-medium ml-1"
+                        >
+                          <Edit2 className="w-3 h-3" /> Adjust
+                        </button>
+                      </div>
+                      <span className={cn("font-semibold display-number", isOverBudget ? "text-destructive" : "text-muted-foreground")}>
+                        {formatCurrency(totalCurrent, currency)} / {formatCurrency(currentLimit, currency)} ({budgetUsedPct}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                      <div 
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          isOverBudget ? "bg-destructive" : budgetUsedPct >= 80 ? "bg-amber-500" : "bg-primary"
+                        )}
+                        style={{ width: `${budgetUsedPct}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-xs p-2 rounded-xl bg-background/50 border border-dashed border-border/70">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
                       <Wallet className="w-3.5 h-3.5" />
-                      <span>Category Budget</span>
+                      <span>No monthly budget set</span>
                     </span>
-                    <span className={cn("font-semibold display-number", isOverBudget ? "text-destructive" : "text-muted-foreground")}>
-                      {formatCurrency(totalCurrent, currency)} / {formatCurrency(categoryBudget, currency)} ({budgetUsedPct}%)
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(10);
+                        setTempLimit(3000);
+                        setIsEditingBudget(true);
+                      }}
+                      className="text-primary font-semibold hover:underline flex items-center gap-1 text-xs"
+                    >
+                      <Plus className="w-3 h-3" /> Set Limit
+                    </button>
                   </div>
-                  <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full rounded-full transition-all duration-500",
-                        isOverBudget ? "bg-destructive" : budgetUsedPct >= 80 ? "bg-amber-500" : "bg-primary"
-                      )}
-                      style={{ width: `${budgetUsedPct}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Individual Transactions List */}

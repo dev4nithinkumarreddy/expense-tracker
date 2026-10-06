@@ -7,6 +7,7 @@ import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import Auth from "./pages/Auth";
 import { ReloadPrompt } from "./components/ReloadPrompt";
 import { AddExpenseModal } from "./components/AddExpenseModal";
+import { SplitBillModal } from "./components/split/SplitBillModal";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -50,6 +51,7 @@ const runSequentialSync = async () => {
 export default function App() {
   const { settings, checkMonthRollover, setSession, session, isModalOpen, setModalOpen } = useExpenseStore();
   const [loading, setLoading] = useState(true);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
@@ -164,7 +166,7 @@ export default function App() {
 
   // Intercept Web Share Target API & PWA Shortcuts
   useEffect(() => {
-    if (session) {
+    if (session || settings.isGuestMode) {
       const urlParams = new URLSearchParams(window.location.search);
       const sharedTitle = urlParams.get('title');
       const sharedText = urlParams.get('text');
@@ -185,6 +187,23 @@ export default function App() {
       } else if (action === 'add-expense') {
         window.history.replaceState({}, document.title, '/');
         setModalOpen(true);
+      } else if (action === 'paste-sms') {
+        window.history.replaceState({}, document.title, '/');
+        if (navigator.clipboard?.readText) {
+          navigator.clipboard.readText().then((clipText) => {
+            if (clipText && clipText.trim()) {
+              useExpenseStore.getState().setSharedData({ text: clipText });
+            }
+            setModalOpen(true);
+          }).catch(() => {
+            setModalOpen(true);
+          });
+        } else {
+          setModalOpen(true);
+        }
+      } else if (action === 'split-bill') {
+        window.history.replaceState({}, document.title, '/');
+        setIsSplitModalOpen(true);
       } else if (action === 'scan-receipt') {
         window.history.replaceState({}, document.title, '/');
         useExpenseStore.getState().setShouldTriggerScan(true);
@@ -202,7 +221,7 @@ export default function App() {
         }, 300);
       }
     }
-  }, [session, setModalOpen]);
+  }, [session, settings.isGuestMode, setModalOpen]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -251,7 +270,7 @@ export default function App() {
     return <LoadingScreen fullScreen message="Expense Tracker" submessage="Syncing your workspace..." />;
   }
 
-  if (!session) {
+  if (!session && !settings.isGuestMode) {
     return (
       <>
         <ReloadPrompt />
@@ -276,6 +295,10 @@ export default function App() {
             </main>
         
             <AddExpenseModal isOpen={isModalOpen} onClose={() => setModalOpen(false)} />
+            <SplitBillModal 
+              isOpen={isSplitModalOpen} 
+              onClose={() => setIsSplitModalOpen(false)} 
+            />
             <ReloadPrompt />
             <NotificationPrompt />
             <Toaster 

@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Mail, Key, Wallet, PieChart, Shield, CheckCircle2, Eye, EyeOff } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, vibrate } from '../lib/utils';
 import { toast } from 'sonner';
+import { useExpenseStore } from '../store/useExpenseStore';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -222,6 +223,31 @@ export default function Auth() {
               <Button className="w-full h-11 text-base font-medium mt-6 shadow-md" type="submit" disabled={loading}>
                 {loading ? 'Processing...' : isForgotPassword ? 'Send Reset Link' : isLogin ? 'Sign In' : 'Create Account'}
               </Button>
+
+              {!isForgotPassword && (
+                <>
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-border/60" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground font-medium">Or</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      vibrate(15);
+                      useExpenseStore.getState().updateSettings({ isGuestMode: true });
+                    }}
+                    className="w-full h-11 text-sm font-medium border-border/80 hover:bg-secondary/60 text-foreground rounded-xl"
+                  >
+                    Continue as Guest (Offline Mode)
+                  </Button>
+                </>
+              )}
 
               {isForgotPassword && (
                 <div className="text-center mt-4">

@@ -6,7 +6,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles, AlertTriangle, Zap, BarChart3, Target, CalendarClock } from "lucide-react";
+import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, CopyPlus, ReceiptText, ShieldCheck, Sparkles, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -28,6 +28,10 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { checkIsAdmin } from "../lib/admin";
 import { SyncStatusBadge } from "../components/ui/SyncStatusBadge";
+import { CustomizeDashboardModal } from "../components/dashboard/CustomizeDashboardModal";
+import { CloudBackupNudge } from "../components/dashboard/CloudBackupNudge";
+import { CategoryDetailModal } from "../components/CategoryDetailModal";
+import { defaultDashboardWidgets } from "../store/slices/settingsSlice";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-2">
@@ -62,6 +66,23 @@ export default function Dashboard() {
   const [dismissedAnomalyId, setDismissedAnomalyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [dashboardSmartInput, setDashboardSmartInput] = useState("");
+  const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
+  const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
+
+  const dashboardMode = settings.dashboardMode || 'detailed';
+  const isFocusMode = dashboardMode === 'focus';
+  const currentWidgets = {
+    ...defaultDashboardWidgets,
+    ...(settings.dashboardWidgets || {})
+  };
+
+  const shouldShowWidget = (widgetId: keyof typeof defaultDashboardWidgets) => {
+    if (currentWidgets[widgetId] === false) return false;
+    if (isFocusMode) {
+      return widgetId === 'safeToSpend' || widgetId === 'budgetRing' || widgetId === 'quickAdds' || widgetId === 'recentActivity';
+    }
+    return currentWidgets[widgetId] ?? true;
+  };
 
   const handleDashboardSmartSubmit = async () => {
     if (!dashboardSmartInput.trim()) return;
@@ -284,6 +305,42 @@ export default function Dashboard() {
                   {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </p>
                 <SyncStatusBadge />
+
+                {/* Focus vs Detailed Mode Switcher */}
+                <div className="inline-flex items-center p-0.5 rounded-full bg-secondary/80 border border-border/60">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(12);
+                      updateSettings({ dashboardMode: 'focus' });
+                    }}
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer",
+                      isFocusMode
+                        ? "bg-card text-foreground shadow-2xs" 
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Zap className="w-3 h-3 text-amber-500" />
+                    <span>Focus</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(12);
+                      updateSettings({ dashboardMode: 'detailed' });
+                    }}
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer",
+                      !isFocusMode
+                        ? "bg-card text-foreground shadow-2xs" 
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <BarChart3 className="w-3 h-3 text-primary" />
+                    <span>Detailed</span>
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -299,6 +356,18 @@ export default function Dashboard() {
                   </span>
                 </div>
               ) : null}
+
+              <button 
+                onClick={() => {
+                  vibrate(15);
+                  setIsCustomizeModalOpen(true);
+                }}
+                aria-label="Customize Dashboard"
+                title="Customize Dashboard"
+                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
+              >
+                <Sliders className="w-4 h-4" />
+              </button>
 
               <button 
                 onClick={() => {
@@ -380,6 +449,18 @@ export default function Dashboard() {
                   <span>{currentStreak} Day Streak</span>
                 </div>
               ) : null}
+
+              <button 
+                onClick={() => {
+                  vibrate(15);
+                  setIsCustomizeModalOpen(true);
+                }}
+                aria-label="Customize Dashboard"
+                title="Customize Dashboard"
+                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-card hover:bg-secondary rounded-full shadow-xs border border-border/80 select-none cursor-pointer"
+              >
+                <Sliders className="w-4 h-4" />
+              </button>
 
               <button 
                 onClick={() => {
@@ -519,14 +600,18 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
+        {/* Cloud Sync Nudge for Guest Mode users */}
+        <CloudBackupNudge onSignInClick={() => updateSettings({ isGuestMode: false })} />
+
         {/* Main 12-Column Desktop Bento Grid (Preserves exact mobile stack order via contents + order-*) */}
         <div className="flex flex-col gap-5 sm:gap-6 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
           {/* Left Primary Bento Column (7/12 on Laptop) */}
           <div className="contents lg:flex lg:flex-col lg:col-span-7 lg:gap-6">
             {/* 1. Main Stats Card with Integrated Daily Safe-to-Spend Runway */}
-            <Card className={cn(
-              "order-1 lg:order-none border shadow-xl overflow-hidden relative rounded-3xl backdrop-blur-2xl transition-all duration-500",
-              "border-t border-white/40 dark:border-white/20",
+            {(shouldShowWidget('safeToSpend') || shouldShowWidget('budgetRing')) && (
+              <Card className={cn(
+                "order-1 lg:order-none border shadow-xl overflow-hidden relative rounded-3xl backdrop-blur-2xl transition-all duration-500",
+                "border-t border-white/40 dark:border-white/20",
               isOverBudget 
                 ? "bg-destructive/10 border-destructive/25 shadow-destructive/10" 
                 : "bg-card/85 dark:bg-card/65 border-white/20 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.4)]"
@@ -636,13 +721,17 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
+          )}
 
-            {/* 2. Multi-Account & Net-Worth Summary */}
+          {/* 2. Multi-Account & Net-Worth Summary */}
+          {shouldShowWidget('accountsBar') && (
             <div className="order-2 lg:order-none">
               <AccountsSummaryBar />
             </div>
+          )}
 
-            {/* 4. Category Budgets */}
+          {/* 4. Category Budgets */}
+          {shouldShowWidget('categoryBudgets') && (
             <Card className="order-4 lg:order-none rounded-3xl border border-border/80 dark:border-white/10 bg-card/92 dark:bg-card/78 backdrop-blur-2xl shadow-xs overflow-hidden">
               <CardContent className="p-4 sm:p-5 space-y-4">
                 <SectionHeader
@@ -655,8 +744,19 @@ export default function Dashboard() {
                 />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
                   {budgets.filter(b => b.month === new Date().toISOString().slice(0, 7) && settings.categories.includes(b.category)).length === 0 ? (
-                    <div className="lg:col-span-2 text-center py-6 text-sm text-muted-foreground border border-dashed border-border rounded-2xl bg-secondary/30">
-                      No budgets set for this month. Head over to <Link to="/settings" className="font-semibold text-primary underline">Settings</Link> to create limits!
+                    <div className="lg:col-span-2 text-center py-6 text-sm text-muted-foreground border border-dashed border-border rounded-2xl bg-secondary/30 flex flex-col items-center justify-center gap-2">
+                      <p>No budgets set for this month.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          vibrate(12);
+                          setSelectedCategoryForDrilldown(settings.categories[0] || 'Food');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        <Target className="w-3.5 h-3.5" />
+                        <span>+ Set a Category Budget</span>
+                      </button>
                     </div>
                   ) : (
                     budgets
@@ -670,13 +770,20 @@ export default function Dashboard() {
                       const isDanger = percentage >= 100;
 
                       return (
-                        <div key={budget.id || `${cat}-${budget.month}`} className="space-y-1.5 lg:p-3 lg:rounded-2xl lg:bg-secondary/30 lg:border lg:border-border/50">
+                        <div 
+                          key={budget.id || `${cat}-${budget.month}`} 
+                          onClick={() => {
+                            vibrate(12);
+                            setSelectedCategoryForDrilldown(cat);
+                          }}
+                          className="space-y-1.5 p-2.5 sm:p-3 rounded-2xl bg-secondary/30 hover:bg-secondary/60 border border-border/50 transition-colors cursor-pointer select-none group"
+                        >
                           <div className="flex justify-between items-center text-xs sm:text-sm gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-6 h-6 rounded-lg bg-secondary flex items-center justify-center text-sm shrink-0">
                                 {settings.categoryEmojis?.[cat] || '🏷️'}
                               </span>
-                              <span className="font-semibold text-foreground truncate">{cat}</span>
+                              <span className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">{cat}</span>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground text-xs display-number">
                               <span className="font-semibold text-foreground">{formatCurrency(spent, settings.currency)}</span>
@@ -710,10 +817,11 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
+          )}
 
-            {/* 5. Quick Add */}
-            {quickAdds.length > 0 && (
-              <div className="order-5 lg:order-none space-y-2.5">
+          {/* 5. Quick Add */}
+          {shouldShowWidget('quickAdds') && quickAdds.length > 0 && (
+            <div className="order-5 lg:order-none space-y-2.5">
                 <SectionHeader
                   icon={<Sparkles className="w-4 h-4" />}
                   title="1-Tap Quick Add"
@@ -767,7 +875,8 @@ export default function Dashboard() {
           {/* Right Secondary Bento Column (5/12 on Laptop) */}
           <div className="contents lg:flex lg:flex-col lg:col-span-5 lg:gap-6">
             {/* 3. Daily Spending & Contextual Intelligence (Today & This Week) */}
-            <div className="order-3 lg:order-none grid grid-cols-2 gap-3 sm:gap-4">
+            {shouldShowWidget('weeklyTrend') && (
+              <div className="order-3 lg:order-none grid grid-cols-2 gap-3 sm:gap-4">
               {/* Today Card */}
               <Card className="rounded-3xl border border-border/80 dark:border-white/10 bg-card/92 dark:bg-card/78 backdrop-blur-2xl shadow-xs overflow-hidden">
                 <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2.5">
@@ -902,10 +1011,11 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+          )}
 
-            {/* 6. Upcoming Bills */}
-            {bills.length > 0 && (
-              <div className="order-6 lg:order-none space-y-2.5">
+          {/* 6. Upcoming Bills */}
+          {shouldShowWidget('upcomingBills') && bills.length > 0 && (
+            <div className="order-6 lg:order-none space-y-2.5">
                 <SectionHeader
                   icon={<CalendarClock className="w-4 h-4" />}
                   title="Upcoming Bills"
@@ -931,7 +1041,8 @@ export default function Dashboard() {
             )}
 
             {/* 7. Recent Expenses */}
-            <div className="order-7 lg:order-none space-y-2.5">
+            {shouldShowWidget('recentActivity') && (
+              <div className="order-7 lg:order-none space-y-2.5">
               <SectionHeader
                 icon={<ReceiptText className="w-4 h-4" />}
                 title="Recent Activity"
@@ -1013,6 +1124,7 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+          )}
           </div>
         </div>
 
@@ -1101,6 +1213,27 @@ export default function Dashboard() {
             </div>
           )}
         </AnimatePresence>
+
+        {/* Customize Dashboard Modal */}
+        <CustomizeDashboardModal
+          isOpen={isCustomizeModalOpen}
+          onClose={() => setIsCustomizeModalOpen(false)}
+        />
+
+        {/* Contextual Category Drilldown Sheet */}
+        {selectedCategoryForDrilldown && (
+          <CategoryDetailModal
+            isOpen={Boolean(selectedCategoryForDrilldown)}
+            onClose={() => setSelectedCategoryForDrilldown(null)}
+            category={selectedCategoryForDrilldown}
+            emoji={settings.categoryEmojis?.[selectedCategoryForDrilldown]}
+            monthLabel={new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            monthKey={new Date().toISOString().slice(0, 7)}
+            currency={settings.currency}
+            expenses={currentMonthExpenses.filter(e => e.category === selectedCategoryForDrilldown)}
+            categoryBudget={budgets.find(b => b.category === selectedCategoryForDrilldown && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || settings.categoryBudgets?.[selectedCategoryForDrilldown]}
+          />
+        )}
       </div>
     </PullToRefresh>
   );
