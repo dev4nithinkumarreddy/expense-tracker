@@ -69,6 +69,10 @@ export function AddExpenseModal({
   const [splitFriends, setSplitFriends] = useState("");
   const [isFullSplitModalOpen, setIsFullSplitModalOpen] = useState(false);
 
+  // Transition-guarded initialization: prevents store updates/sync from wiping form state while modal is open
+  const prevIsOpenRef = useRef(false);
+  const prevExpenseToEditIdRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
     if (isOpen && shouldTriggerScan) {
       const timer = setTimeout(() => {
@@ -80,7 +84,10 @@ export function AddExpenseModal({
   }, [isOpen, shouldTriggerScan, setShouldTriggerScan]);
 
   useEffect(() => {
-    if (isOpen) {
+    const isOpening = isOpen && !prevIsOpenRef.current;
+    const isEditTargetChanged = isOpen && expenseToEdit?.id !== prevExpenseToEditIdRef.current;
+
+    if (isOpening || isEditTargetChanged) {
       if (expenseToEdit) {
         setAmount(String(expenseToEdit.amount));
         setDescription(expenseToEdit.description);
@@ -109,9 +116,14 @@ export function AddExpenseModal({
         setReceiptFile(null);
         setRecurrence('none');
         setSelectedAccountId(accounts[0]?.id);
+        setIsSplitting(false);
+        setSplitFriends("");
       }
     }
-  }, [isOpen, expenseToEdit, settings.categories, accounts]);
+
+    prevIsOpenRef.current = isOpen;
+    prevExpenseToEditIdRef.current = expenseToEdit?.id;
+  }, [isOpen, expenseToEdit]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -200,114 +212,133 @@ export function AddExpenseModal({
   const isValid = !isNaN(parsedAmount) && parsedAmount > 0 && description.trim().length > 0;
 
   const handleSave = async () => {
-    if (!isValid) return;
+    if (!isValid || uploading) return;
     vibrate(20);
     setUploading(true);
 
-    let receipt_url = expenseToEdit?.receipt_url;
+    try {
+      let receipt_url = expenseToEdit?.receipt_url;
 
-    if (receiptFile) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const fileExt = receiptFile.name.split('.').pop();
-        const fileName = `${session.user.id}/${crypto.randomUUID()}.${fileExt}`;
-        
-        const { error } = await supabase.storage
-          .from('receipts')
-          .upload(fileName, receiptFile);
+      if (receiptFile) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const fileExt = receiptFile.name.split('.').pop();
+          const fileName = `${session.user.id}/${crypto.randomUUID()}.${fileExt}`;
           
-        if (!error) {
-          const { data } = supabase.storage.from('receipts').getPublicUrl(fileName);
-          receipt_url = data.publicUrl;
+          const { error } = await supabase.storage
+            .from('receipts')
+            .upload(fileName, receiptFile);
+            
+          if (!error) {
+            const { data } = supabase.storage.from('receipts').getPublicUrl(fileName);
+            receipt_url = data.publicUrl;
+          }
         }
       }
-    }
-    
-    const calculateNextOccurrence = (startDate: Date, rec: string) => {
-      const nextDate = new Date(startDate);
-      if (rec === 'daily') nextDate.setDate(nextDate.getDate() + 1);
-      else if (rec === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
-      else if (rec === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
-      return nextDate;
-    };
+      
+      const calculateNextOccurrence = (startDate: Date, rec: string) => {
+        const nextDate = new Date(startDate);
+        if (rec === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+        else if (rec === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+        else if (rec === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+        return nextDate;
+      };
 
-    const isDateToday = date === format(new Date(), 'yyyy-MM-dd');
-    let isoDate: string;
-    if (expenseToEdit && format(parseISO(expenseToEdit.date), 'yyyy-MM-dd') === date) {
-      isoDate = expenseToEdit.date;
-    } else {
-      const now = new Date();
-      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
-      isoDate = isDateToday ? now.toISOString() : new Date(`${date}T${timeStr}`).toISOString();
-    }
-
-    const expenseData = {
-      amount: parsedAmount,
-      description: description.trim(),
-      category,
-      date: isoDate,
-      notes: notes.trim(),
-      receipt_url,
-      recurrence,
-      next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null,
-      account_id: selectedAccountId || null,
-    };
-
-    if (isSplitting && splitFriends.trim()) {
-      const friendList = splitFriends.split(',').map((f) => f.trim()).filter(Boolean);
-      if (friendList.length > 0) {
-        const totalPeople = friendList.length + 1;
-        const myShare = Math.round((parsedAmount / totalPeople) * 100) / 100;
-        const friendShare = Math.round((parsedAmount / totalPeople) * 100) / 100;
-
-        const myExpenseData = {
-          ...expenseData,
-          amount: myShare,
-          notes: `${notes ? notes + ' | ' : ''}Split ${formatCurrency(parsedAmount, settings.currency)} (${totalPeople} ways)`,
-        };
-
-        let expenseId: string;
-        if (expenseToEdit) {
-          updateExpense(expenseToEdit.id, myExpenseData);
-          expenseId = expenseToEdit.id;
-        } else {
-          expenseId = await addExpense(myExpenseData);
+      const isDateToday = date === format(new Date(), 'yyyy-MM-dd');
+      let isoDate: string;
+      if (expenseToEdit && format(parseISO(expenseToEdit.date), 'yyyy-MM-dd') === date) {
+        isoDate = expenseToEdit.date;
+      } else if (isDateToday) {
+        isoDate = new Date().toISOString();
+      } else {
+        try {
+          const parts = date.split('-').map(Number);
+          const now = new Date();
+          const customDate = new Date(parts[0], parts[1] - 1, parts[2], now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+          isoDate = isNaN(customDate.getTime()) ? new Date().toISOString() : customDate.toISOString();
+        } catch {
+          isoDate = new Date().toISOString();
         }
+      }
 
-        friendList.forEach((friend) => {
-          addDebt({
-            person_name: friend,
-            amount: friendShare,
-            type: 'lent',
-            status: 'pending',
-            date: isoDate,
-            notes: `Share of ${description} (${formatCurrency(parsedAmount, settings.currency)} total)`,
-            expense_id: expenseId,
+      const effectiveAccountId = selectedAccountId || accounts[0]?.id || null;
+
+      const expenseData = {
+        amount: parsedAmount,
+        description: description.trim(),
+        category,
+        date: isoDate,
+        notes: notes.trim(),
+        receipt_url,
+        recurrence,
+        next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null,
+        account_id: effectiveAccountId,
+      };
+
+      if (isSplitting && splitFriends.trim()) {
+        const friendList = splitFriends.split(',').map((f) => f.trim()).filter(Boolean);
+        if (friendList.length > 0) {
+          const totalPeople = friendList.length + 1;
+          const myShare = Math.round((parsedAmount / totalPeople) * 100) / 100;
+          const friendShare = Math.round((parsedAmount / totalPeople) * 100) / 100;
+
+          const myExpenseData = {
+            ...expenseData,
+            amount: myShare,
+            notes: `${notes ? notes + ' | ' : ''}Split ${formatCurrency(parsedAmount, settings.currency)} (${totalPeople} ways)`,
+          };
+
+          let expenseId: string;
+          if (expenseToEdit) {
+            updateExpense(expenseToEdit.id, myExpenseData);
+            expenseId = expenseToEdit.id;
+          } else {
+            expenseId = await addExpense(myExpenseData);
+          }
+
+          friendList.forEach((friend) => {
+            addDebt({
+              person_name: friend,
+              amount: friendShare,
+              type: 'lent',
+              status: 'pending',
+              date: isoDate,
+              notes: `Share of ${description} (${formatCurrency(parsedAmount, settings.currency)} total)`,
+              expense_id: expenseId,
+            });
           });
-        });
 
-        toast.success(`Logged your share (${formatCurrency(myShare, settings.currency)}) & created ${friendList.length} IOU${friendList.length > 1 ? 's' : ''}!`);
+          toast.success(`Logged your share (${formatCurrency(myShare, settings.currency)}) & created ${friendList.length} IOU${friendList.length > 1 ? 's' : ''}!`);
+        } else {
+          if (expenseToEdit) {
+            updateExpense(expenseToEdit.id, expenseData);
+            toast.success('Expense updated successfully');
+          } else {
+            await addExpense(expenseData);
+            toast.success('Expense logged successfully');
+          }
+        }
       } else {
         if (expenseToEdit) {
           updateExpense(expenseToEdit.id, expenseData);
+          toast.success('Expense updated successfully');
         } else {
-          addExpense(expenseData);
+          await addExpense(expenseData);
+          toast.success('Expense logged successfully');
         }
       }
-    } else {
-      if (expenseToEdit) {
-        updateExpense(expenseToEdit.id, expenseData);
-      } else {
-        addExpense(expenseData);
+
+      if (settings.soundEnabled) {
+        playSuccessSound();
       }
-    }
 
-    if (settings.soundEnabled) {
-      playSuccessSound();
+      onClose();
+    } catch (err) {
+      console.error('Failed to save expense:', err);
+      toast.error('Failed to save expense. Please try again.');
+    } finally {
+      setUploading(false);
     }
-
-    setUploading(false);
-    onClose();
   };
 
   const isTodayDate = date === format(new Date(), 'yyyy-MM-dd');
@@ -553,15 +584,15 @@ export function AddExpenseModal({
                   <div className="p-3 px-3.5 space-y-2 border-t border-border/25">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
-                      {selectedAccountId && (
+                      {(selectedAccountId || accounts[0]?.id) && (
                         <span className="text-[11px] font-medium text-primary">
-                          {accounts.find(a => a.id === selectedAccountId)?.name}
+                          {accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.name}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
                       {accounts.filter((acc) => acc.type !== 'credit_card').map((acc) => {
-                        const isSelected = selectedAccountId === acc.id;
+                        const isSelected = (selectedAccountId || accounts[0]?.id) === acc.id;
                         return (
                           <button
                             key={acc.id}

@@ -15,13 +15,14 @@ export function applyExpenseToAccounts(
 
   if (expense.category === 'Transfer' && expense.account_id && expense.transfer_account_id) {
     return accounts.map((acc) => {
+      const currentBalance = Number(acc.balance) || 0;
       if (acc.id === expense.account_id) {
         const delta = acc.type === 'credit_card' ? expense.amount : -expense.amount;
-        return { ...acc, balance: acc.balance + delta * direction };
+        return { ...acc, balance: currentBalance + delta * direction };
       }
       if (acc.id === expense.transfer_account_id) {
         const delta = acc.type === 'credit_card' ? -expense.amount : expense.amount;
-        return { ...acc, balance: acc.balance + delta * direction };
+        return { ...acc, balance: currentBalance + delta * direction };
       }
       return acc;
     });
@@ -31,12 +32,13 @@ export function applyExpenseToAccounts(
     const isIncome = isIncomeCategory(expense.category);
     return accounts.map((acc) => {
       if (acc.id === expense.account_id) {
+        const currentBalance = Number(acc.balance) || 0;
         if (acc.type === 'credit_card') {
           const delta = isIncome ? -expense.amount : expense.amount;
-          return { ...acc, balance: acc.balance + delta * direction };
+          return { ...acc, balance: currentBalance + delta * direction };
         } else {
           const delta = isIncome ? expense.amount : -expense.amount;
-          return { ...acc, balance: acc.balance + delta * direction };
+          return { ...acc, balance: currentBalance + delta * direction };
         }
       }
       return acc;
