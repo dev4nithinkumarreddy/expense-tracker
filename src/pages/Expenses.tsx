@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2, Calendar, Zap, Settings } from "lucide-react";
+import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2, Calendar, Zap, Settings, Printer, X } from "lucide-react";
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth, isThisWeek } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
 import { RecentlyDeletedModal } from '../components/RecentlyDeletedModal';
+import { PrintableStatementModal } from '../components/analytics/PrintableStatementModal';
 import { Button } from "../components/ui/button";
 import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
@@ -32,6 +33,7 @@ export default function Expenses() {
   const [showAmountFilters, setShowAmountFilters] = useState(false);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [activeReceipt, setActiveReceipt] = useState<{ url: string; title?: string; amount?: number } | null>(null);
+  const [isStatementOpen, setIsStatementOpen] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
@@ -212,8 +214,23 @@ export default function Expenses() {
               </span>
             )}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              vibrate(10);
+              setIsStatementOpen(true);
+            }}
+            className="gap-1.5 rounded-full cursor-pointer"
+            title="Generate Printable Statement / PDF"
+          >
+            <Printer className="w-4 h-4 text-primary" />
+            <span className="hidden sm:inline">Statement</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2 rounded-full cursor-pointer">
-            <Download className="w-4 h-4" /> Export CSV
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">CSV</span>
           </Button>
           <Link
             to="/settings"
@@ -413,12 +430,35 @@ export default function Expenses() {
         <div className="lg:col-span-8">
           <PullToRefresh onRefresh={fetchCloudData}>
             {/* Filtered Count & Spend Summary Pill */}
-            <div className="flex items-center justify-between px-3.5 py-2 mb-3 rounded-2xl bg-card/80 border border-border/70 backdrop-blur-md text-xs shadow-2xs">
-              <span className="font-semibold text-foreground">
-                {filteredExpenses.length} {filteredExpenses.length === 1 ? 'expense' : 'expenses'}
-                {selectedCategory ? ` • ${selectedCategory}` : ''}
-              </span>
-              <span className="font-black text-foreground display-number">
+            <div className="flex items-center justify-between px-3.5 py-2 mb-3 rounded-2xl bg-card/80 border border-border/70 backdrop-blur-md text-xs shadow-2xs gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-foreground">
+                  {filteredExpenses.length} {filteredExpenses.length === 1 ? 'expense' : 'expenses'}
+                  {selectedCategory ? ` • ${selectedCategory}` : ''}
+                </span>
+
+                {(searchTerm || selectedCategory || minAmount || maxAmount || quickFilter !== 'all' || dateFilter !== 'this_month') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(10);
+                      setSearchTerm("");
+                      setSelectedCategory(null);
+                      setDateFilter("this_month");
+                      setMinAmount("");
+                      setMaxAmount("");
+                      setQuickFilter("all");
+                      toast.info("Filters cleared");
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold border border-primary/25 cursor-pointer transition-colors"
+                    title="Reset all active filters"
+                  >
+                    <span>Clear Filters</span>
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+              <span className="font-black text-foreground display-number shrink-0">
                 Total: {formatCurrency(filteredTotal, settings.currency)}
               </span>
             </div>
@@ -494,6 +534,11 @@ export default function Expenses() {
       <RecentlyDeletedModal
         isOpen={isRecentlyDeletedOpen}
         onClose={() => setIsRecentlyDeletedOpen(false)}
+      />
+
+      <PrintableStatementModal
+        isOpen={isStatementOpen}
+        onClose={() => setIsStatementOpen(false)}
       />
     </div>
   );

@@ -20,7 +20,7 @@ import { detectUnplannedSubscriptions, type DetectedRecurringCandidate } from ".
 export default function Planned() {
   const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
   const [dismissedCandidateIds, setDismissedCandidateIds] = useState<string[]>([]);
-  const { settings, expenses, bills, subscriptions } = useExpenseStore();
+  const { settings, expenses, bills = [], subscriptions = [], wishlistItems = [], debts = [] } = useExpenseStore();
 
   const detectedCandidates = useMemo(() => {
     return detectUnplannedSubscriptions(expenses, bills, subscriptions)
@@ -79,10 +79,10 @@ export default function Planned() {
           <div className="flex-1 lg:w-[420px]">
             <SegmentedControl
               options={[
-                { label: "Bills", value: "bills" },
-                { label: "Subs", value: "subs" },
-                { label: "Wishlist", value: "wishlist" },
-                { label: "IOUs", value: "iou" }
+                { label: `Bills (${bills.length})`, value: "bills" },
+                { label: `Subs (${subscriptions.length})`, value: "subs" },
+                { label: `Wishlist (${wishlistItems.filter(i => !i.is_purchased).length})`, value: "wishlist" },
+                { label: `IOUs (${debts.filter(d => d.status === "pending").length})`, value: "iou" }
               ]}
               value={activeTab}
               onChange={(val) => setActiveTab(val as any)}
