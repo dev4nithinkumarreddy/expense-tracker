@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2, Calendar, Zap } from "lucide-react";
+import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2, Calendar, Zap, Settings } from "lucide-react";
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth, isThisWeek } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
@@ -211,9 +212,18 @@ export default function Expenses() {
               </span>
             )}
           </Button>
-          <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2 rounded-full">
+          <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-2 rounded-full cursor-pointer">
             <Download className="w-4 h-4" /> Export CSV
           </Button>
+          <Link
+            to="/settings"
+            onClick={() => vibrate(15)}
+            aria-label="Settings"
+            title="Settings"
+            className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
+          >
+            <Settings className="w-4 h-4" />
+          </Link>
         </div>
       </div>
 

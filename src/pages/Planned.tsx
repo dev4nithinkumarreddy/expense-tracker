@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { motion, useMotionValue, useTransform } from "framer-motion";
 import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins, Users, Share2, Sparkles, X } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins, Users, Share2, Sparkles, X, Settings } from "lucide-react";
 import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { toast } from "sonner";
@@ -59,22 +60,44 @@ export default function Planned() {
   return (
     <div className="space-y-6 pb-24">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Planned</h1>
-          <p className="text-muted-foreground text-sm">Bills, Subscriptions, Wishlist & IOUs</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Planned</h1>
+            <p className="text-muted-foreground text-sm">Bills, Subscriptions, Wishlist & IOUs</p>
+          </div>
+          <Link
+            to="/settings"
+            onClick={() => vibrate(15)}
+            aria-label="Settings"
+            title="Settings"
+            className="lg:hidden w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
+          >
+            <Settings className="w-4 h-4" />
+          </Link>
         </div>
-        <div className="w-full lg:w-[420px]">
-          <SegmentedControl
-            options={[
-              { label: "Bills", value: "bills" },
-              { label: "Subs", value: "subs" },
-              { label: "Wishlist", value: "wishlist" },
-              { label: "IOUs", value: "iou" }
-            ]}
-            value={activeTab}
-            onChange={(val) => setActiveTab(val as any)}
-            className="w-full"
-          />
+        <div className="flex items-center gap-2 w-full lg:w-auto">
+          <div className="flex-1 lg:w-[420px]">
+            <SegmentedControl
+              options={[
+                { label: "Bills", value: "bills" },
+                { label: "Subs", value: "subs" },
+                { label: "Wishlist", value: "wishlist" },
+                { label: "IOUs", value: "iou" }
+              ]}
+              value={activeTab}
+              onChange={(val) => setActiveTab(val as any)}
+              className="w-full"
+            />
+          </div>
+          <Link
+            to="/settings"
+            onClick={() => vibrate(15)}
+            aria-label="Settings"
+            title="Settings"
+            className="hidden lg:flex w-9 h-9 items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-card hover:bg-secondary rounded-full shadow-xs border border-border/80 select-none cursor-pointer shrink-0"
+          >
+            <Settings className="w-4 h-4" />
+          </Link>
         </div>
       </header>
 
@@ -1021,10 +1044,10 @@ function BillsTab({
             </div>
             <div>
               <h3 className="text-xs font-bold text-foreground">
-                Recurring Expenses Detected ({detectedCandidates.length})
+                Recurring Bills Detected ({detectedCandidates.length})
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                We noticed these regular charges. Track them as bills to get due reminders and auto-deductions.
+                We noticed these regular utility payments. Track them as bills to get due reminders and auto-deductions.
               </p>
             </div>
           </div>

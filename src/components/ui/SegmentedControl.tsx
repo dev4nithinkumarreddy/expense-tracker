@@ -51,7 +51,7 @@ export function SegmentedControl<T extends string>({
               }
             }}
             className={cn(
-              "flex-1 relative flex items-center justify-center gap-1.5 py-1.5 px-3 text-xs sm:text-sm font-semibold rounded-xl transition-colors duration-200 z-10",
+              "flex-1 relative flex items-center justify-center gap-1 sm:gap-1.5 py-1.5 px-1.5 sm:px-3 text-[11px] xs:text-xs sm:text-sm font-semibold rounded-xl transition-colors duration-200 z-10 cursor-pointer",
               isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -66,7 +66,7 @@ export function SegmentedControl<T extends string>({
                 className="absolute inset-0 bg-background rounded-xl shadow-xs border border-border/60 z-[-1]"
               />
             )}
-            {Icon && (React.isValidElement(Icon) ? Icon : typeof Icon === 'function' ? <Icon className="w-4 h-4 shrink-0" /> : null)}
+            {Icon && (React.isValidElement(Icon) ? Icon : typeof Icon === 'function' ? <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> : null)}
             <span className="truncate">{option.label}</span>
           </button>
         );

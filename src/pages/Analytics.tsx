@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { format, subMonths, addMonths } from 'date-fns';
 import { 
   ChevronLeft, 
@@ -8,7 +9,8 @@ import {
   ChevronUp,
   PieChart as PieIcon,
   BarChart3,
-  Printer
+  Printer,
+  Settings
 } from 'lucide-react';
 import { useExpenseStore, type Expense } from '../store/useExpenseStore';
 import { Card } from '../components/ui/card';
@@ -119,6 +121,16 @@ export default function Analytics() {
               onChange={(val) => setViewMode(val as 'monthly' | 'trends')}
               className="text-xs"
             />
+
+            <Link
+              to="/settings"
+              onClick={() => vibrate(15)}
+              aria-label="Settings"
+              title="Settings"
+              className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-card/60 backdrop-blur-md rounded-xl shadow-2xs border border-border/50 select-none cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </Link>
           </div>
         </div>
 
