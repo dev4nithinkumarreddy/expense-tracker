@@ -105,7 +105,12 @@ export default function Expenses() {
       } else if (quickFilter === 'high_spend') {
         matchesQuick = e.amount >= 1000;
       } else if (quickFilter === 'recurring') {
-        matchesQuick = !!((e as any).is_recurring || e.category === 'Bills' || (e.notes && e.notes.toLowerCase().includes('sub')));
+        matchesQuick = Boolean(
+          (e.recurrence && e.recurrence !== 'none') ||
+          e.recurring_source_id ||
+          e.category === 'Bills' ||
+          (e.notes && (e.notes.toLowerCase().includes('recurring') || e.notes.toLowerCase().includes('auto-deduct') || e.notes.toLowerCase().includes('sub')))
+        );
       }
 
       return matchesSearch && matchesCategory && matchesDate && matchesMin && matchesMax && matchesQuick;

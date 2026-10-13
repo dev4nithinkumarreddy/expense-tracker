@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
-import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, Sparkles, ClipboardPaste, Users, Mic } from "lucide-react";
+import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, Sparkles, ClipboardPaste, Users, Mic, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { cn, vibrate } from "../lib/utils";
 import { format, parseISO, subDays } from "date-fns";
@@ -69,6 +69,7 @@ export function AddExpenseModal({
   const [isSplitting, setIsSplitting] = useState(false);
   const [splitFriends, setSplitFriends] = useState("");
   const [isFullSplitModalOpen, setIsFullSplitModalOpen] = useState(false);
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
 
   // Transition-guarded initialization: prevents store updates/sync from wiping form state while modal is open
   const prevIsOpenRef = useRef(false);
@@ -98,6 +99,12 @@ export function AddExpenseModal({
         setReceiptFile(null);
         setRecurrence(expenseToEdit.recurrence || 'none');
         setSelectedAccountId(expenseToEdit.account_id || accounts[0]?.id);
+        setShowMoreOptions(Boolean(
+          expenseToEdit.notes ||
+          (expenseToEdit.recurrence && expenseToEdit.recurrence !== 'none') ||
+          expenseToEdit.receipt_url ||
+          (expenseToEdit.account_id && expenseToEdit.account_id !== accounts[0]?.id)
+        ));
       } else {
         setAmount("");
         
@@ -119,12 +126,13 @@ export function AddExpenseModal({
         setSelectedAccountId(accounts[0]?.id);
         setIsSplitting(false);
         setSplitFriends("");
+        setShowMoreOptions(false);
       }
     }
 
     prevIsOpenRef.current = isOpen;
     prevExpenseToEditIdRef.current = expenseToEdit?.id;
-  }, [isOpen, expenseToEdit]);
+  }, [isOpen, expenseToEdit, accounts, settings.categories]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -377,6 +385,21 @@ export function AddExpenseModal({
     }
   }, [date]);
 
+  const isDetailsExpanded = Boolean(
+    showMoreOptions ||
+    (expenseToEdit && (
+      expenseToEdit.notes ||
+      (expenseToEdit.recurrence && expenseToEdit.recurrence !== 'none') ||
+      expenseToEdit.receipt_url ||
+      (expenseToEdit.account_id && expenseToEdit.account_id !== accounts[0]?.id)
+    )) ||
+    notes.trim() ||
+    recurrence !== 'none' ||
+    receiptFile ||
+    isSplitting ||
+    splitFriends.trim()
+  );
+
   return (
     <AnimatePresence>
       {isOpen && !isFullSplitModalOpen && (
@@ -409,7 +432,7 @@ export function AddExpenseModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-1 -ml-1 rounded-md"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-1 py-1 -ml-1 rounded-md cursor-pointer"
               >
                 Cancel
               </button>
@@ -435,11 +458,11 @@ export function AddExpenseModal({
             <div className="p-5 pt-1 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
 
               {/* Smart NLP & SMS Magic Bar */}
-              <div className="flex items-center gap-2 bg-secondary/50 dark:bg-card/50 rounded-2xl p-1.5 px-3 border border-border/50 backdrop-blur-xs">
+              <div className="flex items-center gap-1.5 bg-secondary/50 dark:bg-card/50 rounded-2xl p-1.5 px-3 border border-border/50 backdrop-blur-xs">
                 <Sparkles className="w-4 h-4 text-primary shrink-0 animate-pulse" />
                 <input
                   type="text"
-                  placeholder="Magic input: e.g. 'Coffee 150 #work' or 'Uber 350 yesterday'"
+                  placeholder="Smart log: 'Coffee 150' or 'Uber 300'..."
                   value={smartInput}
                   onChange={(e) => setSmartInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -448,13 +471,32 @@ export function AddExpenseModal({
                       handleApplyNLP(smartInput);
                     }
                   }}
-                  className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                  className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
                 />
+                {voice.isSupported && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(15);
+                      voice.toggleListening();
+                    }}
+                    className={cn(
+                      "p-1.5 rounded-xl transition-all cursor-pointer shrink-0 select-none",
+                      voice.isListening
+                        ? "bg-rose-500 text-white animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.6)]"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                    )}
+                    title={voice.isListening ? "Listening... tap to stop" : "Speak expense (e.g. 'Coffee 150')"}
+                    aria-label="Voice expense entry"
+                  >
+                    <Mic className={cn("w-3.5 h-3.5", voice.isListening && "animate-bounce text-white")} />
+                  </button>
+                )}
                 {smartInput && (
                   <button
                     type="button"
                     onClick={() => handleApplyNLP(smartInput)}
-                    className="text-[11px] font-semibold text-primary px-2.5 py-1 rounded-xl bg-primary/15 hover:bg-primary/25 transition-colors cursor-pointer"
+                    className="text-[11px] font-semibold text-primary px-2.5 py-1 rounded-xl bg-primary/15 hover:bg-primary/25 transition-colors cursor-pointer shrink-0"
                   >
                     Parse
                   </button>
@@ -503,7 +545,7 @@ export function AddExpenseModal({
                         const current = parseFloat(amount) || 0;
                         setAmount(String(current + preset));
                       }}
-                      className="px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary/80 hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground border border-border/50 shadow-2xs"
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary/80 hover:bg-secondary active:scale-95 transition-all text-muted-foreground hover:text-foreground border border-border/50 shadow-2xs cursor-pointer"
                     >
                       +{preset}
                     </button>
@@ -511,10 +553,10 @@ export function AddExpenseModal({
                 </div>
               </div>
 
-              {/* 2. Apple Grouped Inset Card: Merchant & Category */}
+              {/* 2. Primary Details Card: Description, Category, Date */}
               <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
                 
-                {/* Merchant / Description Row */}
+                {/* Description Row */}
                 <div className="flex items-center gap-3 p-3 px-3.5">
                   <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                     <ShoppingBag className="w-4 h-4" />
@@ -529,38 +571,6 @@ export function AddExpenseModal({
                       className="w-full bg-transparent text-sm font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
                     />
                   </div>
-
-                  {/* Paste Bank SMS Quick Button */}
-                  <button
-                    type="button"
-                    onClick={handlePasteSMS}
-                    className="relative overflow-hidden w-9 h-9 rounded-xl border border-border/60 hover:bg-secondary active:scale-95 flex items-center justify-center shrink-0 cursor-pointer transition-all text-muted-foreground hover:text-foreground bg-background/50"
-                    title="Paste Bank/UPI SMS from Clipboard"
-                    aria-label="Paste SMS from Clipboard"
-                  >
-                    <ClipboardPaste className="w-4 h-4 text-primary" />
-                  </button>
-
-                  {/* Voice Entry Quick Button */}
-                  {voice.isSupported && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        vibrate(15);
-                        voice.toggleListening();
-                      }}
-                      className={cn(
-                        "relative overflow-hidden w-9 h-9 rounded-xl border transition-all flex items-center justify-center shrink-0 cursor-pointer select-none",
-                        voice.isListening
-                          ? "bg-rose-500 text-white border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.6)] animate-pulse"
-                          : "border-border/60 hover:bg-secondary active:scale-95 text-muted-foreground hover:text-foreground bg-background/50"
-                      )}
-                      title={voice.isListening ? "Listening... tap to stop" : "Speak expense details (e.g. 'Lunch 350')"}
-                      aria-label="Voice expense entry"
-                    >
-                      <Mic className={cn("w-4 h-4", voice.isListening ? "text-white animate-bounce" : "text-primary")} />
-                    </button>
-                  )}
 
                   {/* Camera / Receipt Scan Button */}
                   <label 
@@ -604,7 +614,7 @@ export function AddExpenseModal({
                             setCategory(c);
                           }}
                           className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none",
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
                             isSelected
                               ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
                               : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
@@ -618,53 +628,6 @@ export function AddExpenseModal({
                   </div>
                 </div>
 
-                {/* Account Selection Row */}
-                {accounts && accounts.length > 0 && (
-                  <div className="p-3 px-3.5 space-y-2 border-t border-border/25">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
-                      {(selectedAccountId || accounts[0]?.id) && (
-                        <span className="text-[11px] font-medium text-primary">
-                          {accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.name}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
-                      {accounts.filter((acc) => acc.type !== 'credit_card').map((acc) => {
-                        const isSelected = (selectedAccountId || accounts[0]?.id) === acc.id;
-                        return (
-                          <button
-                            key={acc.id}
-                            type="button"
-                            onClick={() => {
-                              vibrate(8);
-                              playTapSound();
-                              setSelectedAccountId(acc.id);
-                            }}
-                            className={cn(
-                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none",
-                              isSelected
-                                ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
-                                : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
-                            )}
-                          >
-                            <span>{acc.icon || (acc.type === 'cash' ? '💵' : '🏦')}</span>
-                            <span>{acc.name}</span>
-                            <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
-                              ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-              </div>
-
-              {/* 3. Apple Grouped Inset Card: Date, Recurrence & Notes */}
-              <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
-                
                 {/* Date Row */}
                 <div className="flex items-center justify-between p-3 px-3.5 gap-2">
                   <div className="flex items-center gap-3">
@@ -688,7 +651,7 @@ export function AddExpenseModal({
                         setDate(format(new Date(), 'yyyy-MM-dd'));
                       }}
                       className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border",
+                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border cursor-pointer",
                         isTodayDate
                           ? "bg-primary/15 text-primary border-primary/30 font-semibold"
                           : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
@@ -704,7 +667,7 @@ export function AddExpenseModal({
                         setDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
                       }}
                       className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border",
+                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border cursor-pointer",
                         isYesterdayDate
                           ? "bg-primary/15 text-primary border-primary/30 font-semibold"
                           : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
@@ -727,134 +690,239 @@ export function AddExpenseModal({
                   </div>
                 </div>
 
-                {/* Recurrence Row */}
-                <div className="flex items-center justify-between p-3 px-3.5 gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Repeat className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Repeat</p>
-                    </div>
-                  </div>
+              </div>
 
-                  <div className="flex items-center p-0.5 rounded-xl bg-background/60 border border-border/50">
-                    {(['none', 'daily', 'weekly', 'monthly'] as const).map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => {
-                          vibrate(8);
-                          playTapSound();
-                          setRecurrence(r);
-                        }}
-                        className={cn(
-                          "px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-all",
-                          recurrence === r
-                            ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
-                            : "text-muted-foreground hover:text-foreground"
+              {/* 3. Progressive Disclosure: More Options Accordion */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    vibrate(8);
+                    setShowMoreOptions(!showMoreOptions);
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-secondary/35 hover:bg-secondary/60 border border-border/40 text-xs font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer select-none"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    <span>{isDetailsExpanded ? "Fewer options" : "More options (Account, Notes, Repeat, Split)"}</span>
+                  </span>
+                  {isDetailsExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {isDetailsExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ type: "spring", damping: 26, stiffness: 360 }}
+                      className="space-y-3 overflow-hidden"
+                    >
+                      {/* Account, Recurrence & Notes Inset Card */}
+                      <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
+                        {/* Account Selection */}
+                        {accounts && accounts.length > 0 && (
+                          <div className="p-3 px-3.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
+                              {(selectedAccountId || accounts[0]?.id) && (
+                                <span className="text-[11px] font-medium text-primary">
+                                  {accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.name}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
+                              {accounts.filter((acc) => acc.type !== 'credit_card').map((acc) => {
+                                const isSelected = (selectedAccountId || accounts[0]?.id) === acc.id;
+                                return (
+                                  <button
+                                    key={acc.id}
+                                    type="button"
+                                    onClick={() => {
+                                      vibrate(8);
+                                      playTapSound();
+                                      setSelectedAccountId(acc.id);
+                                    }}
+                                    className={cn(
+                                      "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
+                                      isSelected
+                                        ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
+                                        : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
+                                    )}
+                                  >
+                                    <span>{acc.icon || (acc.type === 'cash' ? '💵' : '🏦')}</span>
+                                    <span>{acc.name}</span>
+                                    <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
+                                      ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         )}
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                {/* Notes Row */}
-                <div className="flex items-center gap-3 p-3 px-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
-                    <input
-                      type="text"
-                      placeholder="Add optional details..."
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full bg-transparent text-xs font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
-                    />
-                  </div>
-                </div>
+                        {/* Recurrence Row */}
+                        <div className="flex items-center justify-between p-3 px-3.5 gap-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                              <Repeat className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Repeat</p>
+                            </div>
+                          </div>
 
-              </div>
+                          <div className="flex items-center p-0.5 rounded-xl bg-background/60 border border-border/50">
+                            {(['none', 'daily', 'weekly', 'monthly'] as const).map((r) => (
+                              <button
+                                key={r}
+                                type="button"
+                                onClick={() => {
+                                  vibrate(8);
+                                  playTapSound();
+                                  setRecurrence(r);
+                                }}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-all cursor-pointer",
+                                  recurrence === r
+                                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-              {/* Bill Splitter Section */}
-              <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 p-3 px-3.5 space-y-2.5 backdrop-blur-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-foreground">Split with Friends</p>
-                      <p className="text-[10px] text-muted-foreground">Auto-creates IOUs to collect from friends</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        vibrate(15);
-                        setIsFullSplitModalOpen(true);
-                      }}
-                      className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground flex items-center gap-1 shadow-xs"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" /> Split & UPI
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        vibrate(10);
-                        setIsSplitting(!isSplitting);
-                      }}
-                      className={cn(
-                        "px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
-                        isSplitting
-                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
-                          : "bg-background/60 text-muted-foreground border-border/50 hover:text-foreground"
-                      )}
-                    >
-                      {isSplitting ? "Quick: On" : "Quick"}
-                    </button>
-                  </div>
-                </div>
-
-                {isSplitting && (
-                  <div className="space-y-2 pt-1 border-t border-border/30 animate-in fade-in slide-in-from-top-1">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                        Friend Names (comma-separated)
-                      </p>
-                      <input
-                        type="text"
-                        placeholder="e.g. Alex, Rahul, Sam"
-                        value={splitFriends}
-                        onChange={(e) => setSplitFriends(e.target.value)}
-                        className="w-full bg-background/80 rounded-xl px-3 py-1.5 text-xs font-medium border border-border/50 focus:outline-none focus:border-primary text-foreground"
-                      />
-                    </div>
-
-                    {parsedAmount > 0 && splitFriends.trim() && (
-                      <div className="p-2 px-2.5 rounded-xl bg-primary/10 text-primary text-xs flex justify-between items-center font-medium">
-                        <span>
-                          {splitFriends.split(',').filter((f) => f.trim()).length + 1} ways split:
-                        </span>
-                        <span className="font-bold">
-                          {formatCurrency(
-                            parsedAmount / (splitFriends.split(',').filter((f) => f.trim()).length + 1),
-                            settings.currency
-                          )}{' '}
-                          each
-                        </span>
+                        {/* Notes Row */}
+                        <div className="flex items-center gap-3 p-3 px-3.5">
+                          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</p>
+                            <input
+                              type="text"
+                              placeholder="Add optional details..."
+                              value={notes}
+                              onChange={(e) => setNotes(e.target.value)}
+                              className="w-full bg-transparent text-xs font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {/* Bill Splitter Section */}
+                      <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 p-3 px-3.5 space-y-2.5 backdrop-blur-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                              <Users className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">Split with Friends</p>
+                              <p className="text-[10px] text-muted-foreground">Auto-creates IOUs to collect from friends</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                vibrate(15);
+                                setIsFullSplitModalOpen(true);
+                              }}
+                              className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground flex items-center gap-1 shadow-xs"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" /> Split & UPI
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                vibrate(10);
+                                setIsSplitting(!isSplitting);
+                              }}
+                              className={cn(
+                                "px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
+                                isSplitting
+                                  ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                                  : "bg-background/60 text-muted-foreground border-border/50 hover:text-foreground"
+                              )}
+                            >
+                              {isSplitting ? "Quick: On" : "Quick"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {isSplitting && (
+                          <div className="space-y-2 pt-1 border-t border-border/30 animate-in fade-in slide-in-from-top-1">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                                Friend Names (comma-separated)
+                              </p>
+                              <input
+                                type="text"
+                                placeholder="e.g. Alex, Rahul, Sam"
+                                value={splitFriends}
+                                onChange={(e) => setSplitFriends(e.target.value)}
+                                className="w-full bg-background/80 rounded-xl px-3 py-1.5 text-xs font-medium border border-border/50 focus:outline-none focus:border-primary text-foreground"
+                              />
+                            </div>
+
+                            {parsedAmount > 0 && splitFriends.trim() && (
+                              <div className="p-2 px-2.5 rounded-xl bg-primary/10 text-primary text-xs flex justify-between items-center font-medium">
+                                <span>
+                                  {splitFriends.split(',').filter((f) => f.trim()).length + 1} ways split:
+                                </span>
+                                <span className="font-bold">
+                                  {formatCurrency(
+                                    parsedAmount / (splitFriends.split(',').filter((f) => f.trim()).length + 1),
+                                    settings.currency
+                                  )}{' '}
+                                  each
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Attached Receipt Card */}
+                      {(receiptFile || (expenseToEdit?.receipt_url && !receiptFile)) && !isScanning && (
+                        <div className="flex items-center justify-between p-2.5 px-3 rounded-2xl bg-secondary/35 border border-border/40">
+                          <div className="flex items-center gap-2.5 truncate">
+                            {expenseToEdit?.receipt_url && !receiptFile ? (
+                              <img src={expenseToEdit.receipt_url} alt="Receipt" className="w-8 h-8 rounded-lg object-cover border shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                                IMG
+                              </div>
+                            )}
+                            <span className="text-xs font-medium truncate text-foreground">
+                              {receiptFile ? receiptFile.name : 'Receipt attached'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setReceiptFile(null)}
+                            className="w-7 h-7 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+                            aria-label="Remove receipt"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* 4. Scanning / Attached Receipt Card */}
+              {/* Scanning status banner */}
               {isScanning && (
                 <div className="relative overflow-hidden p-3 rounded-2xl bg-primary/10 border border-primary/30 flex items-center gap-3 animate-in fade-in">
                   <Loader2 className="w-5 h-5 animate-spin text-primary shrink-0" />
@@ -868,31 +936,6 @@ export function AddExpenseModal({
                     transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
                     className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none"
                   />
-                </div>
-              )}
-
-              {(receiptFile || (expenseToEdit?.receipt_url && !receiptFile)) && !isScanning && (
-                <div className="flex items-center justify-between p-2.5 px-3 rounded-2xl bg-secondary/35 border border-border/40">
-                  <div className="flex items-center gap-2.5 truncate">
-                    {expenseToEdit?.receipt_url && !receiptFile ? (
-                      <img src={expenseToEdit.receipt_url} alt="Receipt" className="w-8 h-8 rounded-lg object-cover border shrink-0" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                        IMG
-                      </div>
-                    )}
-                    <span className="text-xs font-medium truncate text-foreground">
-                      {receiptFile ? receiptFile.name : 'Receipt attached'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setReceiptFile(null)}
-                    className="w-7 h-7 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center transition-colors shrink-0"
-                    aria-label="Remove receipt"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
                 </div>
               )}
 

@@ -26,6 +26,22 @@ export default function Planned() {
       .filter(c => !dismissedCandidateIds.includes(c.id));
   }, [expenses, bills, subscriptions, dismissedCandidateIds]);
 
+  const billCandidates = useMemo(() => {
+    return detectedCandidates.filter(c => {
+      const n = c.name.toLowerCase();
+      // Exclude typical consumer subscriptions from monthly utility bills
+      return !/netflix|spotify|prime|disney|hotstar|youtube|icloud|google|apple|chatgpt|openai|gym|adobe|substack|medium|patreon|discord/i.test(n);
+    });
+  }, [detectedCandidates]);
+
+  const subCandidates = useMemo(() => {
+    return detectedCandidates.filter(c => {
+      const n = c.name.toLowerCase();
+      // Exclude typical utility bills from subscriptions
+      return !/rent|electricity|power|water|internet|wifi|broadband|maintenance|gas|cylinder|society|emi|loan|insurance|lic/i.test(n);
+    });
+  }, [detectedCandidates]);
+
   const cashflow = useMemo(() => {
     return calculateCashflowSummary(
       settings.monthlyIncome,
@@ -99,13 +115,13 @@ export default function Planned() {
 
       {activeTab === "bills" && (
         <BillsTab 
-          detectedCandidates={detectedCandidates}
+          detectedCandidates={billCandidates}
           onDismissCandidate={(id) => setDismissedCandidateIds(prev => [...prev, id])}
         />
       )}
       {activeTab === "subs" && (
         <SubscriptionsTab 
-          detectedCandidates={detectedCandidates}
+          detectedCandidates={subCandidates}
           onDismissCandidate={(id) => setDismissedCandidateIds(prev => [...prev, id])}
         />
       )}

@@ -225,11 +225,18 @@ export default function Dashboard() {
   const remaining = cashflow.availableBalance;
   const budgetUsedPercent = Math.min(100, Math.round(((totalExpenses + totalDueObligations) / (totalBudget || 1)) * 100) || 0);
 
-  const todayExpenses = currentMonthExpenses.filter(e => isToday(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
-  const weekExpenses = currentMonthExpenses.filter(e => isThisWeek(parseISO(e.date))).reduce((sum, e) => sum + e.amount, 0);
+  const nonIncomeExpenses = expenses.filter(e => !isIncomeCategory(e.category) && e.category !== 'Transfer');
+
+  const todayExpenses = nonIncomeExpenses
+    .filter(e => isToday(parseISO(e.date)))
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  const weekExpenses = nonIncomeExpenses
+    .filter(e => isThisWeek(parseISO(e.date)))
+    .reduce((sum, e) => sum + e.amount, 0);
 
   const yesterday = subDays(new Date(), 1);
-  const yesterdayExpenses = currentMonthExpenses
+  const yesterdayExpenses = nonIncomeExpenses
     .filter(e => isSameDay(parseISO(e.date), yesterday))
     .reduce((sum, e) => sum + e.amount, 0);
 
@@ -261,7 +268,7 @@ export default function Dashboard() {
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
   const weekDailySpends = Array.from({ length: 7 }, (_, i) => {
     const pipDate = addDays(weekStart, i);
-    const daySpend = currentMonthExpenses
+    const daySpend = nonIncomeExpenses
       .filter(e => isSameDay(parseISO(e.date), pipDate))
       .reduce((sum, e) => sum + e.amount, 0);
     return {
