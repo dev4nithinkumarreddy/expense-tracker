@@ -9,21 +9,31 @@ export default {
     extend: {
       fontFamily: {
         sans: [
-          '"Plus Jakarta Sans"',
+          'system-ui',
           '-apple-system',
           'BlinkMacSystemFont',
-          '"SF Pro Text"',
-          '"SF Pro Display"',
-          'Outfit',
+          '"Segoe UI"',
+          'Roboto',
+          '"Helvetica Neue"',
+          'Arial',
           'sans-serif',
         ],
         display: [
-          'Outfit',
-          '"Plus Jakarta Sans"',
+          'system-ui',
           '-apple-system',
           'BlinkMacSystemFont',
           '"SF Pro Display"',
           'sans-serif',
+        ],
+        mono: [
+          'ui-monospace',
+          'SFMono-Regular',
+          '"SF Mono"',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          '"Liberation Mono"',
+          'monospace',
         ],
       },
       colors: {

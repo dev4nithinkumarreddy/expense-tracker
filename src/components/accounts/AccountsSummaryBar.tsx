@@ -6,19 +6,20 @@ import { vibrate, cn } from '../../lib/utils';
 import { playTapSound, playSuccessSound } from '../../lib/sound';
 import { 
   Building2, 
-  Wallet, 
-  CreditCard, 
-  PiggyBank, 
   ArrowRightLeft, 
   Plus, 
   X, 
   Check, 
-  HelpCircle,
+  HelpCircle, 
   Sparkles,
   Pencil
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
+import { CategoryIcon } from '../ui/CategoryIcon';
+import TrackChangesOutlined from '@mui/icons-material/TrackChangesOutlined';
+import AccountBalanceOutlined from '@mui/icons-material/AccountBalanceOutlined';
+import BoltOutlined from '@mui/icons-material/BoltOutlined';
 
 export function AccountsSummaryBar() {
   const { 
@@ -96,10 +97,10 @@ export function AccountsSummaryBar() {
     const bal = parseFloat(newAccBalance) || 0;
 
     const icons: Record<Account['type'], string> = {
-      bank: '🏦',
-      cash: '💵',
-      credit_card: '💳',
-      savings: '💰',
+      bank: 'bank',
+      cash: 'cash',
+      credit_card: 'credit_card',
+      savings: 'savings',
     };
 
     vibrate(15);
@@ -141,13 +142,7 @@ export function AccountsSummaryBar() {
   };
 
   const getAccountIcon = (acc: Account) => {
-    if (acc.icon) return <span className="text-base select-none">{acc.icon}</span>;
-    switch (acc.type) {
-      case 'bank': return <Building2 className="w-4 h-4 text-blue-500" />;
-      case 'cash': return <Wallet className="w-4 h-4 text-emerald-500" />;
-      case 'credit_card': return <CreditCard className="w-4 h-4 text-purple-500" />;
-      case 'savings': return <PiggyBank className="w-4 h-4 text-amber-500" />;
-    }
+    return <CategoryIcon accountType={acc.type} icon={acc.icon} className="w-4 h-4 text-foreground" fontSize="inherit" />;
   };
 
   return (
@@ -421,9 +416,9 @@ export function AccountsSummaryBar() {
               {/* Guide Content */}
               <div className="space-y-4 text-xs text-foreground/90 leading-relaxed">
                 {/* 1. Monthly Budget vs Accounts */}
-                <div className="p-3.5 rounded-2xl bg-secondary/40 border border-border/40 space-y-1.5">
+                <div className="p-3.5 rounded-xl bg-secondary/40 border border-border space-y-1.5">
                   <p className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <span>🎯</span>
+                    <TrackChangesOutlined className="w-4 h-4 text-primary shrink-0" fontSize="inherit" />
                     <span>1. Monthly Budget vs. Liquid Wealth</span>
                   </p>
                   <p className="text-muted-foreground">
@@ -435,9 +430,9 @@ export function AccountsSummaryBar() {
                 </div>
 
                 {/* 2. Account Types */}
-                <div className="p-3.5 rounded-2xl bg-secondary/40 border border-border/40 space-y-2">
+                <div className="p-3.5 rounded-xl bg-secondary/40 border border-border space-y-2">
                   <p className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <span>🏦</span>
+                    <AccountBalanceOutlined className="w-4 h-4 text-primary shrink-0" fontSize="inherit" />
                     <span>2. What Each Account Type Represents</span>
                   </p>
                   <div className="space-y-1.5 text-muted-foreground">
@@ -454,9 +449,9 @@ export function AccountsSummaryBar() {
                 </div>
 
                 {/* 3. How Spending Syncs */}
-                <div className="p-3.5 rounded-2xl bg-secondary/40 border border-border/40 space-y-2">
+                <div className="p-3.5 rounded-xl bg-secondary/40 border border-border space-y-2">
                   <p className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                    <span>⚡</span>
+                    <BoltOutlined className="w-4 h-4 text-primary shrink-0" fontSize="inherit" />
                     <span>3. How Expenses Sync in Real Time</span>
                   </p>
                   <div className="space-y-1.5 text-muted-foreground">

@@ -25,7 +25,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-[max(1rem,env(safe-area-inset-bottom,1rem))] sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] max-w-sm sm:max-w-md lg:max-w-xl">
-      <div className="bg-card/88 dark:bg-card/82 backdrop-blur-2xl border border-border/80 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)] rounded-full p-1.5 px-2 lg:px-3 flex items-center justify-between select-none">
+      <div className="bg-card border border-border shadow-lg rounded-full p-1.5 px-2 lg:px-3 flex items-center justify-between select-none">
         
         {/* Left tabs */}
         <div className="flex items-center gap-1 flex-1 justify-around">
@@ -56,7 +56,7 @@ export function BottomNav() {
                         damping: 30, 
                         mass: 0.8 
                       }}
-                      className="absolute inset-y-0.5 inset-x-1 bg-gradient-to-b from-primary/18 to-primary/8 dark:from-primary/25 dark:to-primary/12 rounded-full border border-primary/25 shadow-[0_2px_8px_rgba(0,122,255,0.12)]"
+                      className="absolute inset-y-0.5 inset-x-1 bg-secondary rounded-full border border-border shadow-2xs"
                     />
                   )}
                   <motion.div
@@ -97,7 +97,7 @@ export function BottomNav() {
             setModalOpen(true);
           }}
           aria-label="Add new expense"
-          className="mx-1.5 lg:mx-2.5 w-11 h-11 rounded-full bg-gradient-to-tr from-primary to-cyan-500 text-primary-foreground shadow-md shadow-primary/30 flex items-center justify-center shrink-0 border border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
+          className="mx-1.5 lg:mx-2.5 w-11 h-11 rounded-full bg-primary text-primary-foreground shadow-xs flex items-center justify-center shrink-0 border border-primary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer active:scale-95 transition-transform"
         >
           <Plus className="w-5 h-5 stroke-[2.4px]" aria-hidden="true" />
         </motion.button>
@@ -131,7 +131,7 @@ export function BottomNav() {
                         damping: 30, 
                         mass: 0.8 
                       }}
-                      className="absolute inset-y-0.5 inset-x-1 bg-gradient-to-b from-primary/18 to-primary/8 dark:from-primary/25 dark:to-primary/12 rounded-full border border-primary/25 shadow-[0_2px_8px_rgba(0,122,255,0.12)]"
+                      className="absolute inset-y-0.5 inset-x-1 bg-secondary rounded-full border border-border shadow-2xs"
                     />
                   )}
                   <motion.div

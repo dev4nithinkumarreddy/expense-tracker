@@ -36,10 +36,10 @@ export function CloudBackupNudge({ onSignInClick }: CloudBackupNudgeProps) {
         initial={{ opacity: 0, y: -8, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600/15 via-indigo-600/10 to-violet-600/15 border border-blue-500/25 p-4 shadow-sm"
+        className="relative overflow-hidden rounded-2xl bg-card border border-border p-4 shadow-xs"
       >
         <div className="flex items-start gap-3.5">
-          <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0 mt-0.5">
+          <div className="w-9 h-9 rounded-xl bg-secondary border border-border flex items-center justify-center text-primary shrink-0 mt-0.5">
             <Cloud className="w-5 h-5" />
           </div>
 

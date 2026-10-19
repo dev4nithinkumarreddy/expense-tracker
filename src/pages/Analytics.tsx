@@ -12,6 +12,7 @@ import {
   Printer,
   Settings
 } from 'lucide-react';
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import { useExpenseStore, type Expense } from '../store/useExpenseStore';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -141,11 +142,11 @@ export default function Analytics() {
               vibrate(12);
               setIsStoryOpen(true);
             }}
-            className="cursor-pointer p-3.5 px-4 rounded-3xl bg-gradient-to-r from-primary/15 via-purple-500/10 to-pink-500/15 border border-primary/25 hover:border-primary/45 transition-all flex items-center justify-between shadow-xs active:scale-[0.99] select-none"
+            className="cursor-pointer p-3.5 px-4 rounded-3xl bg-card border border-border hover:border-primary/40 transition-all flex items-center justify-between shadow-xs active:scale-[0.99] select-none"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-2xl bg-primary/20 text-primary flex items-center justify-center text-lg shadow-inner">
-                ✨
+              <div className="w-9 h-9 rounded-2xl bg-secondary text-primary flex items-center justify-center border border-border shadow-xs">
+                <AutoAwesomeOutlined className="w-4 h-4" />
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">

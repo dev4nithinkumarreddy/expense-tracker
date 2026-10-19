@@ -57,7 +57,7 @@ export function EmptyState({
             ease: 'easeInOut',
           }}
           className={cn(
-            'rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-primary/5 border border-primary/20 shadow-inner flex items-center justify-center text-primary',
+            'rounded-2xl bg-secondary border border-border shadow-xs flex items-center justify-center text-foreground',
             compact ? 'w-12 h-12 p-2.5' : 'w-16 h-16 p-3.5'
           )}
         >

@@ -107,11 +107,10 @@ export function NotificationPrompt() {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: -45, opacity: 0, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 420, damping: 30 }}
-            className="pointer-events-auto w-full max-w-sm sm:max-w-md bg-card/92 dark:bg-card/88 backdrop-blur-2xl border border-border/80 dark:border-white/12 shadow-[0_12px_36px_rgba(0,0,0,0.16)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)] rounded-2xl p-3.5 sm:p-4 text-card-foreground"
+            className="pointer-events-auto w-full max-w-sm sm:max-w-md bg-card border border-border shadow-lg rounded-2xl p-3.5 sm:p-4 text-card-foreground"
           >
             <div className="flex items-start gap-3">
-              {/* Bell Icon with Apple-style rounded squircle & glow */}
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary/20 to-cyan-500/20 text-primary flex items-center justify-center shrink-0 border border-primary/20 shadow-xs relative">
+              <div className="w-10 h-10 rounded-2xl bg-secondary text-primary flex items-center justify-center shrink-0 border border-border shadow-xs relative">
                 <Bell className="w-5 h-5 stroke-[2.2]" />
                 <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary ring-2 ring-background animate-pulse" />
               </div>

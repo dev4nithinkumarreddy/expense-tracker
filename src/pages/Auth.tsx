@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Mail, Key, Wallet, PieChart, Shield, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Key, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { cn, vibrate } from '../lib/utils';
 import { toast } from 'sonner';
 import { useExpenseStore } from '../store/useExpenseStore';
@@ -47,72 +47,50 @@ export default function Auth() {
   return (
     <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background">
       {/* Left Column - Branding (Hidden on small screens, split on desktop) */}
-      <div className="hidden md:flex md:w-1/2 bg-zinc-950 p-12 flex-col justify-between relative overflow-hidden border-r border-border/50">
-        <div className="absolute inset-0 opacity-20 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/40 via-background to-background"></div>
-        </div>
-        
+      {/* Left Column - Branding (Desktop) */}
+      <div className="hidden md:flex md:w-1/2 bg-zinc-950 p-12 flex-col justify-between relative border-r border-zinc-800">
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-12">
-            <img src="/icon.png" alt="Expense Tracker Logo" className="w-10 h-10 rounded-xl shadow-sm object-cover" />
-            <span className="text-xl font-bold tracking-tight text-white">Expense Tracker</span>
+          <div className="flex items-center gap-3 mb-10">
+            <img src="/icon.png" alt="Expense Tracker Logo" className="w-9 h-9 rounded-lg object-cover" />
+            <span className="text-lg font-semibold tracking-tight text-white">Expense Tracker</span>
           </div>
           
-          <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-6 leading-tight">
-            Take control of your <span className="text-primary">finances.</span>
+          <h1 className="text-3xl lg:text-4xl font-bold tracking-tight text-white mb-4 leading-tight">
+            Personal Expense Ledger
           </h1>
-          <p className="text-lg text-zinc-400 max-w-md mb-12">
-            A minimalist, lightning-fast expense tracker built to help you understand your spending habits effortlessly.
+          <p className="text-base text-zinc-400 max-w-md mb-10 leading-relaxed">
+            Designed for speed, tactile precision, and privacy. Works fully offline in guest mode with optional multi-device cloud synchronization.
           </p>
 
-          <div className="space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Wallet className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">Track Every Penny</h3>
-                <p className="text-sm text-zinc-400">Log expenses and bills in seconds with custom quick-adds.</p>
-              </div>
+          <div className="space-y-4 border-t border-zinc-800/80 pt-8 max-w-md">
+            <div className="flex items-baseline gap-3 text-sm text-zinc-300">
+              <span className="font-mono text-xs text-primary font-bold">01</span>
+              <span>Local-first architecture with instant IndexedDB persistence</span>
             </div>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <PieChart className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">Visual Analytics</h3>
-                <p className="text-sm text-zinc-400">Beautiful charts that break down your spending by category.</p>
-              </div>
+            <div className="flex items-baseline gap-3 text-sm text-zinc-300">
+              <span className="font-mono text-xs text-primary font-bold">02</span>
+              <span>Multi-account ledger for bank, cash, and credit balances</span>
             </div>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Shield className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">Secure & Synced</h3>
-                <p className="text-sm text-zinc-400">Your data is safely backed up to the cloud instantly.</p>
-              </div>
+            <div className="flex items-baseline gap-3 text-sm text-zinc-300">
+              <span className="font-mono text-xs text-primary font-bold">03</span>
+              <span>NPCI UPI deep-linking with 1-cent exact bill distribution</span>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 text-sm text-zinc-500 font-medium">
-          © {new Date().getFullYear()} Expense Tracker. All rights reserved.
+        <div className="relative z-10 text-xs text-zinc-500 font-mono">
+          Expense Tracker • Offline-First PWA
         </div>
       </div>
 
       {/* Right Column - Auth Form */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-background/95 relative flex-1">
-        <div className="absolute inset-0 opacity-30 md:hidden pointer-events-none">
-          <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/30 via-background to-background"></div>
-        </div>
-
+      <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-background relative flex-1">
         <div className="w-full max-w-md relative z-10">
           <div className="md:hidden flex items-center justify-center mb-8">
-            <img src="/icon.png" alt="Expense Tracker Logo" className="w-16 h-16 rounded-2xl shadow-lg object-cover" />
+            <img src="/icon.png" alt="Expense Tracker Logo" className="w-14 h-14 rounded-xl shadow-xs object-cover" />
           </div>
 
-          <div className="bg-card/60 backdrop-blur-xl border border-border/50 rounded-2xl p-6 md:p-8 shadow-2xl">
+          <div className="bg-card border border-border rounded-2xl p-6 md:p-8 shadow-xs">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-bold tracking-tight mb-2">
                 {isForgotPassword ? 'Reset password' : isLogin ? 'Welcome back' : 'Create an account'}

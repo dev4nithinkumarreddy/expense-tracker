@@ -5,7 +5,12 @@ import { useExpenseStore } from "../store/useExpenseStore";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins, Users, Share2, Sparkles, X, Settings } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, ShoppingBag, Check, CalendarDays, HandCoins, Users, Share2, X, Settings } from "lucide-react";
+import LockOutlined from "@mui/icons-material/LockOutlined";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import AccessTimeOutlined from "@mui/icons-material/AccessTimeOutlined";
+import SavingsOutlined from "@mui/icons-material/SavingsOutlined";
+import SyncOutlined from "@mui/icons-material/SyncOutlined";
 import { vibrate } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { toast } from "sonner";
@@ -246,10 +251,10 @@ function SubscriptionsTab({
     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
       {/* Smart Recurring Subscription Suggestions */}
       {detectedCandidates.length > 0 && (
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/25 space-y-2.5 animate-in fade-in slide-in-from-top-2">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-secondary/50 border border-border space-y-2.5 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+              <SyncOutlined className="w-3.5 h-3.5" />
             </div>
             <div>
               <h3 className="text-xs font-bold text-foreground">
@@ -377,8 +382,7 @@ function SubscriptionsTab({
             const isPaid = isSubscriptionPaidThisMonth(sub, expenses, new Date());
             const dueStatus = getSubscriptionDueStatus(sub, new Date(), isPaid);
             const content = (
-              <div className="p-4 flex justify-between items-center pl-5 relative">
-                <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 rounded-l" />
+              <div className="p-4 flex justify-between items-center relative">
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold truncate">{sub.name}</p>
@@ -477,7 +481,7 @@ function WishlistTab() {
     setIsAdding(false);
     toast.success(
       enableCoolingLock
-        ? `Added "${newName}" with a 72-hour reflection lock 🔒`
+        ? `Added "${newName}" with a 72-hour reflection lock`
         : `Added "${newName}" to wishlist`
     );
   };
@@ -524,9 +528,7 @@ function WishlistTab() {
     deleteWishlistItem(item.id);
     setReflectingItem(null);
     toast.success(
-      `🎉 Masterful discipline! You avoided an impulse buy and saved ${
-        item.estimated_amount ? formatCurrency(item.estimated_amount, settings.currency) : 'money'
-      }!`,
+      `Saved ${item.estimated_amount ? formatCurrency(item.estimated_amount, settings.currency) : 'money'} by avoiding an impulse purchase!`,
       { duration: 4000 }
     );
   };
@@ -578,8 +580,9 @@ function WishlistTab() {
                 />
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                    <span>🔒 72-Hour Cooling-Off Lock</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/15 text-primary">Recommended</span>
+                    <LockOutlined className="w-3.5 h-3.5 text-primary" />
+                    <span>72-Hour Cooling-Off Lock</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/15 text-primary font-medium">Recommended</span>
                   </p>
                   <p className="text-[10px] text-muted-foreground">
                     Pauses immediate buying impulse so you can reflect before spending
@@ -630,9 +633,7 @@ function WishlistTab() {
             return (
               <Card
                 key={item.id}
-                className={`overflow-hidden border-l-4 transition-all ${
-                  isLocked ? 'border-l-amber-500 bg-amber-500/[0.03]' : 'border-l-emerald-500'
-                }`}
+                className="overflow-hidden border border-border/80 hover:border-border transition-all shadow-xs"
               >
                 <CardContent className="p-3.5 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 overflow-hidden min-w-0">
@@ -641,10 +642,10 @@ function WishlistTab() {
                       title={isLocked ? "In 72h reflection period" : "Mark as purchased"}
                       className="shrink-0 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
                     >
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        isLocked ? 'border-amber-500 text-amber-500' : 'border-muted-foreground'
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        isLocked ? 'border-amber-500/60 text-amber-500 bg-amber-500/10' : 'border-border'
                       }`}>
-                        {isLocked && <span className="text-[10px]">🔒</span>}
+                        {isLocked && <LockOutlined className="w-3 h-3 text-amber-500" />}
                       </div>
                     </button>
 
@@ -658,12 +659,14 @@ function WishlistTab() {
                         ) : null}
 
                         {isLocked ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-medium border border-amber-500/25">
-                            ⏳ {remainingHours}h {remainingMins}m cooling
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-medium border border-amber-500/25 flex items-center gap-1">
+                            <AccessTimeOutlined className="w-3 h-3" />
+                            <span>{remainingHours}h {remainingMins}m cooling</span>
                           </span>
                         ) : item.is_impulse_locked ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/25">
-                            ✅ Cooled off
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium border border-emerald-500/25 flex items-center gap-1">
+                            <CheckCircleOutlined className="w-3 h-3" />
+                            <span>Cooled off</span>
                           </span>
                         ) : null}
                       </div>
@@ -707,8 +710,8 @@ function WishlistTab() {
               className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             />
             <div className="relative w-full max-w-sm rounded-3xl bg-card border border-border shadow-2xl p-5 space-y-4 z-10 text-center animate-in fade-in zoom-in-95">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-500 mx-auto flex items-center justify-center text-2xl">
-                ⏳
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-500 mx-auto flex items-center justify-center">
+                <AccessTimeOutlined className="w-6 h-6" />
               </div>
 
               <div>
@@ -721,9 +724,10 @@ function WishlistTab() {
               <div className="space-y-2 pt-2">
                 <Button
                   onClick={() => handleAvoidImpulse(reflectingItem)}
-                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
+                  className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5"
                 >
-                  🎉 I Don't Need It (Save {reflectingItem.estimated_amount ? formatCurrency(reflectingItem.estimated_amount, settings.currency) : 'Money'}!)
+                  <SavingsOutlined className="w-4 h-4" />
+                  <span>I Don't Need It (Save {reflectingItem.estimated_amount ? formatCurrency(reflectingItem.estimated_amount, settings.currency) : 'Money'})</span>
                 </Button>
 
                 <Button
@@ -1037,10 +1041,10 @@ function BillsTab({
     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
       {/* Smart Recurring Bill Suggestions */}
       {detectedCandidates.length > 0 && (
-        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/25 space-y-2.5 animate-in fade-in slide-in-from-top-2">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-secondary/50 border border-border space-y-2.5 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-primary/20 text-primary flex items-center justify-center shrink-0">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+              <SyncOutlined className="w-3.5 h-3.5" />
             </div>
             <div>
               <h3 className="text-xs font-bold text-foreground">

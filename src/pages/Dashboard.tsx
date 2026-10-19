@@ -6,7 +6,11 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Clock, X, Settings as SettingsIcon, ReceiptText, ShieldCheck, Sparkles, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders, Mic } from "lucide-react";
+import { Eye, EyeOff, Plus, Sparkles, X, Settings as SettingsIcon, ReceiptText, ShieldCheck, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders, Mic } from "lucide-react";
+import WhatshotOutlined from '@mui/icons-material/WhatshotOutlined';
+import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined';
+import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
+import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined';
 import { useState, useMemo, useEffect } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -380,9 +384,9 @@ export default function Dashboard() {
             {/* Mobile/Tablet Action Buttons */}
             <div className="flex lg:hidden items-center gap-1.5 sm:gap-2 shrink-0">
               {currentStreak > 0 ? (
-                <div className="flex items-center gap-1 bg-orange-500/10 text-orange-500 px-2 sm:px-3 py-1.5 rounded-full font-medium text-xs sm:text-sm border border-orange-500/20 shadow-xs animate-in fade-in zoom-in">
-                  <span>🔥</span>
-                  <span>
+                <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 sm:px-3 py-1.5 rounded-md font-medium text-xs sm:text-sm border border-orange-500/25 shadow-xs">
+                  <WhatshotOutlined className="w-3.5 h-3.5" fontSize="inherit" />
+                  <span className="font-mono">
                     {currentStreak}
                     <span className="hidden sm:inline"> Day Streak</span>
                     <span className="sm:hidden">d</span>
@@ -496,9 +500,9 @@ export default function Dashboard() {
             {/* Laptop/Desktop Action Buttons */}
             <div className="hidden lg:flex items-center gap-2 shrink-0">
               {currentStreak > 0 ? (
-                <div className="flex items-center gap-1 bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full font-medium text-xs sm:text-sm border border-orange-500/20 shadow-xs animate-in fade-in zoom-in">
-                  <span>🔥</span>
-                  <span>{currentStreak} Day Streak</span>
+                <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-md font-medium text-xs sm:text-sm border border-orange-500/25 shadow-xs">
+                  <WhatshotOutlined className="w-3.5 h-3.5" fontSize="inherit" />
+                  <span className="font-mono">{currentStreak} Day Streak</span>
                 </div>
               ) : null}
 
@@ -557,15 +561,15 @@ export default function Dashboard() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.97 }}
               transition={{ type: "spring", stiffness: 400, damping: 28 }}
-              className="flex items-center justify-between gap-3 p-3 px-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 backdrop-blur-md shadow-xs"
+              className="flex items-center justify-between gap-3 p-3 px-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 shadow-xs"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <ScheduleOutlined className="w-4 h-4" fontSize="inherit" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-foreground truncate">
-                    ⚡ {upcomingAlert.name} due soon
+                    Due Soon: {upcomingAlert.name}
                   </p>
                   <p className="text-[11px] text-muted-foreground truncate">
                     {formatCurrency(upcomingAlert.amount, settings.currency)} • Due {format(parseISO(upcomingAlert.dueDate), 'MMM d')}
@@ -663,25 +667,10 @@ export default function Dashboard() {
             {(shouldShowWidget('safeToSpend') || shouldShowWidget('budgetRing')) && (
               <Card className={cn(
                 "order-1 lg:order-none border shadow-xl overflow-hidden relative rounded-3xl backdrop-blur-2xl transition-all duration-500",
-                "border-t border-white/40 dark:border-white/20",
               isOverBudget 
-                ? "bg-destructive/10 border-destructive/25 shadow-destructive/10" 
-                : "bg-card/85 dark:bg-card/65 border-white/20 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.4)]"
+                ? "bg-destructive/5 border-destructive/30" 
+                : "bg-card border-border shadow-xs"
             )}>
-              {/* Dynamic Ambient Rim Bloom (mirrors BudgetRing health tiers) */}
-              <div 
-                aria-hidden="true"
-                className={cn(
-                  "absolute -top-14 -right-14 w-56 h-56 rounded-full blur-3xl pointer-events-none transition-all duration-700 ease-out",
-                  isBudgetDanger
-                    ? "bg-gradient-to-br from-rose-500/35 via-rose-600/25 to-red-500/20 dark:from-rose-500/30 dark:via-rose-600/20 dark:to-red-500/15"
-                    : isBudgetWarning
-                    ? "bg-gradient-to-br from-amber-400/30 via-amber-500/20 to-orange-400/15 dark:from-amber-500/25 dark:via-amber-600/20 dark:to-orange-500/15"
-                    : "bg-gradient-to-br from-emerald-400/25 via-teal-400/20 to-primary/15 dark:from-emerald-500/20 dark:via-teal-500/15 dark:to-primary/10"
-                )} 
-              />
-              {/* Subtle inner sheen */}
-              <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent dark:from-white/5 pointer-events-none" />
               <CardContent className="p-5 sm:p-6 relative z-10 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -718,8 +707,9 @@ export default function Dashboard() {
                         +{formatCurrency(upcomingObligations, settings.currency)} upcoming
                       </p>
                     ) : cashflow.paidObligationsTotal > 0 ? (
-                      <p className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5" title="Bills & subscriptions paid this month">
-                        ✓ {formatCurrency(cashflow.paidObligationsTotal, settings.currency)} paid
+                      <p className="text-[10.5px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5 flex items-center justify-end gap-1" title="Bills & subscriptions paid this month">
+                        <CheckCircleOutlined className="w-3.5 h-3.5" fontSize="inherit" />
+                        <span>{formatCurrency(cashflow.paidObligationsTotal, settings.currency)} paid</span>
                       </p>
                     ) : null}
                   </div>
@@ -756,9 +746,10 @@ export default function Dashboard() {
                 </div>
 
                 {isOverBudget && (
-                  <p className="text-xs text-destructive mt-1 font-medium flex items-center">
-                    ⚠️ You exceeded your monthly budget.
-                  </p>
+                  <div className="flex items-center gap-1.5 text-xs text-destructive mt-1 font-medium">
+                    <WarningAmberOutlined className="w-4 h-4" fontSize="inherit" />
+                    <span>Monthly budget limit exceeded</span>
+                  </div>
                 )}
 
                 {/* Seamless Integrated Safe-to-Spend Daily Runway */}

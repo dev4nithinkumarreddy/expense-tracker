@@ -13,7 +13,6 @@ import { queryClient } from "./lib/queryClient";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster, toast } from "sonner";
 import { AnimatedRoutes } from "./components/AnimatedRoutes";
-import { AmbientBackground } from "./components/ui/AmbientBackground";
 import { LoadingScreen } from "./components/ui/LoadingScreen";
 import { isThisMonth, isToday, parseISO } from "date-fns";
 import { formatCurrency } from "./lib/formatCurrency";
@@ -252,7 +251,6 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div className="min-h-screen bg-background text-foreground relative flex items-center justify-center p-3 sm:p-4">
-          <AmbientBackground />
           <Suspense fallback={<LoadingScreen message="Loading Payment..." />}>
             <PayLandingPage />
           </Suspense>
@@ -286,11 +284,10 @@ export default function App() {
           <div className="min-h-screen bg-background text-foreground pb-[max(6rem,calc(env(safe-area-inset-bottom,0px)+5.5rem))] [overflow-x:clip] relative">
             {/* Top Safe Area Status Bar Frosted Cover */}
             <div 
-              className="fixed top-0 left-0 right-0 h-[env(safe-area-inset-top,0px)] bg-background/85 dark:bg-background/85 backdrop-blur-xl z-40 pointer-events-none transition-colors border-b border-border/10" 
+              className="fixed top-0 left-0 right-0 h-[env(safe-area-inset-top,0px)] bg-background/90 z-40 pointer-events-none transition-colors border-b border-border" 
               aria-hidden="true" 
             />
-            <AmbientBackground />
-            <main className="container max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-6xl xl:max-w-7xl mx-auto px-3.5 sm:px-4 lg:px-8 pt-[max(1.25rem,calc(env(safe-area-inset-top,0px)+1rem))] pb-3 sm:pb-4 lg:pb-6 animate-in fade-in duration-300">
+            <main className="container max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-6xl xl:max-w-7xl mx-auto px-3.5 sm:px-4 lg:px-8 pt-[max(1.25rem,calc(env(safe-area-inset-top,0px)+1rem))] pb-3 sm:pb-4 lg:pb-6">
               <AnimatedRoutes />
             </main>
         

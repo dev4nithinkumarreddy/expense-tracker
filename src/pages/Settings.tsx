@@ -7,10 +7,16 @@ import { Input } from "../components/ui/input";
 import {
   Moon, Sun, Download, Upload, RefreshCcw, Plus, Trash2, X,
   FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck,
-  ChevronRight, Printer, Share2, Copy, Check, Shield, Sparkles,
+  ChevronRight, Printer, Share2, Copy, Check, Shield,
   CheckCircle2, SlidersHorizontal, Layers, Database, MoreHorizontal,
   Bell, LogOut, AlertTriangle
 } from "lucide-react";
+import TouchAppOutlined from "@mui/icons-material/TouchAppOutlined";
+import NotificationsActiveOutlined from "@mui/icons-material/NotificationsActiveOutlined";
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import BoltOutlined from "@mui/icons-material/BoltOutlined";
+import LockOutlined from "@mui/icons-material/LockOutlined";
+import { CategoryIcon } from "../components/ui/CategoryIcon";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls, motion, AnimatePresence } from "framer-motion";
@@ -202,7 +208,7 @@ export default function Settings() {
   const [qaName, setQaName] = useState("");
   const [qaAmount, setQaAmount] = useState("");
   const [qaCategory, setQaCategory] = useState(settings.categories[0] || "");
-  const [qaIcon, setQaIcon] = useState("✨");
+  const [qaIcon, setQaIcon] = useState("coffee");
 
   const handleExport = () => {
     vibrate(10);
@@ -555,7 +561,7 @@ export default function Settings() {
                   </div>
 
                   {settings.soundEnabled && (
-                    <div className="flex items-center gap-1.5 pt-1">
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
                       <span className="text-xs text-muted-foreground mr-1">Preview audio:</span>
                       <button
                         type="button"
@@ -563,9 +569,10 @@ export default function Settings() {
                           vibrate(8);
                           playTapSound();
                         }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary/80 hover:bg-secondary border border-border/50 text-foreground transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary hover:bg-secondary/80 border border-border text-foreground transition-colors cursor-pointer"
                       >
-                        🔘 Tap
+                        <TouchAppOutlined className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span>Tap</span>
                       </button>
                       <button
                         type="button"
@@ -573,9 +580,10 @@ export default function Settings() {
                           vibrate(15);
                           playSuccessSound();
                         }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary/80 hover:bg-secondary border border-border/50 text-foreground transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary hover:bg-secondary/80 border border-border text-foreground transition-colors cursor-pointer"
                       >
-                        ✨ Chime
+                        <NotificationsActiveOutlined className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span>Chime</span>
                       </button>
                       <button
                         type="button"
@@ -583,9 +591,10 @@ export default function Settings() {
                           vibrate(15);
                           playDeleteSound();
                         }}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary/80 hover:bg-secondary border border-border/50 text-foreground transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-secondary hover:bg-secondary/80 border border-border text-foreground transition-colors cursor-pointer"
                       >
-                        🗑️ Trash
+                        <DeleteOutlined className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span>Trash</span>
                       </button>
                     </div>
                   )}
@@ -788,7 +797,7 @@ export default function Settings() {
               <CardContent className="p-4 sm:p-5 space-y-4">
                 <div>
                   <h3 className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary" /> 1-Tap Quick-Add Shortcuts
+                    <BoltOutlined className="w-4 h-4 text-primary" /> 1-Tap Quick-Add Shortcuts
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Pre-set recurring frequent purchases (like morning coffee or daily commute)
@@ -796,7 +805,7 @@ export default function Settings() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Icon (☕)" value={qaIcon} onChange={e => setQaIcon(e.target.value)} className="col-span-1 rounded-xl" />
+                  <Input placeholder="Icon or category (e.g. coffee)" value={qaIcon} onChange={e => setQaIcon(e.target.value)} className="col-span-1 rounded-xl" />
                   <Input placeholder="Name (Coffee)" value={qaName} onChange={e => setQaName(e.target.value)} className="col-span-1 rounded-xl" />
                   <Input type="text" inputMode="decimal" placeholder="Amount" value={qaAmount} onChange={e => setQaAmount(e.target.value)} className="col-span-1 rounded-xl" />
                   <select
@@ -819,7 +828,11 @@ export default function Settings() {
                   ) : (
                     (settings.quickAdds || []).map((qa, index) => (
                       <div key={index} className="flex items-center gap-2 bg-secondary text-secondary-foreground px-3 py-2 rounded-xl text-xs font-medium border border-border/60 shadow-2xs">
-                        <span>{qa.icon} {qa.description} ({settings.currency}{qa.amount})</span>
+                        <span className="flex items-center gap-1.5">
+                          <CategoryIcon category={qa.category || qa.description} icon={qa.icon} className="w-3.5 h-3.5 text-primary" />
+                          <span>{qa.description}</span>
+                          <span className="text-muted-foreground font-mono">({settings.currency}{qa.amount})</span>
+                        </span>
                         <button 
                           onClick={() => removeQa(index)} 
                           className="text-muted-foreground hover:text-destructive p-0.5 rounded transition-colors cursor-pointer"
@@ -1002,11 +1015,11 @@ export default function Settings() {
                     vibrate(15);
                     navigate('/admin');
                   }}
-                  className="cursor-pointer border-primary/30 hover:border-primary/60 transition-all active:scale-[0.98] bg-gradient-to-br from-primary/10 via-card to-card shadow-sm hover:shadow-md group rounded-3xl"
+                  className="cursor-pointer border border-border hover:border-primary/50 transition-all active:scale-[0.98] bg-card shadow-xs hover:shadow-sm group rounded-3xl"
                 >
                   <CardContent className="p-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
-                      <div className="w-11 h-11 rounded-2xl bg-primary/15 text-primary flex items-center justify-center shrink-0 border border-primary/25 shadow-inner">
+                      <div className="w-11 h-11 rounded-2xl bg-secondary text-primary flex items-center justify-center shrink-0 border border-border shadow-xs">
                         <ShieldCheck className="w-6 h-6" />
                       </div>
                       <div>
@@ -1028,12 +1041,10 @@ export default function Settings() {
             )}
 
             {/* Share Option Card */}
-            <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card backdrop-blur-2xl p-4 sm:p-5 shadow-2xs">
-              <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-primary/15 blur-2xl pointer-events-none" />
-
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-4 sm:p-5 shadow-xs">
               <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-primary to-cyan-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-primary/25">
+                  <div className="w-11 h-11 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-xs">
                     <Share2 className="w-5 h-5 stroke-[2.2]" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -1164,7 +1175,7 @@ export default function Settings() {
 
                   <div className="shrink-0 self-start sm:self-center">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary/80 border border-border/60 text-xs font-semibold text-muted-foreground select-none">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <LockOutlined className="w-3.5 h-3.5 text-muted-foreground" />
                       Ready for Native
                     </span>
                   </div>

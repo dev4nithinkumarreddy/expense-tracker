@@ -1,9 +1,18 @@
+import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sliders, Check, RotateCcw, Zap, LayoutDashboard, Eye, EyeOff } from "lucide-react";
+import { X, Sliders, Check, RotateCcw, LayoutDashboard, Eye, EyeOff } from "lucide-react";
 import { Button } from "../ui/button";
 import { vibrate, cn } from "../../lib/utils";
 import { useExpenseStore, type DashboardWidgetsConfig } from "../../store/useExpenseStore";
 import { defaultDashboardWidgets } from "../../store/slices/settingsSlice";
+import SpeedOutlined from '@mui/icons-material/SpeedOutlined';
+import TrackChangesOutlined from '@mui/icons-material/TrackChangesOutlined';
+import AccountBalanceWalletOutlined from '@mui/icons-material/AccountBalanceWalletOutlined';
+import BoltOutlined from '@mui/icons-material/BoltOutlined';
+import BarChartOutlined from '@mui/icons-material/BarChartOutlined';
+import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
+import CalendarTodayOutlined from '@mui/icons-material/CalendarTodayOutlined';
+import ReceiptLongOutlined from '@mui/icons-material/ReceiptLongOutlined';
 
 interface CustomizeDashboardModalProps {
   isOpen: boolean;
@@ -14,57 +23,57 @@ interface WidgetItem {
   id: keyof DashboardWidgetsConfig;
   label: string;
   description: string;
-  icon: string;
+  icon: React.ReactNode;
 }
 
 const WIDGET_ITEMS: WidgetItem[] = [
   {
     id: "safeToSpend",
-    label: "Safe-to-Spend & Runway",
-    description: "Daily spend allowance and days left in month",
-    icon: "🛡️"
+    label: "Daily Runway & Safe-to-Spend",
+    description: "Daily spend allowance and days left in cycle",
+    icon: <SpeedOutlined className="w-4 h-4" fontSize="inherit" />
   },
   {
     id: "budgetRing",
     label: "Monthly Budget Ring",
-    description: "Visual ring of monthly budget vs actual spent",
-    icon: "🎯"
+    description: "Visual meter of budget vs actual spent",
+    icon: <TrackChangesOutlined className="w-4 h-4" fontSize="inherit" />
   },
   {
     id: "accountsBar",
     label: "Multi-Account Bar",
     description: "Liquid cash balances across Bank, Cash & Wallets",
-    icon: "💳"
+    icon: <AccountBalanceWalletOutlined className="w-4 h-4" fontSize="inherit" />
   },
   {
     id: "quickAdds",
-    label: "1-Tap Quick Adds",
-    description: "Fast preset buttons for frequent daily expenses",
-    icon: "⚡"
+    label: "Quick Log Buttons",
+    description: "Presets for frequent daily expenses",
+    icon: <BoltOutlined className="w-4 h-4" fontSize="inherit" />
   },
   {
     id: "categoryBudgets",
     label: "Category Budgets",
-    description: "Per-category spending progress bars and limits",
-    icon: "📊"
+    description: "Per-category spending progress and limits",
+    icon: <BarChartOutlined className="w-4 h-4" fontSize="inherit" />
   },
   {
     id: "weeklyTrend",
-    label: "7-Day Spending Sparkline",
-    description: "Micro-chart of your daily spending trajectory",
-    icon: "📈"
+    label: "7-Day Spending Trend",
+    description: "Daily spending trajectory over past week",
+    icon: <TrendingUpOutlined className="w-4 h-4" fontSize="inherit" />
   },
   {
     id: "upcomingBills",
     label: "Upcoming Bills & Dues",
     description: "Actionable alert cards for scheduled dues",
-    icon: "📅"
+    icon: <CalendarTodayOutlined className="w-4 h-4" fontSize="inherit" />
   },
   {
     id: "recentActivity",
     label: "Recent Transactions",
     description: "Latest logged expenses with quick actions",
-    icon: "🧾"
+    icon: <ReceiptLongOutlined className="w-4 h-4" fontSize="inherit" />
   }
 ];
 
@@ -78,65 +87,63 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
     ...(settings.dashboardWidgets || {})
   };
 
-  const handleToggleWidget = (widgetId: keyof DashboardWidgetsConfig) => {
-    vibrate(15);
+  const handleToggleWidget = (id: keyof DashboardWidgetsConfig) => {
+    vibrate(10);
     const updated = {
       ...currentWidgets,
-      [widgetId]: !currentWidgets[widgetId]
+      [id]: !currentWidgets[id]
     };
     updateSettings({ dashboardWidgets: updated });
   };
 
   const handleSetMode = (mode: 'focus' | 'detailed') => {
-    vibrate(20);
+    vibrate(15);
     updateSettings({ dashboardMode: mode });
   };
 
-  const handleReset = () => {
-    vibrate(25);
+  const handleResetToDefault = () => {
+    vibrate(20);
     updateSettings({
       dashboardMode: 'detailed',
-      dashboardWidgets: { ...defaultDashboardWidgets }
+      dashboardWidgets: defaultDashboardWidgets
     });
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md"
             onClick={onClose}
+            className="absolute inset-0 bg-background/80"
           />
 
-          {/* Modal Card / Bottom Sheet */}
           <motion.div
-            initial={{ y: "100%", opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="relative w-full max-w-lg bg-card/95 border border-white/10 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 z-10 max-h-[88vh] flex flex-col overflow-hidden"
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-lg p-5 sm:p-6 z-10 max-h-[90vh] flex flex-col"
           >
             {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-border/50">
+            <div className="flex items-center justify-between pb-4 border-b border-border shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-                  <Sliders className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <Sliders className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">Customize Dashboard</h3>
-                  <p className="text-xs text-muted-foreground">Personalize your home screen layout</p>
+                  <h3 className="text-base font-bold text-foreground">Customize Dashboard</h3>
+                  <p className="text-xs text-muted-foreground">Select widgets and default layout mode</p>
                 </div>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={onClose}
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -154,15 +161,15 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
                     type="button"
                     onClick={() => handleSetMode('focus')}
                     className={cn(
-                      "flex flex-col items-start p-3 rounded-2xl border transition-all text-left",
+                      "flex flex-col items-start p-3 rounded-xl border transition-all text-left",
                       currentMode === 'focus'
-                        ? "bg-primary/15 border-primary text-foreground shadow-sm shadow-primary/10"
-                        : "bg-muted/30 border-border/60 text-muted-foreground hover:bg-muted/50"
+                        ? "bg-primary/10 border-primary text-foreground"
+                        : "bg-secondary/40 border-border text-muted-foreground hover:bg-secondary"
                     )}
                   >
                     <div className="flex items-center justify-between w-full mb-1">
                       <div className="flex items-center gap-1.5 font-semibold text-sm text-foreground">
-                        <Zap className="w-4 h-4 text-amber-500" />
+                        <BoltOutlined className="w-4 h-4 text-amber-500" fontSize="inherit" />
                         Focus
                       </div>
                       {currentMode === 'focus' && (
@@ -172,7 +179,7 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
                       )}
                     </div>
                     <span className="text-[11px] leading-tight text-muted-foreground">
-                      Clean & decluttered: safe runway, quick log & transactions.
+                      Simplified: runway, quick log, and transactions.
                     </span>
                   </button>
 
@@ -180,10 +187,10 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
                     type="button"
                     onClick={() => handleSetMode('detailed')}
                     className={cn(
-                      "flex flex-col items-start p-3 rounded-2xl border transition-all text-left",
+                      "flex flex-col items-start p-3 rounded-xl border transition-all text-left",
                       currentMode === 'detailed'
-                        ? "bg-primary/15 border-primary text-foreground shadow-sm shadow-primary/10"
-                        : "bg-muted/30 border-border/60 text-muted-foreground hover:bg-muted/50"
+                        ? "bg-primary/10 border-primary text-foreground"
+                        : "bg-secondary/40 border-border text-muted-foreground hover:bg-secondary"
                     )}
                   >
                     <div className="flex items-center justify-between w-full mb-1">
@@ -198,22 +205,22 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
                       )}
                     </div>
                     <span className="text-[11px] leading-tight text-muted-foreground">
-                      Full breakdown: multi-account, trends, and category budgets.
+                      Complete overview: accounts, budgets, and bills.
                     </span>
                   </button>
                 </div>
               </div>
 
-              {/* Individual Widget Toggles */}
+              {/* Individual Widgets Toggle */}
               <div>
-                <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Visible Widgets ({Object.values(currentWidgets).filter(Boolean).length}/{WIDGET_ITEMS.length})
+                    Active Modules
                   </label>
                   <button
                     type="button"
-                    onClick={handleReset}
-                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                    onClick={handleResetToDefault}
+                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors cursor-pointer"
                   >
                     <RotateCcw className="w-3 h-3" />
                     Reset
@@ -230,12 +237,14 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
                         className={cn(
                           "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all select-none",
                           isVisible
-                            ? "bg-card border-border/80 hover:border-primary/40 shadow-xs"
-                            : "bg-muted/20 border-border/30 opacity-60 hover:opacity-80"
+                            ? "bg-card border-border hover:border-primary/40 shadow-xs"
+                            : "bg-muted/20 border-border/40 opacity-60 hover:opacity-80"
                         )}
                       >
                         <div className="flex items-center gap-3">
-                          <span className="text-lg">{w.icon}</span>
+                          <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-primary shrink-0 border border-border">
+                            {w.icon}
+                          </div>
                           <div>
                             <div className="text-sm font-medium text-foreground">{w.label}</div>
                             <div className="text-[11px] text-muted-foreground leading-tight">{w.description}</div>
@@ -252,7 +261,7 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
                             <motion.div
                               layout
                               transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                              className="w-4 h-4 rounded-full bg-white shadow-sm flex items-center justify-center"
+                              className="w-4 h-4 rounded-full bg-white shadow-xs flex items-center justify-center"
                             >
                               {isVisible ? (
                                 <Eye className="w-2.5 h-2.5 text-primary" />
@@ -270,11 +279,8 @@ export function CustomizeDashboardModal({ isOpen, onClose }: CustomizeDashboardM
             </div>
 
             {/* Footer */}
-            <div className="pt-3 border-t border-border/50">
-              <Button
-                onClick={onClose}
-                className="w-full rounded-xl bg-primary text-primary-foreground font-semibold py-2.5"
-              >
+            <div className="pt-3 border-t border-border flex justify-end shrink-0">
+              <Button onClick={onClose} className="px-5 rounded-xl text-xs font-semibold">
                 Done
               </Button>
             </div>

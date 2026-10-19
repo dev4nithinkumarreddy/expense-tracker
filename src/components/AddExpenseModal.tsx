@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
-import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, Sparkles, ClipboardPaste, Users, Mic, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, ClipboardPaste, Users, Mic, ChevronDown, ChevronUp } from "lucide-react";
+import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
+import TuneOutlined from "@mui/icons-material/TuneOutlined";
+import CategoryIcon from "./ui/CategoryIcon";
 import { supabase } from "../lib/supabase";
 import { cn, vibrate } from "../lib/utils";
 import { format, parseISO, subDays } from "date-fns";
@@ -13,35 +16,6 @@ import { parseBankSMS } from "../lib/smsParser";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { SplitBillModal } from "./split/SplitBillModal";
 
-const DEFAULT_CATEGORY_EMOJIS: Record<string, string> = {
-  Food: '🍔',
-  Dining: '🍽️',
-  Grocery: '🛒',
-  Groceries: '🛒',
-  Shopping: '🛍️',
-  Entertainment: '🎬',
-  Travel: '✈️',
-  Transport: '🚗',
-  Fuel: '⛽',
-  Bills: '💡',
-  Utilities: '⚡',
-  Medical: '💊',
-  Health: '🏥',
-  Gym: '🏋️',
-  'Gym supplise': '🏋️',
-  'Gym supplies': '🏋️',
-  EMI: '💳',
-  Income: '💰',
-  Salary: '💵',
-  Investment: '📈',
-  Personal: '👤',
-  Education: '📚',
-  Other: '📦',
-};
-
-function getCategoryEmoji(categoryName: string, customEmojis?: Record<string, string>): string {
-  return customEmojis?.[categoryName] || DEFAULT_CATEGORY_EMOJIS[categoryName] || '🏷️';
-}
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -425,7 +399,7 @@ export function AddExpenseModal({
               stiffness: 340,
               mass: 0.85
             }}
-            className="bg-card/95 dark:bg-card/90 text-card-foreground w-full max-w-md rounded-[32px] border border-white/20 dark:border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.22)] dark:shadow-[0_24px_70px_rgba(0,0,0,0.6)] max-h-[88dvh] flex flex-col z-10 relative overflow-hidden backdrop-blur-2xl"
+            className="bg-card text-card-foreground w-full max-w-md rounded-3xl border border-border shadow-2xl max-h-[88dvh] flex flex-col z-10 relative overflow-hidden"
           >
             {/* Navigation Bar */}
             <div className="flex justify-between items-center px-5 pt-4 pb-2 shrink-0 border-b border-border/20">
@@ -458,8 +432,8 @@ export function AddExpenseModal({
             <div className="p-5 pt-1 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
 
               {/* Smart NLP & SMS Magic Bar */}
-              <div className="flex items-center gap-1.5 bg-secondary/50 dark:bg-card/50 rounded-2xl p-1.5 px-3 border border-border/50 backdrop-blur-xs">
-                <Sparkles className="w-4 h-4 text-primary shrink-0 animate-pulse" />
+              <div className="flex items-center gap-1.5 bg-secondary rounded-2xl p-1.5 px-3 border border-border">
+                <AutoAwesomeOutlined className="w-4 h-4 text-primary shrink-0" />
                 <input
                   type="text"
                   placeholder="Smart log: 'Coffee 150' or 'Uber 300'..."
@@ -597,8 +571,9 @@ export function AddExpenseModal({
                 <div className="p-3 px-3.5 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Category</p>
-                    <span className="text-[11px] font-medium text-primary flex items-center gap-1">
-                      {getCategoryEmoji(category, settings.categoryEmojis)} {category}
+                    <span className="text-[11px] font-medium text-primary flex items-center gap-1.5">
+                      <CategoryIcon category={category} name={settings.categoryEmojis?.[category]} className="w-3.5 h-3.5" />
+                      <span>{category}</span>
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
@@ -620,7 +595,7 @@ export function AddExpenseModal({
                               : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
                           )}
                         >
-                          <span className="text-sm leading-none">{getCategoryEmoji(c, settings.categoryEmojis)}</span>
+                          <CategoryIcon category={c} name={settings.categoryEmojis?.[c]} className="w-3.5 h-3.5" />
                           <span>{c}</span>
                         </button>
                       );
@@ -703,7 +678,7 @@ export function AddExpenseModal({
                   className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-secondary/35 hover:bg-secondary/60 border border-border/40 text-xs font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer select-none"
                 >
                   <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
+                    <TuneOutlined className="w-3.5 h-3.5 text-primary" />
                     <span>{isDetailsExpanded ? "Fewer options" : "More options (Account, Notes, Repeat, Split)"}</span>
                   </span>
                   {isDetailsExpanded ? (
@@ -754,7 +729,7 @@ export function AddExpenseModal({
                                         : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
                                     )}
                                   >
-                                    <span>{acc.icon || (acc.type === 'cash' ? '💵' : '🏦')}</span>
+                                    <CategoryIcon category={acc.name} type={acc.type} name={acc.icon} className="w-3.5 h-3.5" />
                                     <span>{acc.name}</span>
                                     <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
                                       ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
@@ -839,7 +814,7 @@ export function AddExpenseModal({
                               }}
                               className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground flex items-center gap-1 shadow-xs"
                             >
-                              <Sparkles className="w-3.5 h-3.5" /> Split & UPI
+                              <Users className="w-3.5 h-3.5" /> Split & UPI
                             </button>
                             <button
                               type="button"
@@ -927,14 +902,14 @@ export function AddExpenseModal({
                 <div className="relative overflow-hidden p-3 rounded-2xl bg-primary/10 border border-primary/30 flex items-center gap-3 animate-in fade-in">
                   <Loader2 className="w-5 h-5 animate-spin text-primary shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-primary">Scanning Receipt with AI OCR...</p>
+                    <p className="text-xs font-semibold text-primary">Scanning Receipt...</p>
                     <p className="text-[10px] text-primary/70">Extracting amount & merchant</p>
                   </div>
                   <motion.div
                     initial={{ x: "-100%" }}
                     animate={{ x: "200%" }}
                     transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
-                    className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-primary/30 to-transparent pointer-events-none"
+                    className="absolute inset-y-0 w-24 bg-primary/20 pointer-events-none"
                   />
                 </div>
               )}

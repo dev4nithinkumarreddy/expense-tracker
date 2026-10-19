@@ -12,13 +12,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-100 ease-out active:scale-[0.97] select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100",
+          "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-100 ease-out active:scale-[0.98] select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100",
           {
-            "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90": variant === "default",
-            "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90": variant === "destructive",
-            "border border-input bg-background/80 backdrop-blur-sm shadow-sm hover:bg-accent hover:text-accent-foreground": variant === "outline",
-            "bg-secondary/80 backdrop-blur-sm text-secondary-foreground shadow-sm hover:bg-secondary": variant === "secondary",
-            "hover:bg-accent/80 hover:text-accent-foreground": variant === "ghost",
+            "bg-primary text-primary-foreground shadow-xs hover:brightness-105 active:brightness-95": variant === "default",
+            "bg-destructive text-destructive-foreground shadow-xs hover:brightness-105 active:brightness-95": variant === "destructive",
+            "border border-border bg-background text-foreground shadow-xs hover:bg-secondary hover:text-foreground": variant === "outline",
+            "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80": variant === "secondary",
+            "hover:bg-secondary hover:text-foreground": variant === "ghost",
             "text-primary underline-offset-4 hover:underline active:scale-100": variant === "link",
             "h-9 px-4 py-2": size === "default",
             "h-8 rounded-lg px-3 text-xs": size === "sm",

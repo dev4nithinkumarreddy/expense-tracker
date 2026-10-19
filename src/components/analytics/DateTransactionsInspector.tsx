@@ -46,10 +46,8 @@ export function DateTransactionsInspector({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
         transition={{ type: 'spring', damping: 25, stiffness: 320 }}
-        className="p-5 sm:p-6 rounded-3xl bg-card/90 dark:bg-card/75 backdrop-blur-2xl border border-primary/25 shadow-lg shadow-primary/5 space-y-4 relative overflow-hidden"
+        className="p-5 sm:p-6 rounded-3xl bg-card border border-border shadow-xs space-y-4 relative overflow-hidden"
       >
-        {/* Ambient Top Highlight */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/30 via-primary to-primary/30" />
 
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
