@@ -10,9 +10,9 @@ import {
   AlertCircle, 
   Wand2, 
   Scale, 
-  Sparkles,
   Loader2
 } from 'lucide-react';
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
@@ -449,7 +449,7 @@ export const SplitBillModal: React.FC<SplitBillModalProps> = ({
                 <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-2 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
+                      <AutoAwesomeOutlined className="w-3.5 h-3.5" fontSize="inherit" />
                       Set your UPI ID to receive payments
                     </span>
                     <button

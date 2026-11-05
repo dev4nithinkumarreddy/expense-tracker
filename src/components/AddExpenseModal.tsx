@@ -14,8 +14,10 @@ import { formatCurrency } from "../lib/formatCurrency";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { parseBankSMS } from "../lib/smsParser";
 import { useVoiceInput } from "../hooks/useVoiceInput";
+import { isIncomeCategory } from "../lib/categoryStyles";
 import { SplitBillModal } from "./split/SplitBillModal";
 
+const INCOME_CATEGORIES = ['Income', 'Salary', 'Freelance', 'Investments', 'Bonus', 'Other'];
 
 export function AddExpenseModal({ 
   isOpen, 
@@ -26,15 +28,17 @@ export function AddExpenseModal({
   onClose: () => void;
   expenseToEdit?: Expense | null;
 }) {
-  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan, addDebt, accounts = [] } = useExpenseStore();
+  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan, addDebt, accounts = [], transferFunds } = useExpenseStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [transactionType, setTransactionType] = useState<'expense' | 'income' | 'transfer'>('expense');
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState(() => settings.categories[0] || "Other");
   const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(() => accounts[0]?.id);
+  const [transferToAccountId, setTransferToAccountId] = useState<string | undefined>(() => accounts.find(a => a.id !== accounts[0]?.id)?.id || accounts[1]?.id);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -65,6 +69,13 @@ export function AddExpenseModal({
 
     if (isOpening || isEditTargetChanged) {
       if (expenseToEdit) {
+        if (expenseToEdit.category === 'Transfer') {
+          setTransactionType('transfer');
+        } else if (isIncomeCategory(expenseToEdit.category)) {
+          setTransactionType('income');
+        } else {
+          setTransactionType('expense');
+        }
         setAmount(String(expenseToEdit.amount));
         setDescription(expenseToEdit.description);
         setCategory(expenseToEdit.category);
@@ -73,6 +84,7 @@ export function AddExpenseModal({
         setReceiptFile(null);
         setRecurrence(expenseToEdit.recurrence || 'none');
         setSelectedAccountId(expenseToEdit.account_id || accounts[0]?.id);
+        setTransferToAccountId(expenseToEdit.transfer_account_id || accounts.find(a => a.id !== (expenseToEdit.account_id || accounts[0]?.id))?.id);
         setShowMoreOptions(Boolean(
           expenseToEdit.notes ||
           (expenseToEdit.recurrence && expenseToEdit.recurrence !== 'none') ||
@@ -80,6 +92,7 @@ export function AddExpenseModal({
           (expenseToEdit.account_id && expenseToEdit.account_id !== accounts[0]?.id)
         ));
       } else {
+        setTransactionType('expense');
         setAmount("");
         
         // Auto-fill from share target API
@@ -98,6 +111,7 @@ export function AddExpenseModal({
         setReceiptFile(null);
         setRecurrence('none');
         setSelectedAccountId(accounts[0]?.id);
+        setTransferToAccountId(accounts.find(a => a.id !== accounts[0]?.id)?.id || accounts[1]?.id);
         setIsSplitting(false);
         setSplitFriends("");
         setShowMoreOptions(false);
@@ -209,7 +223,11 @@ export function AddExpenseModal({
   });
 
   const parsedAmount = parseFloat(amount);
-  const isValid = !isNaN(parsedAmount) && parsedAmount > 0 && description.trim().length > 0;
+  const isValid = !isNaN(parsedAmount) && parsedAmount > 0 && (
+    transactionType === 'transfer'
+      ? Boolean(selectedAccountId && transferToAccountId && selectedAccountId !== transferToAccountId)
+      : description.trim().length > 0
+  );
 
   const handleSave = async () => {
     if (!isValid || uploading) return;
@@ -217,6 +235,19 @@ export function AddExpenseModal({
     setUploading(true);
 
     try {
+      if (transactionType === 'transfer') {
+        if (!selectedAccountId || !transferToAccountId || selectedAccountId === transferToAccountId) {
+          toast.error("Select different source and destination accounts");
+          setUploading(false);
+          return;
+        }
+        await transferFunds(selectedAccountId, transferToAccountId, parsedAmount, notes.trim() || undefined);
+        if (settings.soundEnabled) playSuccessSound();
+        setUploading(false);
+        onClose();
+        return;
+      }
+
       let receipt_url = expenseToEdit?.receipt_url;
 
       if (receiptFile) {
@@ -262,6 +293,33 @@ export function AddExpenseModal({
       }
 
       const effectiveAccountId = selectedAccountId || accounts[0]?.id || null;
+
+      if (transactionType === 'income') {
+        const incomeData = {
+          amount: parsedAmount,
+          description: description.trim() || 'Income',
+          category: category || 'Income',
+          date: isoDate,
+          notes: notes.trim(),
+          receipt_url,
+          recurrence,
+          next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null,
+          account_id: effectiveAccountId,
+        };
+
+        if (expenseToEdit) {
+          updateExpense(expenseToEdit.id, incomeData);
+          toast.success('Income updated successfully');
+        } else {
+          await addExpense(incomeData);
+          toast.success(`Logged ${formatCurrency(parsedAmount, settings.currency)} income`);
+        }
+
+        if (settings.soundEnabled) playSuccessSound();
+        setUploading(false);
+        onClose();
+        return;
+      }
 
       const expenseData = {
         amount: parsedAmount,
@@ -420,7 +478,13 @@ export function AddExpenseModal({
                 Cancel
               </button>
               <h2 className="text-base font-semibold tracking-tight">
-                {expenseToEdit ? 'Edit Expense' : 'New Expense'}
+                {expenseToEdit 
+                  ? 'Edit Transaction' 
+                  : transactionType === 'income' 
+                  ? 'Add Income' 
+                  : transactionType === 'transfer' 
+                  ? 'Transfer Funds' 
+                  : 'New Expense'}
               </h2>
               <button
                 type="button"
@@ -437,69 +501,136 @@ export function AddExpenseModal({
               </button>
             </div>
 
-            {/* Scrollable Form Body */}
-            <div className="p-5 pt-1 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
-
-              {/* Smart NLP & SMS Magic Bar */}
-              <div className="flex items-center gap-1.5 bg-secondary rounded-2xl p-1.5 px-3 border border-border">
-                <AutoAwesomeOutlined className="w-4 h-4 text-primary shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Smart log: 'Coffee 150' or 'Uber 300'..."
-                  value={smartInput}
-                  onChange={(e) => setSmartInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleApplyNLP(smartInput);
-                    }
-                  }}
-                  className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-                />
-                {voice.isSupported && (
+            {/* 3-Way Transaction Type Switcher (Expense | Income | Transfer) */}
+            {!expenseToEdit && (
+              <div className="px-5 pt-2.5 pb-1 shrink-0">
+                <div className="grid grid-cols-3 p-1 rounded-2xl bg-secondary/70 border border-border/50 text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => {
-                      vibrate(15);
-                      voice.toggleListening();
+                      vibrate(8);
+                      playTapSound();
+                      setTransactionType('expense');
+                      if (isIncomeCategory(category)) {
+                        setCategory(settings.categories[0] || 'Other');
+                      }
                     }}
                     className={cn(
-                      "p-1.5 rounded-xl transition-all cursor-pointer shrink-0 select-none",
-                      voice.isListening
-                        ? "bg-rose-500 text-white animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.6)]"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                      "py-1.5 rounded-xl transition-all select-none cursor-pointer flex items-center justify-center gap-1.5",
+                      transactionType === 'expense'
+                        ? "bg-card text-foreground shadow-xs border border-border/60 font-bold"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
-                    title={voice.isListening ? "Listening... tap to stop" : "Speak expense (e.g. 'Coffee 150')"}
-                    aria-label="Voice expense entry"
                   >
-                    <Mic className={cn("w-3.5 h-3.5", voice.isListening && "animate-bounce text-white")} />
+                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                    Expense
                   </button>
-                )}
-                {smartInput && (
                   <button
                     type="button"
-                    onClick={() => handleApplyNLP(smartInput)}
-                    className="text-[11px] font-semibold text-primary px-2.5 py-1 rounded-xl bg-primary/15 hover:bg-primary/25 transition-colors cursor-pointer shrink-0"
+                    onClick={() => {
+                      vibrate(8);
+                      playTapSound();
+                      setTransactionType('income');
+                      if (!isIncomeCategory(category)) {
+                        setCategory('Income');
+                      }
+                    }}
+                    className={cn(
+                      "py-1.5 rounded-xl transition-all select-none cursor-pointer flex items-center justify-center gap-1.5",
+                      transactionType === 'income'
+                        ? "bg-card text-foreground shadow-xs border border-border/60 font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
                   >
-                    Parse
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    Income
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handlePasteSMS}
-                  title="Paste bank SMS or transaction text from clipboard"
-                  className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg bg-background/60 hover:bg-background border border-border/40 transition-all shrink-0 cursor-pointer"
-                >
-                  <ClipboardPaste className="w-3.5 h-3.5 text-primary" />
-                  <span className="hidden xs:inline">Paste SMS</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(8);
+                      playTapSound();
+                      setTransactionType('transfer');
+                    }}
+                    className={cn(
+                      "py-1.5 rounded-xl transition-all select-none cursor-pointer flex items-center justify-center gap-1.5",
+                      transactionType === 'transfer'
+                        ? "bg-card text-foreground shadow-xs border border-border/60 font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />
+                    Transfer
+                  </button>
+                </div>
               </div>
+            )}
+
+            {/* Scrollable Form Body */}
+            <div className="p-5 pt-2 space-y-4 overflow-y-auto pb-8 scrollbar-hide">
+
+              {/* Smart NLP & SMS Magic Bar (Only for Expense mode) */}
+              {transactionType === 'expense' && (
+                <div className="flex items-center gap-1.5 bg-secondary rounded-2xl p-1.5 px-3 border border-border">
+                  <AutoAwesomeOutlined className="w-4 h-4 text-primary shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Smart log: 'Coffee 150' or 'Uber 300'..."
+                    value={smartInput}
+                    onChange={(e) => setSmartInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleApplyNLP(smartInput);
+                      }
+                    }}
+                    className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                  />
+                  {voice.isSupported && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(15);
+                        voice.toggleListening();
+                      }}
+                      className={cn(
+                        "p-1.5 rounded-xl transition-all cursor-pointer shrink-0 select-none",
+                        voice.isListening
+                          ? "bg-rose-500 text-white animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.6)]"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                      )}
+                      title={voice.isListening ? "Listening... tap to stop" : "Speak expense (e.g. 'Coffee 150')"}
+                      aria-label="Voice expense entry"
+                    >
+                      <Mic className={cn("w-3.5 h-3.5", voice.isListening && "animate-bounce text-white")} />
+                    </button>
+                  )}
+                  {smartInput && (
+                    <button
+                      type="button"
+                      onClick={() => handleApplyNLP(smartInput)}
+                      className="text-[11px] font-semibold text-primary px-2.5 py-1 rounded-xl bg-primary/15 hover:bg-primary/25 transition-colors cursor-pointer shrink-0"
+                    >
+                      Parse
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handlePasteSMS}
+                    title="Paste bank SMS or transaction text from clipboard"
+                    className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg bg-background/60 hover:bg-background border border-border/40 transition-all shrink-0 cursor-pointer"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5 text-primary" />
+                    <span className="hidden xs:inline">Paste SMS</span>
+                  </button>
+                </div>
+              )}
 
               {/* 1. Hero Amount Display */}
               <div className="flex flex-col items-center justify-center pt-2 pb-2">
                 <div className="flex items-baseline justify-center gap-1.5 w-full">
                   <span className="text-3xl sm:text-4xl font-bold text-muted-foreground/50 select-none">
-                    {settings.currency}
+                    {transactionType === 'transfer' ? '⇄' : settings.currency}
                   </span>
                   <input
                     type="text"
@@ -536,96 +667,23 @@ export function AddExpenseModal({
                 </div>
               </div>
 
-              {/* 2. Primary Details Card: Description, Category, Account, Date */}
-              <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
-                
-                {/* Description Row */}
-                <div className="flex items-center gap-3 p-3 px-3.5">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                    <ShoppingBag className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Description</p>
-                    <input
-                      type="text"
-                      placeholder="e.g. Coffee, Groceries, Flight"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="w-full bg-transparent text-sm font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
-                    />
-                  </div>
-
-                  {/* Camera / Receipt Scan Button */}
-                  <label 
-                    className="relative overflow-hidden w-9 h-9 rounded-xl border border-border/60 hover:bg-secondary active:scale-95 flex items-center justify-center shrink-0 cursor-pointer transition-all text-muted-foreground hover:text-foreground bg-background/50"
-                    title="Scan Receipt"
-                  >
-                    {isScanning ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    ) : (
-                      <Camera className="w-4 h-4" />
-                    )}
-                    <input 
-                      ref={fileInputRef}
-                      type="file" 
-                      accept="image/*" 
-                      capture="environment"
-                      className="hidden" 
-                      onChange={handleFileChange}
-                    />
-                  </label>
-                </div>
-
-                {/* Category Selection Row */}
-                <div className="p-3 px-3.5 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Category</p>
-                    <span className="text-[11px] font-medium text-primary flex items-center gap-1.5">
-                      <CategoryIcon category={category} name={settings.categoryEmojis?.[category]} className="w-3.5 h-3.5" />
-                      <span>{category}</span>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
-                    {settings.categories.map((c) => {
-                      const isSelected = category === c;
-                      return (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => {
-                            vibrate(8);
-                            playTapSound();
-                            setCategory(c);
-                          }}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
-                            isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
-                              : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
-                          )}
-                        >
-                          <CategoryIcon category={c} name={settings.categoryEmojis?.[c]} className="w-3.5 h-3.5" />
-                          <span>{c}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Account Selection Row (1-Tap Direct Access) */}
-                {accounts && accounts.length > 0 && (
+              {/* 2. Primary Details Card */}
+              {transactionType === 'transfer' ? (
+                /* TRANSFER FORM CARD */
+                <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
+                  {/* From Account */}
                   <div className="p-3 px-3.5 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
-                      {(selectedAccountId || accounts[0]?.id) && (
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">From Account</p>
+                      {selectedAccountId && (
                         <span className="text-[11px] font-medium text-primary">
-                          {accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.name}
+                          {accounts.find(a => a.id === selectedAccountId)?.name}
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
-                      {accounts.filter((acc) => acc.type !== 'credit_card').map((acc) => {
-                        const isSelected = (selectedAccountId || accounts[0]?.id) === acc.id;
+                      {accounts.map((acc) => {
+                        const isSelected = selectedAccountId === acc.id;
                         return (
                           <button
                             key={acc.id}
@@ -634,6 +692,10 @@ export function AddExpenseModal({
                               vibrate(8);
                               playTapSound();
                               setSelectedAccountId(acc.id);
+                              if (transferToAccountId === acc.id) {
+                                const nextTo = accounts.find(a => a.id !== acc.id)?.id;
+                                setTransferToAccountId(nextTo);
+                              }
                             }}
                             className={cn(
                               "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
@@ -652,74 +714,293 @@ export function AddExpenseModal({
                       })}
                     </div>
                   </div>
-                )}
 
-                {/* Date Row */}
-                <div className="flex items-center justify-between p-3 px-3.5 gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                      <Calendar className="w-4 h-4" />
+                  {/* To Account */}
+                  <div className="p-3 px-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">To Destination Account</p>
+                      {transferToAccountId && (
+                        <span className="text-[11px] font-medium text-primary">
+                          {accounts.find(a => a.id === transferToAccountId)?.name}
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Date</p>
-                      <p className="text-xs font-semibold text-foreground">
-                        {formattedDateLabel}
-                      </p>
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
+                      {accounts.map((acc) => {
+                        const isSelected = transferToAccountId === acc.id;
+                        const isSameAsFrom = selectedAccountId === acc.id;
+                        return (
+                          <button
+                            key={acc.id}
+                            type="button"
+                            disabled={isSameAsFrom}
+                            onClick={() => {
+                              vibrate(8);
+                              playTapSound();
+                              setTransferToAccountId(acc.id);
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none",
+                              isSameAsFrom
+                                ? "opacity-35 cursor-not-allowed bg-muted border-border/30"
+                                : isSelected
+                                ? "bg-sky-600 text-white border-sky-600 shadow-xs scale-[1.03] cursor-pointer"
+                                : "bg-background/60 hover:bg-background text-foreground/80 border-border/50 cursor-pointer"
+                            )}
+                          >
+                            <CategoryIcon category={acc.name} type={acc.type} name={acc.icon} className="w-3.5 h-3.5" />
+                            <span>{acc.name}</span>
+                            <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-white/90" : "text-muted-foreground")}>
+                              ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        vibrate(8);
-                        playTapSound();
-                        setDate(format(new Date(), 'yyyy-MM-dd'));
-                      }}
-                      className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border cursor-pointer",
-                        isTodayDate
-                          ? "bg-primary/15 text-primary border-primary/30 font-semibold"
-                          : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
-                      )}
-                    >
-                      Today
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        vibrate(8);
-                        playTapSound();
-                        setDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
-                      }}
-                      className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border cursor-pointer",
-                        isYesterdayDate
-                          ? "bg-primary/15 text-primary border-primary/30 font-semibold"
-                          : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
-                      )}
-                    >
-                      Yesterday
-                    </button>
-                    <label className="relative px-2 py-1 rounded-lg text-xs font-medium bg-background/50 hover:bg-background border border-border/50 text-muted-foreground cursor-pointer flex items-center gap-1">
-                      <span>Custom</span>
+                  {/* Notes Row */}
+                  <div className="flex items-center gap-3 p-3 px-3.5">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Transfer Notes</p>
                       <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => {
-                          playTapSound();
-                          setDate(e.target.value);
-                        }}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        type="text"
+                        placeholder="Optional memo (e.g. ATM withdrawal, Card payment)"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        className="w-full bg-transparent text-xs font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
                       />
-                    </label>
+                    </div>
+                  </div>
+
+                  {/* Date Row */}
+                  <div className="flex items-center justify-between p-3 px-3.5 gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Date</p>
+                        <p className="text-xs font-semibold text-foreground">{formattedDateLabel}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => { vibrate(8); playTapSound(); setDate(format(new Date(), 'yyyy-MM-dd')); }}
+                        className={cn("px-2.5 py-1 rounded-lg text-xs font-medium border cursor-pointer", isTodayDate ? "bg-primary/15 text-primary border-primary/30 font-semibold" : "bg-background/50 hover:bg-background text-muted-foreground border-border/50")}
+                      >
+                        Today
+                      </button>
+                      <label className="relative px-2 py-1 rounded-lg text-xs font-medium bg-background/50 hover:bg-background border border-border/50 text-muted-foreground cursor-pointer flex items-center gap-1">
+                        <span>Custom</span>
+                        <input
+                          type="date"
+                          value={date}
+                          onChange={(e) => { playTapSound(); setDate(e.target.value); }}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
+              ) : (
+                /* EXPENSE OR INCOME DETAILS CARD */
+                <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
+                  
+                  {/* Description Row */}
+                  <div className="flex items-center gap-3 p-3 px-3.5">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <ShoppingBag className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {transactionType === 'income' ? 'Income Source' : 'Description'}
+                      </p>
+                      <input
+                        type="text"
+                        placeholder={transactionType === 'income' ? "e.g. Monthly Salary, Freelance, Bonus" : "e.g. Coffee, Groceries, Flight"}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="w-full bg-transparent text-sm font-medium focus:outline-none placeholder:text-muted-foreground/40 text-foreground pt-0.5"
+                      />
+                    </div>
 
-              </div>
+                    {/* Camera / Receipt Scan Button (Expense only) */}
+                    {transactionType === 'expense' && (
+                      <label 
+                        className="relative overflow-hidden w-9 h-9 rounded-xl border border-border/60 hover:bg-secondary active:scale-95 flex items-center justify-center shrink-0 cursor-pointer transition-all text-muted-foreground hover:text-foreground bg-background/50"
+                        title="Scan Receipt"
+                      >
+                        {isScanning ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        ) : (
+                          <Camera className="w-4 h-4" />
+                        )}
+                        <input 
+                          ref={fileInputRef}
+                          type="file" 
+                          accept="image/*" 
+                          capture="environment"
+                          className="hidden" 
+                          onChange={handleFileChange}
+                        />
+                      </label>
+                    )}
+                  </div>
 
-              {/* 3. Progressive Disclosure: More Options Accordion */}
-              <div className="space-y-3">
+                  {/* Category Selection Row */}
+                  <div className="p-3 px-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Category</p>
+                      <span className="text-[11px] font-medium text-primary flex items-center gap-1.5">
+                        <CategoryIcon category={category} name={settings.categoryEmojis?.[category]} className="w-3.5 h-3.5" />
+                        <span>{category}</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
+                      {(transactionType === 'income' ? INCOME_CATEGORIES : settings.categories).map((c) => {
+                        const isSelected = category === c;
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => {
+                              vibrate(8);
+                              playTapSound();
+                              setCategory(c);
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
+                                : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
+                            )}
+                          >
+                            <CategoryIcon category={c} name={settings.categoryEmojis?.[c]} className="w-3.5 h-3.5" />
+                            <span>{c}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Account Selection Row (1-Tap Direct Access, including Credit Cards!) */}
+                  {accounts && accounts.length > 0 && (
+                    <div className="p-3 px-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {transactionType === 'income' ? 'Deposit Into Account' : 'Paid From Account'}
+                        </p>
+                        {(selectedAccountId || accounts[0]?.id) && (
+                          <span className="text-[11px] font-medium text-primary">
+                            {accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
+                        {accounts.map((acc) => {
+                          const isSelected = (selectedAccountId || accounts[0]?.id) === acc.id;
+                          const isCreditCard = acc.type === 'credit_card';
+                          return (
+                            <button
+                              key={acc.id}
+                              type="button"
+                              onClick={() => {
+                                vibrate(8);
+                                playTapSound();
+                                setSelectedAccountId(acc.id);
+                              }}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
+                                isSelected
+                                  ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
+                                  : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
+                              )}
+                            >
+                              <CategoryIcon category={acc.name} type={acc.type} name={acc.icon} className="w-3.5 h-3.5" />
+                              <span>{acc.name}</span>
+                              <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
+                                ({isCreditCard ? 'Owed: ' : ''}{acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Date Row */}
+                  <div className="flex items-center justify-between p-3 px-3.5 gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <Calendar className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Date</p>
+                        <p className="text-xs font-semibold text-foreground">
+                          {formattedDateLabel}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          vibrate(8);
+                          playTapSound();
+                          setDate(format(new Date(), 'yyyy-MM-dd'));
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border cursor-pointer",
+                          isTodayDate
+                            ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                            : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
+                        )}
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          vibrate(8);
+                          playTapSound();
+                          setDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'));
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-medium transition-all border cursor-pointer",
+                          isYesterdayDate
+                            ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                            : "bg-background/50 hover:bg-background text-muted-foreground border-border/50"
+                        )}
+                      >
+                        Yesterday
+                      </button>
+                      <label className="relative px-2 py-1 rounded-lg text-xs font-medium bg-background/50 hover:bg-background border border-border/50 text-muted-foreground cursor-pointer flex items-center gap-1">
+                        <span>Custom</span>
+                        <input
+                          type="date"
+                          value={date}
+                          onChange={(e) => {
+                            playTapSound();
+                            setDate(e.target.value);
+                          }}
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
+              {/* 3. Progressive Disclosure: More Options Accordion (Expense & Income) */}
+              {transactionType !== 'transfer' && (
+                <div className="space-y-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -802,82 +1083,84 @@ export function AddExpenseModal({
                         </div>
                       </div>
 
-                      {/* Bill Splitter Section */}
-                      <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 p-3 px-3.5 space-y-2.5 backdrop-blur-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                              <Users className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">Split with Friends</p>
-                              <p className="text-[10px] text-muted-foreground">Auto-creates IOUs to collect from friends</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                vibrate(15);
-                                setIsFullSplitModalOpen(true);
-                              }}
-                              className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground flex items-center gap-1 shadow-xs"
-                            >
-                              <Users className="w-3.5 h-3.5" /> Split & UPI
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                vibrate(10);
-                                setIsSplitting(!isSplitting);
-                              }}
-                              className={cn(
-                                "px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
-                                isSplitting
-                                  ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
-                                  : "bg-background/60 text-muted-foreground border-border/50 hover:text-foreground"
-                              )}
-                            >
-                              {isSplitting ? "Quick: On" : "Quick"}
-                            </button>
-                          </div>
-                        </div>
-
-                        {isSplitting && (
-                          <div className="space-y-2 pt-1 border-t border-border/30 animate-in fade-in slide-in-from-top-1">
-                            <div>
-                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                                Friend Names (comma-separated)
-                              </p>
-                              <input
-                                type="text"
-                                placeholder="e.g. Alex, Rahul, Sam"
-                                value={splitFriends}
-                                onChange={(e) => setSplitFriends(e.target.value)}
-                                className="w-full bg-background/80 rounded-xl px-3 py-1.5 text-xs font-medium border border-border/50 focus:outline-none focus:border-primary text-foreground"
-                              />
-                            </div>
-
-                            {parsedAmount > 0 && splitFriends.trim() && (
-                              <div className="p-2 px-2.5 rounded-xl bg-primary/10 text-primary text-xs flex justify-between items-center font-medium">
-                                <span>
-                                  {splitFriends.split(',').filter((f) => f.trim()).length + 1} ways split:
-                                </span>
-                                <span className="font-bold">
-                                  {formatCurrency(
-                                    parsedAmount / (splitFriends.split(',').filter((f) => f.trim()).length + 1),
-                                    settings.currency
-                                  )}{' '}
-                                  each
-                                </span>
+                      {/* Bill Splitter Section (Expense Only) */}
+                      {transactionType === 'expense' && (
+                        <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 p-3 px-3.5 space-y-2.5 backdrop-blur-sm">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                <Users className="w-4 h-4" />
                               </div>
-                            )}
+                              <div>
+                                <p className="text-xs font-semibold text-foreground">Split with Friends</p>
+                                <p className="text-[10px] text-muted-foreground">Auto-creates IOUs to collect from friends</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  vibrate(15);
+                                  setIsFullSplitModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer bg-primary/10 text-primary border-primary/20 hover:bg-primary hover:text-primary-foreground flex items-center gap-1 shadow-xs"
+                              >
+                                <Users className="w-3.5 h-3.5" /> Split & UPI
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  vibrate(10);
+                                  setIsSplitting(!isSplitting);
+                                }}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-full text-xs font-medium border transition-all cursor-pointer",
+                                  isSplitting
+                                    ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                                    : "bg-background/60 text-muted-foreground border-border/50 hover:text-foreground"
+                                )}
+                              >
+                                {isSplitting ? "Quick: On" : "Quick"}
+                              </button>
+                            </div>
                           </div>
-                        )}
-                      </div>
+
+                          {isSplitting && (
+                            <div className="space-y-2 pt-1 border-t border-border/30 animate-in fade-in slide-in-from-top-1">
+                              <div>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                                  Friend Names (comma-separated)
+                                </p>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Alex, Rahul, Sam"
+                                  value={splitFriends}
+                                  onChange={(e) => setSplitFriends(e.target.value)}
+                                  className="w-full bg-background/80 rounded-xl px-3 py-1.5 text-xs font-medium border border-border/50 focus:outline-none focus:border-primary text-foreground"
+                                />
+                              </div>
+
+                              {parsedAmount > 0 && splitFriends.trim() && (
+                                <div className="p-2 px-2.5 rounded-xl bg-primary/10 text-primary text-xs flex justify-between items-center font-medium">
+                                  <span>
+                                    {splitFriends.split(',').filter((f) => f.trim()).length + 1} ways split:
+                                  </span>
+                                  <span className="font-bold">
+                                    {formatCurrency(
+                                      parsedAmount / (splitFriends.split(',').filter((f) => f.trim()).length + 1),
+                                      settings.currency
+                                    )}{' '}
+                                    each
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Attached Receipt Card */}
-                      {(receiptFile || (expenseToEdit?.receipt_url && !receiptFile)) && !isScanning && (
+                      {transactionType === 'expense' && (receiptFile || (expenseToEdit?.receipt_url && !receiptFile)) && !isScanning && (
                         <div className="flex items-center justify-between p-2.5 px-3 rounded-2xl bg-secondary/35 border border-border/40">
                           <div className="flex items-center gap-2.5 truncate">
                             {expenseToEdit?.receipt_url && !receiptFile ? (
@@ -905,6 +1188,7 @@ export function AddExpenseModal({
                   )}
                 </AnimatePresence>
               </div>
+              )}
 
               {/* Scanning status banner */}
               {isScanning && (
@@ -940,9 +1224,15 @@ export function AddExpenseModal({
                   <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
                 ) : (
                   <>
-                    {expenseToEdit ? 'Save Changes' : 'Add Expense'}
+                    {expenseToEdit 
+                      ? 'Save Changes' 
+                      : transactionType === 'income' 
+                      ? 'Add Income' 
+                      : transactionType === 'transfer' 
+                      ? 'Confirm Transfer' 
+                      : 'Add Expense'}
                     {!isNaN(parsedAmount) && parsedAmount > 0 && (
-                      <span className="opacity-90">• {settings.currency}{parsedAmount.toLocaleString()}</span>
+                      <span className="opacity-90">• {transactionType === 'transfer' ? '⇄ ' : settings.currency}{parsedAmount.toLocaleString()}</span>
                     )}
                   </>
                 )}

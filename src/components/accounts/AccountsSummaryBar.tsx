@@ -53,17 +53,28 @@ export function AccountsSummaryBar() {
     [accounts]
   );
 
-  // Liquid net worth calculation: Bank + Cash + Savings
-  const netWorth = useMemo(() => {
+  const creditCardAccounts = useMemo(
+    () => accounts.filter((a) => a.type === 'credit_card'),
+    [accounts]
+  );
+
+  const totalAssets = useMemo(() => {
     return visibleAccounts.reduce((acc, a) => acc + (a.balance || 0), 0);
   }, [visibleAccounts]);
 
-  const handleOpenTransfer = (defaultFrom?: string) => {
+  const totalDebt = useMemo(() => {
+    return creditCardAccounts.reduce((acc, a) => acc + (a.balance || 0), 0);
+  }, [creditCardAccounts]);
+
+  // True Net Worth: Liquid Assets minus Credit Card Debt
+  const netWorth = totalAssets - totalDebt;
+
+  const handleOpenTransfer = (defaultFrom?: string, defaultTo?: string) => {
     vibrate(10);
     playTapSound();
-    const from = defaultFrom || accounts[0]?.id || '';
+    const from = defaultFrom || accounts.find(a => a.type !== 'credit_card')?.id || accounts[0]?.id || '';
     setFromAccountId(from);
-    const to = accounts.find((a) => a.id !== from)?.id || '';
+    const to = defaultTo || accounts.find((a) => a.id !== from)?.id || '';
     setToAccountId(to);
     setTransferAmount('');
     setTransferNotes('');
@@ -161,6 +172,11 @@ export function AccountsSummaryBar() {
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 display-number">
                 {settings.privacyMode ? '••••••' : formatCurrency(netWorth, settings.currency)}
               </span>
+              {totalDebt > 0 && !settings.privacyMode && (
+                <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                  (Assets: {formatCurrency(totalAssets, settings.currency)} • Debt: {formatCurrency(totalDebt, settings.currency)})
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -310,6 +326,81 @@ export function AccountsSummaryBar() {
           );
         })}
       </div>
+
+      {/* Credit Cards & Liabilities Section */}
+      {creditCardAccounts.length > 0 && (
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between text-xs px-0.5">
+            <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+              <span>Credit Cards & Liabilities</span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                {creditCardAccounts.length}
+              </span>
+            </span>
+            <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+              Total Owed: {formatCurrency(totalDebt, settings.currency)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {creditCardAccounts.map((card) => {
+              const hasLimit = Boolean(card.credit_limit && card.credit_limit > 0);
+              const limitUsedPercent = hasLimit ? Math.min(100, Math.round((card.balance / card.credit_limit!) * 100)) : 0;
+              return (
+                <div
+                  key={card.id}
+                  className="p-3.5 rounded-2xl border border-rose-500/25 bg-rose-500/5 dark:bg-rose-500/10 flex items-center justify-between gap-3 shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/30">
+                      <CategoryIcon category={card.name} type="credit_card" className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs truncate text-foreground">{card.name}</span>
+                        {card.due_day && (
+                          <span className="text-[10px] text-muted-foreground">Due: {card.due_day}th</span>
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-[10px] text-muted-foreground">Owed:</span>
+                        <span className="font-bold text-sm text-foreground display-number">
+                          {formatCurrency(card.balance, card.currency || settings.currency)}
+                        </span>
+                        {hasLimit && (
+                          <span className="text-[10px] text-muted-foreground ml-1">
+                            ({limitUsedPercent}% of {formatCurrency(card.credit_limit!, card.currency || settings.currency)})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOpenTransfer(undefined, card.id)}
+                      className="h-7 text-xs px-2.5 rounded-xl border-rose-500/30 hover:bg-rose-500/15 text-rose-600 dark:text-rose-400 font-semibold cursor-pointer"
+                      title="Pay off credit card from Bank/Cash"
+                    >
+                      Pay Card
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleOpenEditBalance(card, e)}
+                      className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors cursor-pointer"
+                      title={`Edit ${card.name} balance`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Edit Balance Modal */}
       <AnimatePresence>

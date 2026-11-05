@@ -240,12 +240,14 @@ function SubscriptionsTab({
   const handleLogPayment = (sub: any) => {
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
+    const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
     addExpense({
       amount: sub.amount,
       description: `${sub.name} Subscription`,
       category: sub.category || "Bills",
       date: new Date().toISOString(),
-      notes: "Manually logged from Subscriptions page"
+      notes: "Manually logged from Subscriptions page",
+      account_id: defaultAccountId || undefined,
     });
     toast.success(`${sub.name} payment logged!`);
   };
@@ -431,10 +433,24 @@ function SubscriptionsTab({
                   </div>
                 </div>
                 <div className="flex items-start h-full self-start shrink-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
-                    vibrate();
-                    if(confirm("Delete this subscription?")) deleteSubscription(sub.id);
-                  }}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10 cursor-pointer" 
+                    onClick={() => {
+                      vibrate(15);
+                      toast.warning(`Delete subscription "${sub.name}"?`, {
+                        action: {
+                          label: "Delete",
+                          onClick: () => {
+                            vibrate(20);
+                            deleteSubscription(sub.id);
+                            toast.info(`Removed ${sub.name}`);
+                          }
+                        }
+                      });
+                    }}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -501,29 +517,31 @@ function WishlistTab() {
   };
 
   const proceedWithPurchase = (item: any) => {
-    if (confirm(`Mark "${item.item_name}" as purchased and log as an expense?`)) {
-      vibrate(15);
-      const actualCostStr = prompt(
-        `Enter final cost for ${item.item_name}:`,
-        item.estimated_amount?.toString() || "0"
-      );
-      if (actualCostStr === null) return;
+    vibrate(20);
+    if (settings.soundEnabled) playSuccessSound();
+    const actualCost = item.estimated_amount || 0;
+    const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
 
-      const actualCost = parseFloat(actualCostStr);
-      if (isNaN(actualCost)) return;
+    addExpense({
+      amount: actualCost,
+      description: `Purchased: ${item.item_name}`,
+      category: item.category || "Shopping",
+      date: new Date().toISOString(),
+      notes: "Logged from Wishlist",
+      account_id: defaultAccountId || undefined,
+    });
 
-      addExpense({
-        amount: actualCost,
-        description: `Purchased: ${item.item_name}`,
-        category: item.category || "Shopping",
-        date: new Date().toISOString(),
-        notes: "Logged from Wishlist",
-      });
-
-      updateWishlistItem(item.id, { is_purchased: true });
-      toast.success(`Purchased "${item.item_name}"!`);
-      setReflectingItem(null);
-    }
+    updateWishlistItem(item.id, { is_purchased: true });
+    toast.success(`Purchased "${item.item_name}" for ${formatCurrency(actualCost, settings.currency)}!`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          vibrate(10);
+          updateWishlistItem(item.id, { is_purchased: false });
+        }
+      }
+    });
+    setReflectingItem(null);
   };
 
   const handleAvoidImpulse = (item: any) => {
@@ -808,28 +826,31 @@ function IOUTab() {
   };
 
   const handleSettle = (debt: any) => {
-    if (confirm(`Mark debt with ${debt.person_name} as settled?`)) {
-      vibrate();
-      updateDebt(debt.id, { status: "settled" });
-      
-      if (debt.type === "lent" && confirm("Would you like to log this returned money as Income?")) {
-        addExpense({
-          amount: debt.amount,
-          description: `Settled: ${debt.person_name}`,
-          category: "Income",
-          date: new Date().toISOString(),
-          notes: debt.notes
-        });
-      } else if (debt.type === "borrowed" && confirm("Would you like to log this payment as an Expense?")) {
-        addExpense({
-          amount: debt.amount,
-          description: `Repaid: ${debt.person_name}`,
-          category: "Other", // Or 'Debt Repayment' if it exists
-          date: new Date().toISOString(),
-          notes: debt.notes
-        });
+    vibrate(20);
+    if (settings.soundEnabled) playSuccessSound();
+    updateDebt(debt.id, { status: "settled" });
+
+    const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
+    const isLent = debt.type === "lent";
+
+    addExpense({
+      amount: debt.amount,
+      description: isLent ? `Settled: ${debt.person_name}` : `Repaid: ${debt.person_name}`,
+      category: isLent ? "Income" : "Other",
+      date: new Date().toISOString(),
+      notes: debt.notes || `Settlement with ${debt.person_name}`,
+      account_id: defaultAccountId || undefined,
+    });
+
+    toast.success(`Settled debt with ${debt.person_name}!`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          vibrate(10);
+          updateDebt(debt.id, { status: "pending" });
+        }
       }
-    }
+    });
   };
 
   const pendingDebts = debts.filter(d => d.status === "pending");
@@ -1030,12 +1051,14 @@ function BillsTab({
   const handlePayNow = (bill: any) => {
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
+    const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
     addExpense({
       amount: bill.amount,
       description: `Manual Payment: ${bill.title}`,
       category: bill.category || "Bills",
       date: new Date().toISOString(),
-      notes: `Bill payment for ${bill.title} (ID: ${bill.id})`
+      notes: `Bill payment for ${bill.title} (ID: ${bill.id})`,
+      account_id: defaultAccountId || undefined,
     });
     toast.success(`${bill.title} marked as paid!`);
   };
@@ -1221,10 +1244,24 @@ function BillsTab({
                   </div>
                 </div>
                 <div className="flex items-start h-full shrink-0">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => {
-                    vibrate();
-                    if(confirm("Delete this bill?")) deleteBill(bill.id);
-                  }}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10 cursor-pointer" 
+                    onClick={() => {
+                      vibrate(15);
+                      toast.warning(`Delete bill "${bill.title}"?`, {
+                        action: {
+                          label: "Delete",
+                          onClick: () => {
+                            vibrate(20);
+                            deleteBill(bill.id);
+                            toast.info(`Removed ${bill.title}`);
+                          }
+                        }
+                      });
+                    }}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>

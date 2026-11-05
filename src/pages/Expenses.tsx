@@ -17,18 +17,22 @@ import { vibrate, cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { EmptyState } from "../components/ui/EmptyState";
 import { getCategoryStyle, isIncomeCategory } from "../lib/categoryStyles";
+import { CategoryIcon } from "../components/ui/CategoryIcon";
 import { SyncStatusBadge } from "../components/ui/SyncStatusBadge";
 import { isDateInCycle, getCycleRange } from "../lib/cycleDate";
 import { toast } from "sonner";
 
 type QuickFilter = 'all' | 'this_cycle' | 'this_week' | 'receipt' | 'high_spend' | 'recurring';
+type TxTypeFilter = 'all' | 'expense' | 'income' | 'transfer';
 
 export default function Expenses() {
-  const { expenses, recentlyDeleted = [], settings, fetchCloudData } = useExpenseStore();
+  const { expenses, recentlyDeleted = [], settings, fetchCloudData, accounts = [] } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [txTypeFilter, setTxTypeFilter] = useState<TxTypeFilter>('all');
   const [dateFilter, setDateFilter] = useState<string>("this_month");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
@@ -41,11 +45,13 @@ export default function Expenses() {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (selectedCategory) count++;
+    if (selectedAccountId) count++;
+    if (txTypeFilter !== 'all') count++;
     if (minAmount || maxAmount) count++;
     if (quickFilter !== 'all') count++;
     if (dateFilter !== 'this_month') count++;
     return count;
-  }, [selectedCategory, minAmount, maxAmount, quickFilter, dateFilter]);
+  }, [selectedCategory, selectedAccountId, txTypeFilter, minAmount, maxAmount, quickFilter, dateFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
@@ -86,9 +92,22 @@ export default function Expenses() {
 
   const filteredExpenses = expenses
     .filter(e => {
-      const matchesSearch = e.description.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) || e.category.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+      const matchesSearch = e.description.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) || 
+        e.category.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        Boolean(e.notes && e.notes.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
+
       const matchesCategory = selectedCategory ? e.category === selectedCategory : true;
+      const matchesAccount = selectedAccountId ? e.account_id === selectedAccountId : true;
       
+      let matchesType = true;
+      if (txTypeFilter === 'expense') {
+        matchesType = !isIncomeCategory(e.category) && e.category !== 'Transfer';
+      } else if (txTypeFilter === 'income') {
+        matchesType = isIncomeCategory(e.category);
+      } else if (txTypeFilter === 'transfer') {
+        matchesType = e.category === 'Transfer';
+      }
+
       const min = parseFloat(minAmount);
       const max = parseFloat(maxAmount);
       const matchesMin = !isNaN(min) ? e.amount >= min : true;
@@ -128,7 +147,7 @@ export default function Expenses() {
         );
       }
 
-      return matchesSearch && matchesCategory && matchesDate && matchesMin && matchesMax && matchesQuick;
+      return matchesSearch && matchesCategory && matchesAccount && matchesType && matchesDate && matchesMin && matchesMax && matchesQuick;
     })
     .sort((a, b) => {
       const timeDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -175,17 +194,23 @@ export default function Expenses() {
 
   const handleCsvExport = () => {
     if (!filteredExpenses.length) {
-      toast.info("No expenses found matching the selected filter");
+      toast.info("No records found matching the selected filter");
       return;
     }
-    const headers = ["Date", "Description", "Category", "Amount", "Notes"];
-    const rows = filteredExpenses.map(e => [
-      e.date.split("T")[0],
-      `"${e.description.replace(/"/g, '""')}"`,
-      `"${e.category}"`,
-      e.amount.toString(),
-      `"${(e.notes || "").replace(/"/g, '""')}"`
-    ]);
+    const headers = ["Date", "Description", "Category", "Amount", "Account", "Type", "Notes"];
+    const rows = filteredExpenses.map(e => {
+      const accName = accounts.find(a => a.id === e.account_id)?.name || 'Default';
+      const txType = e.category === 'Transfer' ? 'Transfer' : isIncomeCategory(e.category) ? 'Income' : 'Expense';
+      return [
+        e.date.split("T")[0],
+        `"${e.description.replace(/"/g, '""')}"`,
+        `"${e.category}"`,
+        e.amount.toString(),
+        `"${accName.replace(/"/g, '""')}"`,
+        `"${txType}"`,
+        `"${(e.notes || "").replace(/"/g, '""')}"`
+      ];
+    });
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -196,7 +221,7 @@ export default function Expenses() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success(`Exported ${filteredExpenses.length} expenses to CSV`);
+    toast.success(`Exported ${filteredExpenses.length} records to CSV`);
   };
 
   return (
@@ -351,7 +376,82 @@ export default function Expenses() {
 
           {/* Collapsible Drawer on Mobile, Always Visible on Desktop */}
           <div className={cn("space-y-2.5 lg:space-y-4", isMobileFilterExpanded ? "block animate-in fade-in slide-in-from-top-2 duration-150" : "hidden lg:block")}>
-            {/* Row 2: Category Filter Pills */}
+            {/* Row 2: Transaction Type Filter Pills */}
+            <div className="space-y-1.5">
+              <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
+                Transaction Type
+              </span>
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
+                {(['all', 'expense', 'income', 'transfer'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      vibrate(8);
+                      setTxTypeFilter(t);
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-semibold capitalize transition-all border shrink-0 cursor-pointer",
+                      txTypeFilter === t
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                        : "bg-card/70 hover:bg-secondary text-muted-foreground hover:text-foreground border-border/50"
+                    )}
+                  >
+                    {t === 'all' ? 'All Types' : t === 'expense' ? 'Expenses' : t === 'income' ? 'Income' : 'Transfers'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Row 3: Account Filter (if accounts exist) */}
+            {accounts && accounts.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
+                  Account
+                </span>
+                <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(8);
+                      setSelectedAccountId(null);
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-semibold transition-all border shrink-0 cursor-pointer",
+                      selectedAccountId === null
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                        : "bg-card/70 hover:bg-secondary text-muted-foreground hover:text-foreground border-border/50"
+                    )}
+                  >
+                    All Accounts
+                  </button>
+                  {accounts.map((acc) => {
+                    const isSelected = selectedAccountId === acc.id;
+                    return (
+                      <button
+                        key={acc.id}
+                        type="button"
+                        onClick={() => {
+                          vibrate(8);
+                          setSelectedAccountId(isSelected ? null : acc.id);
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all border shrink-0 cursor-pointer",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                            : "bg-card/70 hover:bg-secondary text-muted-foreground hover:text-foreground border-border/50"
+                        )}
+                      >
+                        <CategoryIcon category={acc.name} type={acc.type} name={acc.icon} className="w-3 h-3" />
+                        <span>{acc.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Row 4: Category Filter Pills */}
             <div className="space-y-1.5">
               <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
                 Categories
@@ -381,7 +481,7 @@ export default function Expenses() {
                       }`}
                       onClick={() => setSelectedCategory(isSelected ? null : cat)}
                     >
-                      <span>{style.emoji}</span>
+                      <CategoryIcon category={cat} name={settings.categoryEmojis?.[cat]} className="w-3.5 h-3.5" />
                       <span>{cat}</span>
                     </button>
                   );
@@ -389,7 +489,7 @@ export default function Expenses() {
               </div>
             </div>
 
-            {/* Row 3: Quick Filter Chips */}
+            {/* Row 5: Quick Filter Chips */}
             <div className="space-y-1.5">
               <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
                 Quick Filters
@@ -481,13 +581,15 @@ export default function Expenses() {
                   {selectedCategory ? ` • ${selectedCategory}` : ''}
                 </span>
 
-                {(searchTerm || selectedCategory || minAmount || maxAmount || quickFilter !== 'all' || dateFilter !== 'this_month') && (
+                {(searchTerm || selectedCategory || selectedAccountId || txTypeFilter !== 'all' || minAmount || maxAmount || quickFilter !== 'all' || dateFilter !== 'this_month') && (
                   <button
                     type="button"
                     onClick={() => {
                       vibrate(10);
                       setSearchTerm("");
                       setSelectedCategory(null);
+                      setSelectedAccountId(null);
+                      setTxTypeFilter('all');
                       setDateFilter("this_month");
                       setMinAmount("");
                       setMaxAmount("");

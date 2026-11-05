@@ -8,6 +8,7 @@ import { useExpenseStore, type Expense } from '../store/useExpenseStore';
 import { playDeleteSound, playSuccessSound } from '../lib/sound';
 import { toast } from 'sonner';
 import { CategoryBadge } from './ui/CategoryBadge';
+import { CategoryIcon } from './ui/CategoryIcon';
 
 interface SwipeableExpenseItemProps {
   expense: Expense;
@@ -31,7 +32,8 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
       description: expense.description,
       category: expense.category,
       date: new Date().toISOString(),
-      notes: expense.notes
+      notes: expense.notes,
+      account_id: expense.account_id || undefined,
     });
 
     toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
@@ -155,10 +157,8 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
           )}>
             {expense.category === 'Transfer' ? (
               <ArrowRightLeft className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-            ) : isIncome ? (
-              "$"
             ) : (
-              settings.categoryEmojis?.[expense.category] || expense.category.substring(0, 2).toUpperCase()
+              <CategoryIcon category={expense.category} name={settings.categoryEmojis?.[expense.category]} className="w-5 h-5" />
             )}
           </div>
           <div className="overflow-hidden">

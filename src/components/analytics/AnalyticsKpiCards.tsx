@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Flame, PiggyBank, BarChart3, Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
+import { Flame, PiggyBank, BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import { formatCurrency } from '../../lib/formatCurrency';
 import type { MonthKPIs } from '../../lib/analytics';
 
@@ -94,8 +95,8 @@ export function AnalyticsKpiCards({ kpis, currency }: AnalyticsKpiCardsProps) {
         <CardHeader className="p-4 pb-1">
           <CardTitle className="text-xs font-medium text-muted-foreground flex items-center justify-between">
             <span>Forecast</span>
-            <div className="p-1.5 rounded-xl bg-purple-500/10 text-purple-500 group-hover:scale-110 transition-transform">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="p-1.5 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+              <AutoAwesomeOutlined className="w-3.5 h-3.5" fontSize="inherit" />
             </div>
           </CardTitle>
         </CardHeader>

@@ -39,6 +39,7 @@ import { CategoryDetailModal } from "../components/CategoryDetailModal";
 import { defaultDashboardWidgets } from "../store/slices/settingsSlice";
 import { SwipeableExpenseItem } from "../components/SwipeableExpenseItem";
 import { AddExpenseModal } from "../components/AddExpenseModal";
+import { CategoryIcon } from "../components/ui/CategoryIcon";
 import { isDateInCycle } from "../lib/cycleDate";
 import type { Expense } from "../store/types";
 
@@ -782,7 +783,7 @@ export default function Dashboard() {
                           <div className="flex justify-between items-center text-xs sm:text-sm gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-6 h-6 rounded-lg bg-secondary flex items-center justify-center text-sm shrink-0">
-                                {settings.categoryEmojis?.[cat] || '🏷️'}
+                                <CategoryIcon category={cat} name={settings.categoryEmojis?.[cat]} className="w-3.5 h-3.5 text-foreground" />
                               </span>
                               <span className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">{cat}</span>
                             </div>

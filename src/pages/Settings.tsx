@@ -19,6 +19,7 @@ import LockOutlined from "@mui/icons-material/LockOutlined";
 import CloudOffOutlined from "@mui/icons-material/CloudOffOutlined";
 import SyncOutlined from "@mui/icons-material/SyncOutlined";
 import { CategoryIcon } from "../components/ui/CategoryIcon";
+import { isIncomeCategory } from "../lib/categoryStyles";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { Reorder, useDragControls, motion, AnimatePresence } from "framer-motion";
@@ -164,6 +165,7 @@ export default function Settings() {
   
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const importInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [editingEmojiFor, setEditingEmojiFor] = useState<string | null>(null);
@@ -289,19 +291,49 @@ export default function Settings() {
 
         const store = useExpenseStore.getState();
         if (store.session) {
+          const userId = store.session.user.id;
           if (Array.isArray(parsed.expenses)) {
             parsed.expenses.forEach((exp: any) => {
-              store.addPendingMutation({ type: 'INSERT_EXPENSE', payload: { ...exp, user_id: store.session?.user.id } });
+              store.addPendingMutation({ type: 'INSERT_EXPENSE', payload: { ...exp, user_id: userId } });
             });
           }
           if (Array.isArray(parsed.accounts)) {
             parsed.accounts.forEach((acc: any) => {
-              store.addPendingMutation({ type: 'INSERT_ACCOUNT', payload: { ...acc, user_id: store.session?.user.id } });
+              store.addPendingMutation({ type: 'INSERT_ACCOUNT', payload: { ...acc, user_id: userId } });
             });
           }
           if (Array.isArray(parsed.bills)) {
             parsed.bills.forEach((b: any) => {
-              store.addPendingMutation({ type: 'INSERT_BILL', payload: { ...b, user_id: store.session?.user.id } });
+              store.addPendingMutation({ type: 'INSERT_BILL', payload: { ...b, user_id: userId } });
+            });
+          }
+          if (Array.isArray(parsed.budgets)) {
+            parsed.budgets.forEach((bud: any) => {
+              store.addPendingMutation({
+                type: 'UPSERT_BUDGET',
+                payload: {
+                  id: bud.id || crypto.randomUUID(),
+                  user_id: userId,
+                  category: bud.category,
+                  monthly_limit: bud.monthlyLimit || bud.monthly_limit || 0,
+                  month: bud.month || new Date().toISOString().slice(0, 7),
+                }
+              });
+            });
+          }
+          if (Array.isArray(parsed.subscriptions)) {
+            parsed.subscriptions.forEach((sub: any) => {
+              store.addPendingMutation({ type: 'INSERT_SUBSCRIPTION', payload: { ...sub, user_id: userId } });
+            });
+          }
+          if (Array.isArray(parsed.debts)) {
+            parsed.debts.forEach((debt: any) => {
+              store.addPendingMutation({ type: 'INSERT_DEBT', payload: { ...debt, user_id: userId } });
+            });
+          }
+          if (Array.isArray(parsed.wishlistItems)) {
+            parsed.wishlistItems.forEach((w: any) => {
+              store.addPendingMutation({ type: 'INSERT_WISHLIST_ITEM', payload: { ...w, user_id: userId } });
             });
           }
           if (parsed.settings) {
@@ -325,16 +357,126 @@ export default function Settings() {
     reader.readAsText(file);
   };
 
+  const handleImportCsv = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        if (!text) return;
+
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) {
+          toast.error("CSV file is empty or missing headers");
+          return;
+        }
+
+        const headerLine = lines[0].toLowerCase();
+        const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+        // Identify column indices
+        const dateIdx = headers.findIndex(h => h.includes('date'));
+        const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('title') || h.includes('name') || h.includes('memo') || h.includes('item'));
+        const amountIdx = headers.findIndex(h => h.includes('amount') || h.includes('cost') || h.includes('price') || h.includes('val'));
+        const catIdx = headers.findIndex(h => h.includes('cat') || h.includes('tag'));
+        const notesIdx = headers.findIndex(h => h.includes('note') || h.includes('comment'));
+
+        if (amountIdx === -1) {
+          toast.error("Could not find Amount column in CSV");
+          return;
+        }
+
+        let importedCount = 0;
+        const newExpenses: any[] = [];
+        const defaultAccountId = accounts[0]?.id || null;
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i];
+          const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(',');
+          const cleanCols = matches.map(c => c.trim().replace(/^"|"$/g, '').trim());
+
+          const rawAmount = cleanCols[amountIdx]?.replace(/[^0-9.-]+/g, '');
+          const parsedAmount = Math.abs(parseFloat(rawAmount));
+          if (isNaN(parsedAmount) || parsedAmount <= 0) continue;
+
+          const rawDesc = descIdx !== -1 ? cleanCols[descIdx] : 'Imported Transaction';
+          const rawCat = catIdx !== -1 ? cleanCols[catIdx] : settings.categories[0] || 'Other';
+          const rawDate = dateIdx !== -1 ? cleanCols[dateIdx] : new Date().toISOString();
+          const rawNotes = notesIdx !== -1 ? cleanCols[notesIdx] : 'Imported via CSV';
+
+          let isoDate = new Date().toISOString();
+          try {
+            const parsedD = new Date(rawDate);
+            if (!isNaN(parsedD.getTime())) {
+              isoDate = parsedD.toISOString();
+            }
+          } catch {
+            isoDate = new Date().toISOString();
+          }
+
+          newExpenses.push({
+            id: crypto.randomUUID(),
+            amount: parsedAmount,
+            description: rawDesc || 'Imported Transaction',
+            category: rawCat || settings.categories[0] || 'Other',
+            date: isoDate,
+            notes: rawNotes,
+            account_id: defaultAccountId
+          });
+          importedCount++;
+        }
+
+        if (importedCount === 0) {
+          toast.warning("No valid transactions found in CSV file");
+          return;
+        }
+
+        useExpenseStore.setState((state) => ({
+          expenses: [...state.expenses, ...newExpenses]
+        }));
+
+        const store = useExpenseStore.getState();
+        if (store.session) {
+          newExpenses.forEach((exp) => {
+            store.addPendingMutation({
+              type: 'INSERT_EXPENSE',
+              payload: { ...exp, user_id: store.session?.user.id }
+            });
+          });
+          store.syncPendingMutations();
+        }
+
+        vibrate(20);
+        if (settings.soundEnabled) playSuccessSound();
+        toast.success(`Successfully imported ${importedCount} transactions from CSV!`);
+      } catch (err) {
+        console.error("CSV import error:", err);
+        toast.error("Failed to parse CSV file");
+      } finally {
+        if (csvInputRef.current) csvInputRef.current.value = "";
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleCsvExport = () => {
     if (!expenses.length) return;
-    const headers = ["Date", "Description", "Category", "Amount", "Notes"];
-    const rows = expenses.map(e => [
-      e.date.split("T")[0],
-      `"${e.description.replace(/"/g, '""')}"`,
-      `"${e.category}"`,
-      e.amount.toString(),
-      `"${(e.notes || "").replace(/"/g, '""')}"`
-    ]);
+    const headers = ["Date", "Description", "Category", "Amount", "Account", "Type", "Notes"];
+    const rows = expenses.map(e => {
+      const accName = accounts.find(a => a.id === e.account_id)?.name || 'Default';
+      const txType = e.category === 'Transfer' ? 'Transfer' : isIncomeCategory(e.category) ? 'Income' : 'Expense';
+      return [
+        e.date.split("T")[0],
+        `"${e.description.replace(/"/g, '""')}"`,
+        `"${e.category}"`,
+        e.amount.toString(),
+        `"${accName.replace(/"/g, '""')}"`,
+        `"${txType}"`,
+        `"${(e.notes || "").replace(/"/g, '""')}"`
+      ];
+    });
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -345,6 +487,7 @@ export default function Settings() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    toast.success(`Exported ${expenses.length} records to CSV`);
   };
 
   const handleOpenResetModal = () => {
@@ -975,6 +1118,18 @@ export default function Settings() {
                       <div className="text-[10px] text-muted-foreground">Load from previous backup</div>
                     </div>
                   </Button>
+
+                  <Button 
+                    variant="outline" 
+                    className="h-12 justify-start gap-2.5 rounded-2xl cursor-pointer" 
+                    onClick={() => csvInputRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4 text-emerald-500" />
+                    <div className="text-left">
+                      <div className="text-xs font-semibold">Import Expenses (CSV)</div>
+                      <div className="text-[10px] text-muted-foreground">Load transactions from CSV/Excel</div>
+                    </div>
+                  </Button>
                 </div>
 
                 <input
@@ -983,6 +1138,13 @@ export default function Settings() {
                   accept=".json"
                   className="hidden"
                   onChange={handleImportJson}
+                />
+                <input
+                  ref={csvInputRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleImportCsv}
                 />
               </CardContent>
             </Card>

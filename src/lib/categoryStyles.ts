@@ -160,6 +160,15 @@ export function getCategoryStyle(category: string) {
 export function isIncomeCategory(category?: string | null): boolean {
   if (!category) return false;
   const normalized = category.trim().toLowerCase();
-  return normalized === 'income' || normalized === 'salary';
+  return (
+    normalized === 'income' || 
+    normalized === 'salary' || 
+    normalized === 'freelance' || 
+    normalized === 'investments' || 
+    normalized === 'investment' || 
+    normalized === 'bonus' || 
+    normalized === 'refund' ||
+    normalized === 'cashback'
+  );
 }
 

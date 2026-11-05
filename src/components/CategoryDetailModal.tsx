@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { formatCurrency } from "../lib/formatCurrency";
 import { Button } from "./ui/button";
+import { CategoryIcon } from "./ui/CategoryIcon";
 import { vibrate, cn } from "../lib/utils";
 
 interface CategoryDetailModalProps {
@@ -142,8 +143,8 @@ export function CategoryDetailModal({
             {/* Header */}
             <div className="flex justify-between items-center px-5 pt-4 pb-3 border-b border-border/50 shrink-0 bg-secondary/30">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl bg-card border border-border/60 shadow-xs">
-                  {emoji || category.substring(0, 2).toUpperCase()}
+                <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-card border border-border/60 shadow-xs text-primary">
+                  <CategoryIcon category={category} name={emoji} className="w-6 h-6 text-primary" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold leading-tight tracking-tight text-foreground">{category}</h2>

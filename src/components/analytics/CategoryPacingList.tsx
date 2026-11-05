@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { ArrowUpRight } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { vibrate } from '../../lib/utils';
+import { CategoryIcon } from '../ui/CategoryIcon';
 import type { CategoryBreakdownItem } from '../../lib/analytics';
 
 const COLORS = [
@@ -54,13 +55,13 @@ export function CategoryPacingList({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div 
-                    className="w-9 h-9 rounded-2xl flex items-center justify-center text-base bg-secondary/80 border border-border/60 shadow-xs shrink-0 transition-transform group-hover:scale-105"
+                    className="w-9 h-9 rounded-2xl flex items-center justify-center bg-secondary/80 border border-border/60 shadow-xs shrink-0 transition-transform group-hover:scale-105"
                     style={{ 
                       boxShadow: `inset 0 0 0 1.5px ${color}40`,
                       backgroundColor: `${color}15`
                     }}
                   >
-                    {categoryEmojis?.[cat.name] || cat.name.substring(0, 2).toUpperCase()}
+                    <CategoryIcon category={cat.name} name={categoryEmojis?.[cat.name]} className="w-4 h-4 text-primary" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">

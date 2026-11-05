@@ -4,6 +4,7 @@ import { X, RotateCcw, Trash2, Clock, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { EmptyState } from './ui/EmptyState';
 import { CategoryBadge } from './ui/CategoryBadge';
+import { CategoryIcon } from './ui/CategoryIcon';
 import { formatCurrency } from '../lib/formatCurrency';
 import { vibrate } from '../lib/utils';
 import { useExpenseStore, type DeletedExpense } from '../store/useExpenseStore';
@@ -171,7 +172,7 @@ export function RecentlyDeletedModal({ isOpen, onClose }: RecentlyDeletedModalPr
                 >
                   <div className="flex items-center gap-3 overflow-hidden min-w-0">
                     <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-                      {settings.categoryEmojis?.[item.expense.category] || item.expense.category.substring(0, 2).toUpperCase()}
+                      <CategoryIcon category={item.expense.category} name={settings.categoryEmojis?.[item.expense.category]} className="w-5 h-5" />
                     </div>
                     <div className="overflow-hidden min-w-0">
                       <p className="font-semibold text-sm leading-tight truncate">
