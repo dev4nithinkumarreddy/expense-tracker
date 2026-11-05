@@ -50,6 +50,11 @@ export function SafeToSpendCard({
 
   const { projection } = safe;
 
+  const isHighValueCurrency = ['$', '€', '£', 'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD', 'NZD', 'CHF'].some(
+    c => currency.toUpperCase().includes(c)
+  );
+  const simPresets = isHighValueCurrency ? [20, 50, 100, 250] : [200, 500, 1000, 2000];
+
   const statusIcons = {
     safe: <CheckCircleOutlined className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fontSize="inherit" />,
     caution: <WarningAmberOutlined className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" fontSize="inherit" />,
@@ -120,7 +125,7 @@ export function SafeToSpendCard({
 
         {/* Compact Simulation Calculator */}
         {(showSimInput || simulation) && (
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-end gap-1.5 animate-in fade-in duration-150">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground">Test:</span>
               <input
@@ -132,7 +137,35 @@ export function SafeToSpendCard({
                 onChange={(e) => setSimAmount(e.target.value.replace(/[^\d.]/g, ''))}
                 className="w-24 text-right bg-background rounded-lg px-2.5 py-1 text-xs font-mono font-medium border border-border focus:outline-none focus:border-primary"
               />
+              {simAmount && (
+                <button
+                  type="button"
+                  onClick={() => setSimAmount('')}
+                  className="text-[10px] text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                  title="Clear simulation"
+                >
+                  Clear
+                </button>
+              )}
             </div>
+
+            {/* Quick preset chips */}
+            <div className="flex items-center gap-1">
+              {simPresets.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    const current = parseFloat(simAmount) || 0;
+                    setSimAmount(String(current + preset));
+                  }}
+                  className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground border border-border/60 transition-colors cursor-pointer"
+                >
+                  +{preset}
+                </button>
+              ))}
+            </div>
+
             {simulation && (
               <span className="text-[11px] font-mono font-semibold text-amber-600 dark:text-amber-400">
                 -{formatCurrency(simulation.impactPerDay, currency)}/day impact

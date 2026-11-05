@@ -169,8 +169,8 @@ function SwipeablePayRow({
   payLabel?: string;
 }) {
   const x = useMotionValue(0);
-  const opacity = useTransform(x, [10, 60], [0, 1]);
-  const scale = useTransform(x, [10, 60], [0.8, 1]);
+  const opacity = useTransform(x, [15, 75], [0, 1]);
+  const scale = useTransform(x, [15, 75], [0.8, 1]);
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs select-none">
@@ -184,15 +184,18 @@ function SwipeablePayRow({
         </motion.div>
       </div>
 
-      {/* Draggable Foreground */}
+      {/* Draggable Foreground with Vertical Scroll Lock Protection */}
       <motion.div
         drag="x"
         dragDirectionLock
-        dragConstraints={{ left: 0, right: 80 }}
-        dragElastic={0.45}
+        dragConstraints={{ left: 0, right: 90 }}
+        dragElastic={0.4}
         style={{ x }}
         onDragEnd={(_e, info) => {
-          if (info.offset.x > 60 || info.velocity.x > 250) {
+          const isIntentionalSwipe = (info.offset.x > 75 && Math.abs(info.offset.y) < 24) || 
+                                     (info.velocity.x > 320 && Math.abs(info.offset.y) < 18);
+          if (isIntentionalSwipe) {
+            vibrate(20);
             onPay();
           }
         }}

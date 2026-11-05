@@ -359,13 +359,22 @@ export function AddExpenseModal({
     }
   }, [date]);
 
+  const isHighValueCurrency = useMemo(() => {
+    return ['$', '€', '£', 'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD', 'NZD', 'CHF'].some(
+      c => (settings.currency || '').toUpperCase().includes(c)
+    );
+  }, [settings.currency]);
+
+  const quickBumpPresets = useMemo(() => {
+    return isHighValueCurrency ? [5, 10, 25, 50, 100] : [50, 100, 200, 500, 1000];
+  }, [isHighValueCurrency]);
+
   const isDetailsExpanded = Boolean(
     showMoreOptions ||
     (expenseToEdit && (
       expenseToEdit.notes ||
       (expenseToEdit.recurrence && expenseToEdit.recurrence !== 'none') ||
-      expenseToEdit.receipt_url ||
-      (expenseToEdit.account_id && expenseToEdit.account_id !== accounts[0]?.id)
+      expenseToEdit.receipt_url
     )) ||
     notes.trim() ||
     recurrence !== 'none' ||
@@ -509,7 +518,7 @@ export function AddExpenseModal({
 
                 {/* Quick Bump Chips */}
                 <div className="flex items-center gap-1.5 mt-3 overflow-x-auto scrollbar-hide py-0.5">
-                  {[50, 100, 200, 500, 1000].map((preset) => (
+                  {quickBumpPresets.map((preset) => (
                     <button
                       key={preset}
                       type="button"
@@ -527,7 +536,7 @@ export function AddExpenseModal({
                 </div>
               </div>
 
-              {/* 2. Primary Details Card: Description, Category, Date */}
+              {/* 2. Primary Details Card: Description, Category, Account, Date */}
               <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
                 
                 {/* Description Row */}
@@ -602,6 +611,48 @@ export function AddExpenseModal({
                     })}
                   </div>
                 </div>
+
+                {/* Account Selection Row (1-Tap Direct Access) */}
+                {accounts && accounts.length > 0 && (
+                  <div className="p-3 px-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
+                      {(selectedAccountId || accounts[0]?.id) && (
+                        <span className="text-[11px] font-medium text-primary">
+                          {accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
+                      {accounts.filter((acc) => acc.type !== 'credit_card').map((acc) => {
+                        const isSelected = (selectedAccountId || accounts[0]?.id) === acc.id;
+                        return (
+                          <button
+                            key={acc.id}
+                            type="button"
+                            onClick={() => {
+                              vibrate(8);
+                              playTapSound();
+                              setSelectedAccountId(acc.id);
+                            }}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
+                                : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
+                            )}
+                          >
+                            <CategoryIcon category={acc.name} type={acc.type} name={acc.icon} className="w-3.5 h-3.5" />
+                            <span>{acc.name}</span>
+                            <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
+                              ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Date Row */}
                 <div className="flex items-center justify-between p-3 px-3.5 gap-2">
@@ -679,7 +730,7 @@ export function AddExpenseModal({
                 >
                   <span className="flex items-center gap-1.5">
                     <TuneOutlined className="w-3.5 h-3.5 text-primary" />
-                    <span>{isDetailsExpanded ? "Fewer options" : "More options (Account, Notes, Repeat, Split)"}</span>
+                    <span>{isDetailsExpanded ? "Fewer options" : "More options (Notes, Repeat, Split)"}</span>
                   </span>
                   {isDetailsExpanded ? (
                     <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -697,50 +748,8 @@ export function AddExpenseModal({
                       transition={{ type: "spring", damping: 26, stiffness: 360 }}
                       className="space-y-3 overflow-hidden"
                     >
-                      {/* Account, Recurrence & Notes Inset Card */}
+                      {/* Recurrence, Notes & Split Inset Card */}
                       <div className="bg-secondary/35 dark:bg-card/40 rounded-2xl border border-border/40 divide-y divide-border/25 overflow-hidden backdrop-blur-sm">
-                        {/* Account Selection */}
-                        {accounts && accounts.length > 0 && (
-                          <div className="p-3 px-3.5 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Account</p>
-                              {(selectedAccountId || accounts[0]?.id) && (
-                                <span className="text-[11px] font-medium text-primary">
-                                  {accounts.find(a => a.id === (selectedAccountId || accounts[0]?.id))?.name}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5 -mx-1 px-1">
-                              {accounts.filter((acc) => acc.type !== 'credit_card').map((acc) => {
-                                const isSelected = (selectedAccountId || accounts[0]?.id) === acc.id;
-                                return (
-                                  <button
-                                    key={acc.id}
-                                    type="button"
-                                    onClick={() => {
-                                      vibrate(8);
-                                      playTapSound();
-                                      setSelectedAccountId(acc.id);
-                                    }}
-                                    className={cn(
-                                      "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium shrink-0 transition-all border select-none cursor-pointer",
-                                      isSelected
-                                        ? "bg-primary text-primary-foreground border-primary shadow-xs scale-[1.03]"
-                                        : "bg-background/60 hover:bg-background text-foreground/80 border-border/50"
-                                    )}
-                                  >
-                                    <CategoryIcon category={acc.name} type={acc.type} name={acc.icon} className="w-3.5 h-3.5" />
-                                    <span>{acc.name}</span>
-                                    <span className={cn("text-[10px] opacity-80 ml-0.5", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
-                                      ({acc.currency || settings.currency}{Math.round(acc.balance).toLocaleString()})
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
                         {/* Recurrence Row */}
                         <div className="flex items-center justify-between p-3 px-3.5 gap-2">
                           <div className="flex items-center gap-3">

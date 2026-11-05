@@ -11,7 +11,6 @@ import {
   X, 
   Check, 
   HelpCircle, 
-  Sparkles,
   Pencil
 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -20,6 +19,7 @@ import { CategoryIcon } from '../ui/CategoryIcon';
 import TrackChangesOutlined from '@mui/icons-material/TrackChangesOutlined';
 import AccountBalanceOutlined from '@mui/icons-material/AccountBalanceOutlined';
 import BoltOutlined from '@mui/icons-material/BoltOutlined';
+import SyncOutlined from '@mui/icons-material/SyncOutlined';
 
 export function AccountsSummaryBar() {
   const { 
@@ -188,9 +188,9 @@ export function AccountsSummaryBar() {
               syncAccountWithBalance();
             }}
             className="h-8 px-2.5 sm:px-3 rounded-full text-xs font-bold gap-1 sm:gap-1.5 bg-primary/10 hover:bg-primary/18 border-primary/25 shadow-2xs cursor-pointer text-primary"
-            title="Sync Bank balance to match your remaining monthly budget"
+            title="Auto-align Bank balance with remaining monthly budget"
           >
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <SyncOutlined className="w-3.5 h-3.5 shrink-0" fontSize="inherit" />
             <span className="hidden sm:inline">Sync Budget</span>
             <span className="sm:hidden">Sync</span>
           </Button>
@@ -396,7 +396,7 @@ export function AccountsSummaryBar() {
               <div className="flex items-center justify-between border-b border-border/40 pb-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                    <Sparkles className="w-4 h-4" />
+                    <AccountBalanceOutlined className="w-4 h-4" fontSize="small" />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-foreground">How Accounts & Budget Sync</h3>

@@ -9,13 +9,15 @@ import {
   FileSpreadsheet, GripVertical, Volume2, VolumeX, ShieldCheck,
   ChevronRight, Printer, Share2, Copy, Check, Shield,
   CheckCircle2, SlidersHorizontal, Layers, Database, MoreHorizontal,
-  Bell, LogOut, AlertTriangle
+  Bell, LogOut, AlertTriangle, LogIn
 } from "lucide-react";
 import TouchAppOutlined from "@mui/icons-material/TouchAppOutlined";
 import NotificationsActiveOutlined from "@mui/icons-material/NotificationsActiveOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import BoltOutlined from "@mui/icons-material/BoltOutlined";
 import LockOutlined from "@mui/icons-material/LockOutlined";
+import CloudOffOutlined from "@mui/icons-material/CloudOffOutlined";
+import SyncOutlined from "@mui/icons-material/SyncOutlined";
 import { CategoryIcon } from "../components/ui/CategoryIcon";
 import { Button } from "../components/ui/button";
 import { usePushNotifications } from "../hooks/usePushNotifications";
@@ -29,7 +31,26 @@ import { PrintableStatementModal } from "../components/analytics/PrintableStatem
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { toast } from "sonner";
 
-const COMMON_EMOJIS = ["🍔", "🚗", "🏠", "🛒", "✈️", "👗", "💊", "🎉", "🎮", "📚", "🐶", "☕", "📱", "🎁", "💡", "💰", "💪", "🎬"];
+const COMMON_CATEGORY_ICONS = [
+  { id: "food", label: "Food", name: "food" },
+  { id: "coffee", label: "Coffee", name: "coffee" },
+  { id: "shopping", label: "Shopping", name: "shopping" },
+  { id: "transport", label: "Transport", name: "transport" },
+  { id: "flight", label: "Travel", name: "flight" },
+  { id: "home", label: "Home", name: "home" },
+  { id: "bill", label: "Bills", name: "bill" },
+  { id: "entertainment", label: "Fun", name: "entertainment" },
+  { id: "health", label: "Health", name: "health" },
+  { id: "fitness", label: "Fitness", name: "fitness" },
+  { id: "education", label: "Learning", name: "education" },
+  { id: "pet", label: "Pets", name: "pet" },
+  { id: "gift", label: "Gift", name: "gift" },
+  { id: "phone", label: "Mobile", name: "phone" },
+  { id: "games", label: "Gaming", name: "games" },
+  { id: "savings", label: "Savings", name: "savings" },
+  { id: "money", label: "Salary", name: "money" },
+  { id: "credit_card", label: "Card", name: "credit_card" },
+];
 
 type SettingsTab = "general" | "categories" | "data" | "more";
 
@@ -76,9 +97,10 @@ function CategoryRowItem({
         </div>
         <button 
           onClick={onToggleEmoji}
-          className="w-9 h-9 flex items-center justify-center bg-background rounded-xl border border-border/60 shadow-xs hover:bg-muted transition-colors text-lg cursor-pointer"
+          className="w-9 h-9 flex items-center justify-center bg-background rounded-xl border border-border/60 shadow-xs hover:bg-muted transition-colors cursor-pointer text-primary"
+          title="Change category icon"
         >
-          {emoji || category.substring(0, 2).toUpperCase()}
+          <CategoryIcon category={category} name={emoji} className="w-4 h-4" />
         </button>
         <span className="flex-1 font-semibold text-sm truncate">{category}</span>
         <div className="relative w-28 shrink-0">
@@ -102,13 +124,14 @@ function CategoryRowItem({
       </div>
       {editingEmoji && (
         <div className="grid grid-cols-6 sm:grid-cols-9 gap-1.5 mt-1 p-2 bg-background rounded-xl border border-border/60 animate-in slide-in-from-top-2">
-          {COMMON_EMOJIS.map(itemEmoji => (
+          {COMMON_CATEGORY_ICONS.map(item => (
             <button
-              key={itemEmoji}
-              onClick={() => onEmojiSelect(itemEmoji)}
-              className="w-8 h-8 flex items-center justify-center hover:bg-secondary rounded-lg text-lg transition-colors cursor-pointer"
+              key={item.id}
+              onClick={() => onEmojiSelect(item.id)}
+              className="w-8 h-8 flex items-center justify-center hover:bg-secondary rounded-lg transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
+              title={item.label}
             >
-              {itemEmoji}
+              <CategoryIcon category={item.name} name={item.id} className="w-4 h-4" />
             </button>
           ))}
         </div>
@@ -147,6 +170,10 @@ export default function Settings() {
   const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetConfirmInput, setResetConfirmInput] = useState("");
+  const [isLinkAccountModalOpen, setIsLinkAccountModalOpen] = useState(false);
+  const [isExitGuestModalOpen, setIsExitGuestModalOpen] = useState(false);
 
   const getAppShareUrl = () => {
     if (typeof window !== 'undefined' && window.location?.origin) {
@@ -320,12 +347,21 @@ export default function Settings() {
     URL.revokeObjectURL(url);
   };
 
-  const handleReset = async () => {
-    if (confirm("Are you sure you want to reset all data? This cannot be undone.")) {
-      await eraseAllData();
-      localStorage.removeItem("expense-tracker-storage");
-      window.location.reload();
+  const handleOpenResetModal = () => {
+    vibrate(15);
+    setResetConfirmInput("");
+    setIsResetModalOpen(true);
+  };
+
+  const handleConfirmReset = async () => {
+    if (resetConfirmInput.trim().toUpperCase() !== "DELETE") {
+      toast.error('Please type "DELETE" to confirm data wipe');
+      return;
     }
+    vibrate(25);
+    await eraseAllData();
+    localStorage.removeItem("expense-tracker-storage");
+    window.location.reload();
   };
 
   const handleAddCat = () => {
@@ -399,7 +435,7 @@ export default function Settings() {
             <span className="text-xs">Share App</span>
           </Button>
 
-          {session?.user?.email && (
+          {session?.user?.email ? (
             <div className="flex items-center gap-2.5 bg-card/90 border border-border/60 py-1.5 px-3 rounded-2xl shadow-2xs">
               <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                 {session.user.email.substring(0, 1).toUpperCase()}
@@ -408,6 +444,28 @@ export default function Settings() {
                 <p className="text-xs font-semibold leading-tight max-w-[130px] truncate">{session.user.email}</p>
                 <p className="text-[10px] text-muted-foreground">Connected Cloud</p>
               </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/25 py-1.5 px-3 rounded-2xl shadow-2xs">
+                <CloudOffOutlined className="w-4 h-4 text-amber-600 dark:text-amber-400" fontSize="small" />
+                <div className="text-left">
+                  <p className="text-xs font-semibold leading-tight text-amber-700 dark:text-amber-300">Guest Mode</p>
+                  <p className="text-[10px] text-muted-foreground">Offline / Local only</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  vibrate(12);
+                  setIsLinkAccountModalOpen(true);
+                }}
+                className="h-10 px-3 rounded-2xl text-xs font-semibold gap-1.5 bg-primary text-primary-foreground shadow-2xs cursor-pointer select-none"
+                title="Sign in or create an account to back up and sync your data"
+              >
+                <SyncOutlined className="w-3.5 h-3.5" fontSize="inherit" />
+                <span>Link Cloud Account</span>
+              </Button>
             </div>
           )}
         </div>
@@ -973,7 +1031,7 @@ export default function Settings() {
                 </h3>
 
                 <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
-                  {session?.user && (
+                  {session?.user ? (
                     <Button 
                       variant="outline" 
                       className="flex-1 justify-center gap-2 rounded-xl cursor-pointer" 
@@ -982,11 +1040,23 @@ export default function Settings() {
                       <LogOut className="w-4 h-4 text-muted-foreground" />
                       <span>Sign Out</span>
                     </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      className="flex-1 justify-center gap-2 rounded-xl border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-300 cursor-pointer" 
+                      onClick={() => {
+                        vibrate(12);
+                        setIsExitGuestModalOpen(true);
+                      }}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Exit Guest Mode</span>
+                    </Button>
                   )}
                   <Button 
                     variant="destructive" 
                     className="flex-1 justify-center gap-2 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground cursor-pointer" 
-                    onClick={handleReset}
+                    onClick={handleOpenResetModal}
                   >
                     <RefreshCcw className="w-4 h-4" />
                     <span>Erase All Data</span>
@@ -1197,6 +1267,206 @@ export default function Settings() {
         isOpen={isStatementOpen}
         onClose={() => setIsStatementOpen(false)}
       />
+
+      {/* 2-Step Danger Zone Confirmation Modal */}
+      <AnimatePresence>
+        {isResetModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsResetModalOpen(false);
+                setResetConfirmInput("");
+              }}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+              className="relative w-full max-w-md bg-card border border-destructive/40 rounded-3xl p-6 shadow-2xl space-y-4 z-10"
+            >
+              <div className="flex items-center gap-3 text-destructive">
+                <div className="w-10 h-10 rounded-2xl bg-destructive/10 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Confirm Total Data Reset</h3>
+                  <p className="text-xs text-muted-foreground">This action cannot be undone</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                This will wipe all local expenses, obligations, budgets, accounts, and history on this device.
+              </p>
+
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-semibold text-foreground">
+                  Type <span className="font-mono text-destructive font-bold">DELETE</span> to confirm:
+                </label>
+                <Input
+                  type="text"
+                  placeholder="DELETE"
+                  value={resetConfirmInput}
+                  onChange={(e) => setResetConfirmInput(e.target.value)}
+                  className="bg-secondary/50 font-mono text-sm uppercase"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-xl cursor-pointer"
+                  onClick={() => {
+                    setIsResetModalOpen(false);
+                    setResetConfirmInput("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1 rounded-xl cursor-pointer"
+                  disabled={resetConfirmInput.trim().toUpperCase() !== "DELETE"}
+                  onClick={handleConfirmReset}
+                >
+                  Erase Everything
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Account Linking Modal for Guest Users */}
+      <AnimatePresence>
+        {isLinkAccountModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsLinkAccountModalOpen(false)}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+              className="relative w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 z-10"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <SyncOutlined className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Link Data to Cloud</h3>
+                  <p className="text-xs text-muted-foreground">Keep your expenses backed up & synced</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-secondary/50 border border-border/60 text-xs space-y-2.5">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <p className="text-foreground leading-relaxed">
+                    <strong>Zero data loss:</strong> Your {expenses.length} recorded expense{expenses.length === 1 ? '' : 's'} and account balances will be preserved and uploaded to your cloud account.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <p className="text-foreground leading-relaxed">
+                    <strong>Multi-device sync:</strong> Access your transactions and live cashflow across all your devices.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-2">
+                <Button
+                  className="w-full h-11 rounded-xl font-semibold gap-2 cursor-pointer"
+                  onClick={() => {
+                    vibrate(15);
+                    setIsLinkAccountModalOpen(false);
+                    updateSettings({ isGuestMode: false });
+                    navigate('/');
+                  }}
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In or Create Account</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full rounded-xl text-muted-foreground hover:text-foreground cursor-pointer text-xs"
+                  onClick={() => setIsLinkAccountModalOpen(false)}
+                >
+                  Stay in Guest Mode
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Exit Guest Mode Confirmation Modal */}
+      <AnimatePresence>
+        {isExitGuestModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsExitGuestModalOpen(false)}
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+              className="relative w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl space-y-4 z-10"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <LogOut className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Exit Guest Mode</h3>
+                  <p className="text-xs text-muted-foreground">Return to login screen</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                You will return to the Sign In / Sign Up screen. All your local data ({expenses.length} expense{expenses.length === 1 ? '' : 's'}) will remain safely stored on this device.
+              </p>
+
+              <div className="flex gap-2.5 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-xl cursor-pointer"
+                  onClick={() => setIsExitGuestModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 rounded-xl cursor-pointer"
+                  onClick={() => {
+                    vibrate(15);
+                    setIsExitGuestModalOpen(false);
+                    updateSettings({ isGuestMode: false });
+                    navigate('/');
+                  }}
+                >
+                  Exit to Login
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

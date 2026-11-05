@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { format, subMonths, addMonths } from 'date-fns';
+import { format, subMonths, addMonths, isSameMonth } from 'date-fns';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -136,7 +136,7 @@ export default function Analytics() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 lg:items-start">
-          {/* Story Wrapped Trigger Card */}
+          {/* Monthly Digest Trigger Card */}
           <div 
             onClick={() => {
               vibrate(12);
@@ -150,11 +150,11 @@ export default function Analytics() {
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <span>Monthly Story Wrapped</span>
-                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground font-semibold">New</span>
+                  <span>Monthly Financial Digest</span>
+                  <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground font-semibold">Review</span>
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Your spending highlights, category champion & financial persona
+                  Spending highlights, top categories & monthly financial persona
                 </p>
               </div>
             </div>
@@ -168,43 +168,61 @@ export default function Analytics() {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-9 w-9 rounded-2xl hover:bg-secondary/80 active:scale-95 transition-all" 
+                  className="h-9 w-9 rounded-2xl hover:bg-secondary/80 active:scale-95 transition-all cursor-pointer" 
                   onClick={() => {
                     vibrate(10);
                     const newMonth = subMonths(currentDate, 1);
                     setCurrentDate(newMonth);
                     setSelectedDate(null);
                   }}
+                  title="Previous month"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 
-                <button
-                  type="button"
-                  onClick={() => {
-                    vibrate(10);
-                    setIsCalendarOpen(prev => !prev);
-                  }}
-                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl hover:bg-secondary/70 active:scale-95 transition-all cursor-pointer group"
-                  title="Tap to view interactive calendar inspector"
-                >
-                  <div className="p-1 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
-                    <CalendarDays className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-semibold tracking-tight">
-                    {format(currentDate, 'MMMM yyyy')}
-                  </span>
-                  {isCalendarOpen ? (
-                    <ChevronUp className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(10);
+                      setIsCalendarOpen(prev => !prev);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-secondary/70 active:scale-95 transition-all cursor-pointer group"
+                    title="Tap to view interactive calendar inspector"
+                  >
+                    <div className="p-1 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+                      <CalendarDays className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-semibold tracking-tight">
+                      {format(currentDate, 'MMMM yyyy')}
+                    </span>
+                    {isCalendarOpen ? (
+                      <ChevronUp className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    )}
+                  </button>
+
+                  {!isSameMonth(currentDate, new Date()) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        vibrate(10);
+                        setCurrentDate(new Date());
+                        setSelectedDate(null);
+                      }}
+                      className="text-[10px] font-semibold text-primary px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 cursor-pointer transition-colors"
+                      title="Return to current month"
+                    >
+                      Today
+                    </button>
                   )}
-                </button>
+                </div>
 
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-9 w-9 rounded-2xl hover:bg-secondary/80 active:scale-95 transition-all" 
+                  className="h-9 w-9 rounded-2xl hover:bg-secondary/80 active:scale-95 transition-all cursor-pointer" 
                   onClick={() => {
                     vibrate(10);
                     const newMonth = addMonths(currentDate, 1);
@@ -212,6 +230,7 @@ export default function Analytics() {
                     setSelectedDate(null);
                   }}
                   disabled={isCurrentMonthOrFuture}
+                  title="Next month"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

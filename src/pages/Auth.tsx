@@ -8,6 +8,9 @@ import { toast } from 'sonner';
 import { useExpenseStore } from '../store/useExpenseStore';
 
 export default function Auth() {
+  const { expenses = [], updateSettings } = useExpenseStore();
+  const hasLocalData = expenses.length > 0;
+
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,7 +41,11 @@ export default function Auth() {
         toast.success('Check your email for the confirmation link!');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred during authentication.');
+      if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError') || err?.name === 'TypeError') {
+        setError('Cannot connect to authentication server. Please check your internet connection or verify your Supabase project status.');
+      } else {
+        setError(err.message || 'An error occurred during authentication.');
+      }
     } finally {
       setLoading(false);
     }
@@ -125,6 +132,20 @@ export default function Auth() {
                 )}
               </div>
             </div>
+
+            {hasLocalData && (
+              <div className="mb-6 p-3 rounded-2xl bg-primary/10 border border-primary/20 text-xs text-foreground flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                <div className="text-left">
+                  <p className="font-semibold text-foreground">
+                    {expenses.length} local {expenses.length === 1 ? 'expense' : 'expenses'} saved
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Signing in or creating an account will automatically link and sync your local data to the cloud.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleAuth} className="space-y-5">
               {error && (
@@ -218,11 +239,11 @@ export default function Auth() {
                     variant="outline"
                     onClick={() => {
                       vibrate(15);
-                      useExpenseStore.getState().updateSettings({ isGuestMode: true });
+                      updateSettings({ isGuestMode: true });
                     }}
-                    className="w-full h-11 text-sm font-medium border-border/80 hover:bg-secondary/60 text-foreground rounded-xl"
+                    className="w-full h-11 text-sm font-medium border-border/80 hover:bg-secondary/60 text-foreground rounded-xl cursor-pointer"
                   >
-                    Continue as Guest (Offline Mode)
+                    {hasLocalData ? "Back to App (Continue as Guest)" : "Continue as Guest (Offline Mode)"}
                   </Button>
                 </>
               )}

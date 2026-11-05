@@ -6,7 +6,8 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, Sparkles, X, Settings as SettingsIcon, ReceiptText, ShieldCheck, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders, Mic } from "lucide-react";
+import { Eye, EyeOff, Plus, X, Settings as SettingsIcon, ReceiptText, ShieldCheck, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders, Mic } from "lucide-react";
+import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import WhatshotOutlined from '@mui/icons-material/WhatshotOutlined';
 import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined';
 import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
@@ -328,6 +329,67 @@ export default function Dashboard() {
     setIsIncomeModalOpen(false);
   };
 
+  const renderActionToolbar = (isMobile = false) => (
+    <div className={cn("items-center gap-1.5 sm:gap-2 shrink-0", isMobile ? "flex lg:hidden" : "hidden lg:flex")}>
+      {currentStreak > 0 ? (
+        <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 sm:px-3 py-1.5 rounded-xl font-medium text-xs sm:text-sm border border-orange-500/25 shadow-xs">
+          <WhatshotOutlined className="w-3.5 h-3.5" fontSize="inherit" />
+          <span className="font-mono">
+            {currentStreak}
+            <span className="hidden sm:inline"> Day Streak</span>
+            <span className="sm:hidden">d</span>
+          </span>
+        </div>
+      ) : null}
+
+      <button 
+        onClick={() => {
+          vibrate(15);
+          setIsCustomizeModalOpen(true);
+        }}
+        aria-label="Customize Dashboard"
+        title="Customize Dashboard"
+        className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
+      >
+        <Sliders className="w-4 h-4" />
+      </button>
+
+      <button 
+        onClick={() => {
+          vibrate(15);
+          updateSettings({ privacyMode: !settings.privacyMode });
+        }}
+        aria-label={settings.privacyMode ? "Show budget" : "Hide budget"}
+        title={settings.privacyMode ? "Show budget" : "Hide budget"}
+        className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
+      >
+        {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+
+      {isAdmin && (
+        <Link
+          to="/admin"
+          onClick={() => vibrate(15)}
+          aria-label="Admin Portal"
+          title="Admin Portal"
+          className="w-9 h-9 flex items-center justify-center text-primary hover:text-primary active:scale-95 transition-all duration-100 bg-primary/10 hover:bg-primary/20 rounded-full shadow-xs border border-primary/25 select-none animate-in fade-in"
+        >
+          <ShieldCheck className="w-4 h-4" />
+        </Link>
+      )}
+
+      <Link
+        to="/settings"
+        onClick={() => vibrate(15)}
+        aria-label="Settings"
+        title="Settings"
+        className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none"
+      >
+        <SettingsIcon className="w-4 h-4" />
+      </Link>
+    </div>
+  );
+
   return (
     <PullToRefresh onRefresh={fetchCloudData}>
       <div className="space-y-5 sm:space-y-6 pb-12">
@@ -382,71 +444,16 @@ export default function Dashboard() {
             </div>
             
             {/* Mobile/Tablet Action Buttons */}
-            <div className="flex lg:hidden items-center gap-1.5 sm:gap-2 shrink-0">
-              {currentStreak > 0 ? (
-                <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 px-2 sm:px-3 py-1.5 rounded-md font-medium text-xs sm:text-sm border border-orange-500/25 shadow-xs">
-                  <WhatshotOutlined className="w-3.5 h-3.5" fontSize="inherit" />
-                  <span className="font-mono">
-                    {currentStreak}
-                    <span className="hidden sm:inline"> Day Streak</span>
-                    <span className="sm:hidden">d</span>
-                  </span>
-                </div>
-              ) : null}
-
-              <button 
-                onClick={() => {
-                  vibrate(15);
-                  setIsCustomizeModalOpen(true);
-                }}
-                aria-label="Customize Dashboard"
-                title="Customize Dashboard"
-                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
-              >
-                <Sliders className="w-4 h-4" />
-              </button>
-
-              <button 
-                onClick={() => {
-                  vibrate(15);
-                  updateSettings({ privacyMode: !settings.privacyMode });
-                }}
-                aria-label={settings.privacyMode ? "Show budget" : "Hide budget"}
-                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none cursor-pointer"
-              >
-                {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  onClick={() => vibrate(15)}
-                  aria-label="Admin Portal"
-                  title="Admin Portal"
-                  className="w-9 h-9 flex items-center justify-center text-primary hover:text-primary active:scale-95 transition-all duration-100 bg-primary/10 hover:bg-primary/20 rounded-full shadow-xs border border-primary/25 select-none animate-in fade-in"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                </Link>
-              )}
-
-              <Link
-                to="/settings"
-                onClick={() => vibrate(15)}
-                aria-label="Settings"
-                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-secondary/60 hover:bg-secondary rounded-full shadow-xs border border-border/50 select-none"
-              >
-                <SettingsIcon className="w-4 h-4" />
-              </Link>
-            </div>
+            {renderActionToolbar(true)}
           </div>
 
-          {/* Smart Quick-Log Magic Bar + Desktop Action Buttons */}
+          {/* Quick-Log Magic Bar + Desktop Action Buttons */}
           <div className="flex items-center gap-3 lg:w-auto">
             <div className="flex-1 lg:w-[380px] xl:w-[440px] flex items-center gap-2 bg-card/90 dark:bg-card/78 backdrop-blur-xl border border-border/80 dark:border-white/10 rounded-2xl p-2 px-3.5 shadow-xs transition-all focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary">
-              <Sparkles className="w-4 h-4 text-primary shrink-0 animate-pulse" />
+              <AutoAwesomeOutlined className="w-4 h-4 text-primary shrink-0" fontSize="small" />
               <input
                 type="text"
-                placeholder="Smart log: 'Coffee 150' or 'Uber 300'..."
+                placeholder="Quick log: 'Coffee 150' or 'Uber 300'..."
                 value={dashboardSmartInput}
                 onChange={(e) => setDashboardSmartInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -498,58 +505,7 @@ export default function Dashboard() {
             </div>
 
             {/* Laptop/Desktop Action Buttons */}
-            <div className="hidden lg:flex items-center gap-2 shrink-0">
-              {currentStreak > 0 ? (
-                <div className="flex items-center gap-1.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-md font-medium text-xs sm:text-sm border border-orange-500/25 shadow-xs">
-                  <WhatshotOutlined className="w-3.5 h-3.5" fontSize="inherit" />
-                  <span className="font-mono">{currentStreak} Day Streak</span>
-                </div>
-              ) : null}
-
-              <button 
-                onClick={() => {
-                  vibrate(15);
-                  setIsCustomizeModalOpen(true);
-                }}
-                aria-label="Customize Dashboard"
-                title="Customize Dashboard"
-                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-card hover:bg-secondary rounded-full shadow-xs border border-border/80 select-none cursor-pointer"
-              >
-                <Sliders className="w-4 h-4" />
-              </button>
-
-              <button 
-                onClick={() => {
-                  vibrate(15);
-                  updateSettings({ privacyMode: !settings.privacyMode });
-                }}
-                aria-label={settings.privacyMode ? "Show budget" : "Hide budget"}
-                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-card hover:bg-secondary rounded-full shadow-xs border border-border/80 select-none cursor-pointer"
-              >
-                {settings.privacyMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  onClick={() => vibrate(15)}
-                  aria-label="Admin Portal"
-                  title="Admin Portal"
-                  className="w-9 h-9 flex items-center justify-center text-primary hover:text-primary active:scale-95 transition-all duration-100 bg-primary/10 hover:bg-primary/20 rounded-full shadow-xs border border-primary/25 select-none animate-in fade-in"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                </Link>
-              )}
-
-              <Link
-                to="/settings"
-                onClick={() => vibrate(15)}
-                aria-label="Settings"
-                className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground active:scale-95 transition-all duration-100 bg-card hover:bg-secondary rounded-full shadow-xs border border-border/80 select-none"
-              >
-                <SettingsIcon className="w-4 h-4" />
-              </Link>
-            </div>
+            {renderActionToolbar(false)}
           </div>
         </div>
 
@@ -868,7 +824,7 @@ export default function Dashboard() {
           {shouldShowWidget('quickAdds') && quickAdds.length > 0 && (
             <div className="order-5 lg:order-none space-y-2.5">
                 <SectionHeader
-                  icon={<Sparkles className="w-4 h-4" />}
+                  icon={<AutoAwesomeOutlined className="w-4 h-4" fontSize="small" />}
                   title="1-Tap Quick Add"
                   tone="cyan"
                   badge={quickAdds.length}

@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
 import { Input } from "../components/ui/input";
-import { Search, Download, Paperclip, Sparkles, Repeat, Receipt, SlidersHorizontal, Trash2, Calendar, Zap, Settings, Printer, X } from "lucide-react";
+import { Search, Download, Paperclip, Repeat, Receipt, SlidersHorizontal, Trash2, Calendar, Zap, Settings, Printer, X } from "lucide-react";
+import WhatshotOutlined from '@mui/icons-material/WhatshotOutlined';
+import FilterListOutlined from '@mui/icons-material/FilterListOutlined';
 import { format, parseISO, isThisMonth, subMonths, isAfter, subDays, isSameMonth, isThisWeek } from "date-fns";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { SwipeableExpenseItem } from '../components/SwipeableExpenseItem';
@@ -11,7 +13,7 @@ import { PrintableStatementModal } from '../components/analytics/PrintableStatem
 import { Button } from "../components/ui/button";
 import { ReceiptLightbox } from "../components/ui/ReceiptLightbox";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
-import { vibrate } from "../lib/utils";
+import { vibrate, cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
 import { EmptyState } from "../components/ui/EmptyState";
 import { getCategoryStyle, isIncomeCategory } from "../lib/categoryStyles";
@@ -34,6 +36,16 @@ export default function Expenses() {
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [activeReceipt, setActiveReceipt] = useState<{ url: string; title?: string; amount?: number } | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
+  const [isMobileFilterExpanded, setIsMobileFilterExpanded] = useState(false);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategory) count++;
+    if (minAmount || maxAmount) count++;
+    if (quickFilter !== 'all') count++;
+    if (dateFilter !== 'this_month') count++;
+    return count;
+  }, [selectedCategory, minAmount, maxAmount, quickFilter, dateFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
@@ -247,20 +259,30 @@ export default function Expenses() {
       <div className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
         {/* Sticky Frosted Glass Filter Bar (Mobile top bar -> Desktop left sticky panel) */}
         <div className="sticky top-[env(safe-area-inset-top,0px)] lg:top-6 z-30 lg:col-span-4 -mx-4 px-4 sm:mx-0 sm:px-0 lg:p-4 py-2.5 bg-background/90 lg:bg-card/92 dark:bg-background/85 lg:dark:bg-card/80 backdrop-blur-2xl border-b lg:border border-border/40 lg:border-border/80 lg:dark:border-white/10 lg:rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] space-y-2.5 lg:space-y-4 transition-all">
-          {/* Row 1: Search + Date Filter + Amount Filter Toggle */}
+          {/* Row 1: Search + Date Filter + Amount Filter Toggle + Mobile Drawer Toggle */}
           <div className="flex lg:flex-col gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Search expenses..." 
-                className="pl-9 bg-card/90 lg:bg-secondary/50 rounded-xl h-10 border-border/60"
+                className="pl-9 pr-8 bg-card/90 lg:bg-secondary/50 rounded-xl h-10 border-border/60"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-3 text-muted-foreground hover:text-foreground cursor-pointer"
+                  aria-label="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
             <div className="flex gap-2 shrink-0">
               <select
-                className="flex h-10 w-[115px] lg:flex-1 rounded-xl border border-input bg-card/90 lg:bg-secondary/50 px-2.5 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0 cursor-pointer"
+                className="flex h-10 w-[110px] sm:w-[125px] lg:flex-1 rounded-xl border border-input bg-card/90 lg:bg-secondary/50 px-2 sm:px-2.5 py-2 text-xs sm:text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0 cursor-pointer"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
               >
@@ -275,7 +297,7 @@ export default function Expenses() {
                 type="button"
                 variant={showAmountFilters || minAmount || maxAmount ? "default" : "outline"}
                 size="icon"
-                className="h-10 w-10 shrink-0 rounded-xl"
+                className="h-10 w-10 shrink-0 rounded-xl cursor-pointer"
                 onClick={() => {
                   vibrate(10);
                   setShowAmountFilters(!showAmountFilters);
@@ -284,6 +306,25 @@ export default function Expenses() {
                 aria-label="Filter by amount"
               >
                 <SlidersHorizontal className="w-4 h-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={isMobileFilterExpanded || activeFilterCount > 0 ? "secondary" : "outline"}
+                size="sm"
+                className="h-10 px-2.5 rounded-xl gap-1.5 lg:hidden text-xs shrink-0 cursor-pointer"
+                onClick={() => {
+                  vibrate(10);
+                  setIsMobileFilterExpanded(!isMobileFilterExpanded);
+                }}
+                title="Show category & quick filters"
+              >
+                <FilterListOutlined className="w-4 h-4 text-primary" fontSize="inherit" />
+                <span className="hidden xs:inline">Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                    {activeFilterCount}
+                  </span>
+                )}
               </Button>
             </div>
           </div>
@@ -308,121 +349,124 @@ export default function Expenses() {
             </div>
           )}
 
-          {/* Row 2: Category Filter Pills */}
-          <div className="space-y-1.5">
-            <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
-              Categories
-            </span>
-            <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-              <Button
-                variant={selectedCategory === null ? "default" : "secondary"}
-                size="sm"
-                className="rounded-full shrink-0 h-7 text-xs px-3"
-                onClick={() => setSelectedCategory(null)}
-              >
-                All
-              </Button>
-              {availableCategories.map(cat => {
-                const count = expenses.filter(e => e.category === cat).length;
-                if (count === 0 && selectedCategory !== cat) return null;
-                const isSelected = selectedCategory === cat;
-                const style = getCategoryStyle(cat);
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    className={`h-7 px-3 text-xs rounded-full font-medium shrink-0 transition-all flex items-center gap-1.5 border select-none cursor-pointer ${
-                      isSelected
-                        ? `${style.bg} ${style.text} ${style.border} shadow-xs font-semibold ring-1 ring-primary/30`
-                        : 'bg-secondary/60 text-muted-foreground border-transparent hover:text-foreground'
-                    }`}
-                    onClick={() => setSelectedCategory(isSelected ? null : cat)}
-                  >
-                    <span>{style.emoji}</span>
-                    <span>{cat}</span>
-                  </button>
-                );
-              })}
+          {/* Collapsible Drawer on Mobile, Always Visible on Desktop */}
+          <div className={cn("space-y-2.5 lg:space-y-4", isMobileFilterExpanded ? "block animate-in fade-in slide-in-from-top-2 duration-150" : "hidden lg:block")}>
+            {/* Row 2: Category Filter Pills */}
+            <div className="space-y-1.5">
+              <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
+                Categories
+              </span>
+              <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                <Button
+                  variant={selectedCategory === null ? "default" : "secondary"}
+                  size="sm"
+                  className="rounded-full shrink-0 h-7 text-xs px-3"
+                  onClick={() => setSelectedCategory(null)}
+                >
+                  All
+                </Button>
+                {availableCategories.map(cat => {
+                  const count = expenses.filter(e => e.category === cat).length;
+                  if (count === 0 && selectedCategory !== cat) return null;
+                  const isSelected = selectedCategory === cat;
+                  const style = getCategoryStyle(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`h-7 px-3 text-xs rounded-full font-medium shrink-0 transition-all flex items-center gap-1.5 border select-none cursor-pointer ${
+                        isSelected
+                          ? `${style.bg} ${style.text} ${style.border} shadow-xs font-semibold ring-1 ring-primary/30`
+                          : 'bg-secondary/60 text-muted-foreground border-transparent hover:text-foreground'
+                      }`}
+                      onClick={() => setSelectedCategory(isSelected ? null : cat)}
+                    >
+                      <span>{style.emoji}</span>
+                      <span>{cat}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* Row 3: Quick Filter Chips */}
-          <div className="space-y-1.5">
-            <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
-              Quick Filters
-            </span>
-            <div className="flex lg:flex-wrap items-center gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide text-xs">
-              <button
-                type="button"
-                onClick={() => { vibrate(10); setQuickFilter('all'); }}
-                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  quickFilter === 'all' 
-                    ? 'bg-primary text-primary-foreground shadow-xs' 
-                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                All Items
-              </button>
-              <button
-                type="button"
-                onClick={() => { vibrate(10); setQuickFilter('this_cycle'); }}
-                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  quickFilter === 'this_cycle' 
-                    ? 'bg-primary text-primary-foreground shadow-xs' 
-                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                {activeCycle.cycleDay > 1 ? `Cycle (${activeCycle.label})` : 'This Month'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { vibrate(10); setQuickFilter('this_week'); }}
-                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  quickFilter === 'this_week' 
-                    ? 'bg-primary text-primary-foreground shadow-xs' 
-                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5" />
-                This Week
-              </button>
-              <button
-                type="button"
-                onClick={() => { vibrate(10); setQuickFilter('receipt'); }}
-                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  quickFilter === 'receipt' 
-                    ? 'bg-primary text-primary-foreground shadow-xs' 
-                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Paperclip className="w-3.5 h-3.5" />
-                Has Receipt
-              </button>
-              <button
-                type="button"
-                onClick={() => { vibrate(10); setQuickFilter('high_spend'); }}
-                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  quickFilter === 'high_spend' 
-                    ? 'bg-primary text-primary-foreground shadow-xs' 
-                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                High Spend &gt;₹1k
-              </button>
-              <button
-                type="button"
-                onClick={() => { vibrate(10); setQuickFilter('recurring'); }}
-                className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  quickFilter === 'recurring' 
-                    ? 'bg-primary text-primary-foreground shadow-xs' 
-                    : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Repeat className="w-3.5 h-3.5" />
-                Recurring
-              </button>
+            {/* Row 3: Quick Filter Chips */}
+            <div className="space-y-1.5">
+              <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
+                Quick Filters
+              </span>
+              <div className="flex lg:flex-wrap items-center gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide text-xs">
+                <button
+                  type="button"
+                  onClick={() => { vibrate(10); setQuickFilter('all'); }}
+                  className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    quickFilter === 'all' 
+                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                      : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  All Items
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { vibrate(10); setQuickFilter('this_cycle'); }}
+                  className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    quickFilter === 'this_cycle' 
+                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                      : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  {activeCycle.cycleDay > 1 ? `Cycle (${activeCycle.label})` : 'This Month'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { vibrate(10); setQuickFilter('this_week'); }}
+                  className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    quickFilter === 'this_week' 
+                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                      : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  This Week
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { vibrate(10); setQuickFilter('receipt'); }}
+                  className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    quickFilter === 'receipt' 
+                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                      : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Paperclip className="w-3.5 h-3.5" />
+                  Has Receipt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { vibrate(10); setQuickFilter('high_spend'); }}
+                  className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    quickFilter === 'high_spend' 
+                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                      : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <WhatshotOutlined className="w-3.5 h-3.5 text-amber-500" fontSize="inherit" />
+                  <span>High Spend (&gt;1k)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { vibrate(10); setQuickFilter('recurring'); }}
+                  className={`px-3 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    quickFilter === 'recurring' 
+                      ? 'bg-primary text-primary-foreground shadow-xs' 
+                      : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Repeat className="w-3.5 h-3.5" />
+                  Recurring
+                </button>
+              </div>
             </div>
           </div>
         </div>

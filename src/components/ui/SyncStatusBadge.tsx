@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Cloud, CloudOff, RefreshCw, Check, AlertCircle } from "lucide-react";
 import { useExpenseStore } from "../../store/useExpenseStore";
@@ -56,20 +57,17 @@ export function SyncStatusBadge({ className, showText = true }: SyncStatusBadgeP
   return (
     <div className={cn("inline-flex items-center select-none", className)}>
       <AnimatePresence mode="wait">
-        {/* 1. Gray / Local only: when session === null */}
+        {/* 1. Gray / Local only: when session === null (Guest Mode) */}
         {!session ? (
-          <motion.div
-            key="local-only"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.15 }}
-            title="Not signed in. Data is saved locally on this device only."
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted/60 text-muted-foreground border border-border/50 shadow-2xs"
+          <Link
+            to="/settings"
+            onClick={() => vibrate(10)}
+            title="Guest Mode: Data is saved locally. Tap to link a cloud account."
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/50 shadow-2xs cursor-pointer transition-colors"
           >
-            <Cloud className="w-3 h-3 stroke-[2.2] opacity-70" />
+            <Cloud className="w-3 h-3 stroke-[2.2] opacity-70 text-amber-500" />
             {showText && <span>Local only</span>}
-          </motion.div>
+          </Link>
         ) : !isOnline ? (
           /* 2. Amber / Offline */
           <motion.div
