@@ -26,6 +26,7 @@ export interface Budget {
   monthlyLimit: number;
   month: string;
   userId: string;
+  updated_at?: string;
 }
 
 export interface WishlistItem {
@@ -69,6 +70,7 @@ export interface Subscription {
   billing_cycle: 'monthly' | 'yearly';
   next_billing_date: string;
   category: string;
+  updated_at?: string;
 }
 
 export interface Account {
@@ -82,6 +84,7 @@ export interface Account {
   credit_limit?: number;
   statement_day?: number;
   due_day?: number;
+  updated_at?: string;
 }
 
 export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE' 
@@ -108,6 +111,7 @@ export interface Bill {
   category: string;
   due_day?: number;
   due_date?: string;
+  updated_at?: string;
 }
 
 export interface DashboardWidgetsConfig {

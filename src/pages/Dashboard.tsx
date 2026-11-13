@@ -1186,6 +1186,29 @@ export default function Dashboard() {
             currency={settings.currency}
             expenses={currentMonthExpenses.filter(e => e.category === selectedCategoryForDrilldown)}
             categoryBudget={budgets.find(b => b.category === selectedCategoryForDrilldown && b.month === new Date().toISOString().slice(0, 7))?.monthlyLimit || settings.categoryBudgets?.[selectedCategoryForDrilldown]}
+            onLogAgain={async (exp) => {
+              vibrate(20);
+              if (settings.soundEnabled) playSuccessSound();
+              const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
+              const newId = await addExpense({
+                amount: exp.amount,
+                description: exp.description,
+                category: exp.category,
+                date: new Date().toISOString(),
+                notes: exp.notes,
+                account_id: exp.account_id || defaultAccountId || undefined,
+              });
+              toast.success(`Logged ${exp.description} (${formatCurrency(exp.amount, settings.currency)}) for today`, {
+                action: {
+                  label: "Undo",
+                  onClick: () => {
+                    vibrate(15);
+                    deleteExpense(newId);
+                    toast.info(`Undone: ${exp.description} removed`);
+                  }
+                }
+              });
+            }}
           />
         )}
 

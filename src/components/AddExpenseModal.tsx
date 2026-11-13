@@ -241,7 +241,25 @@ export function AddExpenseModal({
           setUploading(false);
           return;
         }
-        await transferFunds(selectedAccountId, transferToAccountId, parsedAmount, notes.trim() || undefined);
+
+        const fromAcc = accounts.find(a => a.id === selectedAccountId);
+        const toAcc = accounts.find(a => a.id === transferToAccountId);
+        const transferDesc = `Transfer: ${fromAcc?.name || 'Account'} → ${toAcc?.name || 'Account'}`;
+
+        if (expenseToEdit) {
+          updateExpense(expenseToEdit.id, {
+            amount: parsedAmount,
+            description: transferDesc,
+            category: 'Transfer',
+            notes: notes.trim() || `Funds transferred from ${fromAcc?.name || 'Account'} to ${toAcc?.name || 'Account'}`,
+            account_id: selectedAccountId,
+            transfer_account_id: transferToAccountId,
+          });
+          toast.success("Transfer updated successfully");
+        } else {
+          await transferFunds(selectedAccountId, transferToAccountId, parsedAmount, notes.trim() || undefined);
+        }
+
         if (settings.soundEnabled) playSuccessSound();
         setUploading(false);
         onClose();

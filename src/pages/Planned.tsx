@@ -214,7 +214,7 @@ function SubscriptionsTab({
   detectedCandidates?: DetectedRecurringCandidate[];
   onDismissCandidate?: (id: string) => void;
 }) {
-  const { subscriptions, addSubscription, deleteSubscription, settings, addExpense, expenses } = useExpenseStore();
+  const { subscriptions, addSubscription, deleteSubscription, settings, addExpense, deleteExpense, expenses } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -237,19 +237,28 @@ function SubscriptionsTab({
     setIsAdding(false);
   };
 
-  const handleLogPayment = (sub: any) => {
+  const handleLogPayment = async (sub: any) => {
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
     const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
-    addExpense({
+    const expenseId = await addExpense({
       amount: sub.amount,
       description: `${sub.name} Subscription`,
       category: sub.category || "Bills",
       date: new Date().toISOString(),
-      notes: "Manually logged from Subscriptions page",
+      notes: `Subscription payment for ${sub.name} (ID: ${sub.id})`,
       account_id: defaultAccountId || undefined,
     });
-    toast.success(`${sub.name} payment logged!`);
+    toast.success(`${sub.name} payment logged!`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          vibrate(10);
+          deleteExpense(expenseId);
+          toast.info(`Payment undone: ${sub.name}`);
+        }
+      }
+    });
   };
 
   return (
@@ -473,7 +482,7 @@ function SubscriptionsTab({
 }
 
 function WishlistTab() {
-  const { wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem, addExpense, settings } = useExpenseStore();
+  const { wishlistItems, addWishlistItem, updateWishlistItem, deleteWishlistItem, addExpense, deleteExpense, settings } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -516,18 +525,18 @@ function WishlistTab() {
     proceedWithPurchase(item);
   };
 
-  const proceedWithPurchase = (item: any) => {
+  const proceedWithPurchase = async (item: any) => {
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
     const actualCost = item.estimated_amount || 0;
     const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
 
-    addExpense({
+    const expenseId = await addExpense({
       amount: actualCost,
       description: `Purchased: ${item.item_name}`,
       category: item.category || "Shopping",
       date: new Date().toISOString(),
-      notes: "Logged from Wishlist",
+      notes: `Logged from Wishlist (ID: ${item.id})`,
       account_id: defaultAccountId || undefined,
     });
 
@@ -538,6 +547,7 @@ function WishlistTab() {
         onClick: () => {
           vibrate(10);
           updateWishlistItem(item.id, { is_purchased: false });
+          deleteExpense(expenseId);
         }
       }
     });
@@ -799,7 +809,7 @@ function WishlistTab() {
 }
 
 function IOUTab() {
-  const { debts, addDebt, updateDebt, deleteDebt, addExpense, settings } = useExpenseStore();
+  const { debts, addDebt, updateDebt, deleteDebt, addExpense, deleteExpense, settings } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [shareDebt, setShareDebt] = useState<any | null>(null);
@@ -825,7 +835,7 @@ function IOUTab() {
     setIsAdding(false);
   };
 
-  const handleSettle = (debt: any) => {
+  const handleSettle = async (debt: any) => {
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
     updateDebt(debt.id, { status: "settled" });
@@ -833,12 +843,12 @@ function IOUTab() {
     const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
     const isLent = debt.type === "lent";
 
-    addExpense({
+    const expenseId = await addExpense({
       amount: debt.amount,
       description: isLent ? `Settled: ${debt.person_name}` : `Repaid: ${debt.person_name}`,
       category: isLent ? "Income" : "Other",
       date: new Date().toISOString(),
-      notes: debt.notes || `Settlement with ${debt.person_name}`,
+      notes: debt.notes ? `${debt.notes} (ID: ${debt.id})` : `Settlement with ${debt.person_name} (ID: ${debt.id})`,
       account_id: defaultAccountId || undefined,
     });
 
@@ -848,6 +858,7 @@ function IOUTab() {
         onClick: () => {
           vibrate(10);
           updateDebt(debt.id, { status: "pending" });
+          deleteExpense(expenseId);
         }
       }
     });
@@ -1026,7 +1037,7 @@ function BillsTab({
   detectedCandidates?: DetectedRecurringCandidate[];
   onDismissCandidate?: (id: string) => void;
 }) {
-  const { bills, addBill, deleteBill, updateBill, settings, addExpense, expenses } = useExpenseStore();
+  const { bills, addBill, deleteBill, updateBill, settings, addExpense, deleteExpense, expenses } = useExpenseStore();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -1048,11 +1059,11 @@ function BillsTab({
     setIsAdding(false);
   };
 
-  const handlePayNow = (bill: any) => {
+  const handlePayNow = async (bill: any) => {
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
     const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
-    addExpense({
+    const expenseId = await addExpense({
       amount: bill.amount,
       description: `Manual Payment: ${bill.title}`,
       category: bill.category || "Bills",
@@ -1060,7 +1071,16 @@ function BillsTab({
       notes: `Bill payment for ${bill.title} (ID: ${bill.id})`,
       account_id: defaultAccountId || undefined,
     });
-    toast.success(`${bill.title} marked as paid!`);
+    toast.success(`${bill.title} marked as paid!`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          vibrate(10);
+          deleteExpense(expenseId);
+          toast.info(`Payment undone: ${bill.title}`);
+        }
+      }
+    });
   };
 
   return (

@@ -26,13 +26,15 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
       return;
     }
 
+    const nowIso = new Date().toISOString();
+
     if (existingBudget) {
       set(state => ({
-        budgets: state.budgets.map(b => b.id === existingBudget.id ? { ...b, monthlyLimit } : b)
+        budgets: state.budgets.map(b => b.id === existingBudget.id ? { ...b, monthlyLimit, updated_at: nowIso } : b)
       }));
       if (session) {
         queryClient.setQueryData(['budgets', session.user.id], (old: any) => {
-          return old ? old.map((b: any) => b.id === existingBudget.id ? { ...b, monthlyLimit } : b) : [];
+          return old ? old.map((b: any) => b.id === existingBudget.id ? { ...b, monthlyLimit, updated_at: nowIso } : b) : [];
         });
       }
       addPendingMutation({ 
@@ -42,7 +44,8 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
           user_id: session?.user?.id || '',
           category,
           monthly_limit: monthlyLimit,
-          month
+          month,
+          updated_at: nowIso
         } 
       });
       if (session) {
@@ -54,7 +57,8 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
         category,
         monthlyLimit,
         month,
-        userId: session ? session.user.id : 'guest'
+        userId: session ? session.user.id : 'guest',
+        updated_at: nowIso
       };
       set(state => ({ budgets: [...state.budgets, newBudget] }));
       if (session) {
@@ -69,7 +73,8 @@ export const createBudgetSlice: StateCreator<ExpenseState, [], [], BudgetSlice> 
           user_id: session?.user?.id || '',
           category,
           monthly_limit: newBudget.monthlyLimit,
-          month: newBudget.month
+          month: newBudget.month,
+          updated_at: nowIso
         } 
       });
       if (session) {

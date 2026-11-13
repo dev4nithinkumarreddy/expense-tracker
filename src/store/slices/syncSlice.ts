@@ -1606,6 +1606,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
 
     const now = new Date();
     const currentDay = now.getDate();
+    const defaultAccountId = state.accounts.find(a => a.type === 'bank')?.id || state.accounts[0]?.id;
 
     // --- Process due auto-deduct bills idempotently ---
     state.bills.forEach(bill => {
@@ -1623,7 +1624,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               description: `Auto-deduct: ${bill.title}`,
               category: bill.category || 'Bills',
               date: billDate,
-              notes: 'Automatically deducted for the current month'
+              notes: `Automatically deducted for the current month (ID: ${bill.id})`,
+              account_id: defaultAccountId || undefined
             });
           }
         }
@@ -1726,10 +1728,37 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       finalExpenses = finalExpenses.map(e => e.id === updatedE.id ? updatedE : e);
     });
 
+    const prevAccounts = state.accounts || [];
     let finalAccounts = state.accounts;
     allNewExpenses.forEach(newExp => {
       finalAccounts = applyExpenseToAccounts(finalAccounts, newExp, 1);
     });
+
+    if (session) {
+      finalAccounts.forEach(newAcc => {
+        const prev = prevAccounts.find(p => p.id === newAcc.id);
+        if (prev && prev.balance !== newAcc.balance) {
+          addPendingMutation({
+            type: 'UPDATE_ACCOUNT',
+            payload: {
+              id: newAcc.id,
+              user_id: session.user.id,
+              name: newAcc.name,
+              type: newAcc.type,
+              balance: newAcc.balance,
+              currency: newAcc.currency,
+              color: newAcc.color,
+              icon: newAcc.icon,
+              credit_limit: newAcc.credit_limit,
+              statement_day: newAcc.statement_day,
+              due_day: newAcc.due_day,
+              updated_at: newAcc.updated_at || new Date().toISOString()
+            }
+          });
+        }
+      });
+      syncPendingMutations();
+    }
 
     return {
       ...state,

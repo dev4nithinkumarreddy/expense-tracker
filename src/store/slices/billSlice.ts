@@ -7,7 +7,8 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
 
   addBill: (bill) => {
     const id = crypto.randomUUID();
-    const newBill: Bill = { ...bill, id };
+    const nowIso = new Date().toISOString();
+    const newBill: Bill = { ...bill, id, updated_at: nowIso };
     set((state) => ({ bills: [...state.bills, newBill] }));
     
     const { session, addPendingMutation, syncPendingMutations } = get();
@@ -23,7 +24,8 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
       amount: newBill.amount,
       auto_deduct: newBill.autoDeduct,
       category: newBill.category,
-      due_day: newBill.due_day ?? 1
+      due_day: newBill.due_day ?? 1,
+      updated_at: nowIso
     };
     if (newBill.due_date) {
       payload.due_date = newBill.due_date;
@@ -35,8 +37,9 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
   },
   
   updateBill: (id, updatedFields) => {
+    const nowIso = new Date().toISOString();
     set((state) => ({
-      bills: state.bills.map(b => b.id === id ? { ...b, ...updatedFields } : b)
+      bills: state.bills.map(b => b.id === id ? { ...b, ...updatedFields, updated_at: nowIso } : b)
     }));
     
     const { session, bills, addPendingMutation, syncPendingMutations } = get();
@@ -44,7 +47,7 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
     if (bill) {
       if (session) {
         queryClient.setQueryData(['bills', session.user.id], (old: any) => {
-           return old ? old.map((b: any) => b.id === id ? { ...b, ...updatedFields } : b) : [];
+           return old ? old.map((b: any) => b.id === id ? { ...b, ...updatedFields, updated_at: nowIso } : b) : [];
         });
       }
       const payload: Record<string, any> = {
@@ -54,7 +57,8 @@ export const createBillSlice: StateCreator<ExpenseState, [], [], BillSlice> = (s
         amount: bill.amount,
         auto_deduct: bill.autoDeduct,
         category: bill.category,
-        due_day: bill.due_day ?? 1
+        due_day: bill.due_day ?? 1,
+        updated_at: nowIso
       };
       if (bill.due_date) {
         payload.due_date = bill.due_date;

@@ -13,7 +13,8 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
 
   addAccount: async (account) => {
     const id = crypto.randomUUID();
-    const newAccount: Account = { ...account, id };
+    const updatedAt = new Date().toISOString();
+    const newAccount: Account = { ...account, id, updated_at: updatedAt };
 
     set((state) => ({
       accounts: [...state.accounts, newAccount],
@@ -34,6 +35,7 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
         credit_limit: newAccount.credit_limit,
         statement_day: newAccount.statement_day,
         due_day: newAccount.due_day,
+        updated_at: updatedAt,
       },
     });
     if (session) {
@@ -45,8 +47,9 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
   },
 
   updateAccount: (id, partial) => {
+    const updatedAt = new Date().toISOString();
     set((state) => ({
-      accounts: state.accounts.map((a) => (a.id === id ? { ...a, ...partial } : a)),
+      accounts: state.accounts.map((a) => (a.id === id ? { ...a, ...partial, updated_at: updatedAt } : a)),
     }));
 
     const { session, accounts, addPendingMutation, syncPendingMutations } = get();
@@ -66,6 +69,7 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
           credit_limit: updated.credit_limit,
           statement_day: updated.statement_day,
           due_day: updated.due_day,
+          updated_at: updatedAt,
         },
       });
       if (session) {
@@ -75,11 +79,16 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
   },
 
   deleteAccount: (id) => {
+    const { accounts, session, addPendingMutation, syncPendingMutations } = get();
+    if (accounts.length <= 1) {
+      toast.error('Cannot remove your only account');
+      return;
+    }
+
     set((state) => ({
       accounts: state.accounts.filter((a) => a.id !== id),
     }));
 
-    const { session, addPendingMutation, syncPendingMutations } = get();
     addPendingMutation({
       type: 'DELETE_ACCOUNT',
       payload: { id },
@@ -97,7 +106,7 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
       return;
     }
 
-    const { accounts, addExpense } = get();
+    const { accounts, addExpense, session, addPendingMutation, syncPendingMutations } = get();
     const fromAcc = accounts.find((a) => a.id === fromId);
     const toAcc = accounts.find((a) => a.id === toId);
 
@@ -106,31 +115,79 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
       return;
     }
 
-    // Update balances
+    const nowIso = new Date().toISOString();
+
+    // Update balances and timestamps
     set((state) => ({
       accounts: state.accounts.map((a) => {
         if (a.id === fromId) {
           const delta = a.type === 'credit_card' ? amount : -amount;
-          return { ...a, balance: a.balance + delta };
+          return { ...a, balance: a.balance + delta, updated_at: nowIso };
         }
         if (a.id === toId) {
           const delta = a.type === 'credit_card' ? -amount : amount;
-          return { ...a, balance: a.balance + delta };
+          return { ...a, balance: a.balance + delta, updated_at: nowIso };
         }
         return a;
       }),
     }));
+
+    // Queue account balance updates to Supabase
+    const updatedFrom = get().accounts.find((a) => a.id === fromId);
+    const updatedTo = get().accounts.find((a) => a.id === toId);
+    if (updatedFrom) {
+      addPendingMutation({
+        type: 'UPDATE_ACCOUNT',
+        payload: {
+          id: updatedFrom.id,
+          user_id: session?.user?.id || '',
+          name: updatedFrom.name,
+          type: updatedFrom.type,
+          balance: updatedFrom.balance,
+          currency: updatedFrom.currency,
+          color: updatedFrom.color,
+          icon: updatedFrom.icon,
+          credit_limit: updatedFrom.credit_limit,
+          statement_day: updatedFrom.statement_day,
+          due_day: updatedFrom.due_day,
+          updated_at: nowIso,
+        },
+      });
+    }
+    if (updatedTo) {
+      addPendingMutation({
+        type: 'UPDATE_ACCOUNT',
+        payload: {
+          id: updatedTo.id,
+          user_id: session?.user?.id || '',
+          name: updatedTo.name,
+          type: updatedTo.type,
+          balance: updatedTo.balance,
+          currency: updatedTo.currency,
+          color: updatedTo.color,
+          icon: updatedTo.icon,
+          credit_limit: updatedTo.credit_limit,
+          statement_day: updatedTo.statement_day,
+          due_day: updatedTo.due_day,
+          updated_at: nowIso,
+        },
+      });
+    }
 
     // Record transfer log expense
     await addExpense({
       amount,
       description: `Transfer: ${fromAcc.name} → ${toAcc.name}`,
       category: 'Transfer',
-      date: new Date().toISOString(),
+      date: nowIso,
       notes: notes || `Funds transferred from ${fromAcc.name} to ${toAcc.name}`,
       account_id: fromId,
       transfer_account_id: toId,
     });
+
+    if (session) {
+      syncPendingMutations();
+    }
 
     toast.success(`Transferred ${fromAcc.currency || '₹'}${amount} to ${toAcc.name}`);
   },
@@ -260,12 +317,11 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
 
     const bankAcc = accounts.find((a) => a.type === 'bank' || a.id === 'acc-bank-1');
     const cashAcc = accounts.find((a) => a.type === 'cash' || a.id === 'acc-cash-1');
-    const hasDefaultCard = accounts.some((a) => a.id === 'acc-card-1');
 
-    // Check if accounts still hold the initial dummy template values (25000 bank / 2500 cash) or default acc-card-1
-    const hasDummyValues = (bankAcc && bankAcc.balance === 25000) || 
-                           (cashAcc && cashAcc.balance === 2500) ||
-                           hasDefaultCard;
+    // Only calibrate if accounts are completely fresh dummy template values
+    const hasDummyValues = 
+      (bankAcc && bankAcc.balance === 25000) || 
+      (cashAcc && cashAcc.balance === 2500);
     
     if (hasDummyValues) {
       const summary = calculateCashflowSummary(
@@ -276,19 +332,18 @@ export const createAccountSlice: StateCreator<ExpenseState, [], [], AccountSlice
         new Date()
       );
       const remaining = summary.availableBalance;
+      const nowIso = new Date().toISOString();
 
       set((state) => ({
-        accounts: state.accounts
-          .filter((acc) => acc.id !== 'acc-card-1')
-          .map((acc) => {
-            if (acc.id === bankAcc?.id && bankAcc.balance === 25000) {
-              return { ...acc, balance: remaining };
-            }
-            if (acc.id === cashAcc?.id && acc.balance === 2500) {
-              return { ...acc, balance: 0 };
-            }
-            return acc;
-          }),
+        accounts: state.accounts.map((acc) => {
+          if (acc.id === bankAcc?.id && bankAcc.balance === 25000) {
+            return { ...acc, balance: remaining, updated_at: nowIso };
+          }
+          if (acc.id === cashAcc?.id && acc.balance === 2500) {
+            return { ...acc, balance: 0, updated_at: nowIso };
+          }
+          return acc;
+        }),
       }));
     }
   },

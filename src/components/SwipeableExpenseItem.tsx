@@ -72,13 +72,16 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
     hasHapticFired.current = false;
     const { offset, velocity } = info;
 
+    // Directional scroll lock: verify gesture is primarily horizontal and not vertical scroll drift
+    const isHorizontalGesture = Math.abs(offset.x) > Math.abs(offset.y) * 1.5 && Math.abs(offset.y) < 32;
+
     // Calibrated Left Swipe = Delete
     // Requires deliberate physical pull past 120px, OR a strong flick past 85px with velocity <= -500px/s.
     // Anything smaller (e.g. casual scroll or small drag) safely springs back to center.
-    const isDeliberateDelete = offset.x <= -120 || (offset.x <= -85 && velocity.x <= -500);
+    const isDeliberateDelete = isHorizontalGesture && (offset.x <= -120 || (offset.x <= -85 && velocity.x <= -500));
 
     // Right swipe = Edit (requires offset >= 80px or strong flick past 60px)
-    const isDeliberateEdit = offset.x >= 80 || (offset.x >= 60 && velocity.x >= 500);
+    const isDeliberateEdit = isHorizontalGesture && (offset.x >= 80 || (offset.x >= 60 && velocity.x >= 500));
 
     if (isDeliberateDelete) {
       setIsDeleting(true);

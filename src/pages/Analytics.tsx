@@ -65,12 +65,14 @@ export default function Analytics() {
   const handleDrilldownLogAgain = async (expense: Expense) => {
     vibrate(20);
     if (settings.soundEnabled) playSuccessSound();
+    const defaultAccountId = useExpenseStore.getState().accounts?.[0]?.id;
     const newId = await addExpense({
       amount: expense.amount,
       description: expense.description,
       category: expense.category,
       date: new Date().toISOString(),
-      notes: expense.notes
+      notes: expense.notes,
+      account_id: expense.account_id || defaultAccountId || undefined,
     });
     toast.success(`Logged ${expense.description} (${formatCurrency(expense.amount, settings.currency)}) for today`, {
       action: {

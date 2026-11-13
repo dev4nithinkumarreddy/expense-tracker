@@ -12,17 +12,18 @@ export function applyExpenseToAccounts(
   direction: 1 | -1
 ): Account[] {
   if (!accounts || accounts.length === 0) return accounts || [];
+  const nowIso = new Date().toISOString();
 
   if (expense.category === 'Transfer' && expense.account_id && expense.transfer_account_id) {
     return accounts.map((acc) => {
       const currentBalance = Number(acc.balance) || 0;
       if (acc.id === expense.account_id) {
         const delta = acc.type === 'credit_card' ? expense.amount : -expense.amount;
-        return { ...acc, balance: currentBalance + delta * direction };
+        return { ...acc, balance: currentBalance + delta * direction, updated_at: nowIso };
       }
       if (acc.id === expense.transfer_account_id) {
         const delta = acc.type === 'credit_card' ? -expense.amount : expense.amount;
-        return { ...acc, balance: currentBalance + delta * direction };
+        return { ...acc, balance: currentBalance + delta * direction, updated_at: nowIso };
       }
       return acc;
     });
@@ -35,10 +36,10 @@ export function applyExpenseToAccounts(
         const currentBalance = Number(acc.balance) || 0;
         if (acc.type === 'credit_card') {
           const delta = isIncome ? -expense.amount : expense.amount;
-          return { ...acc, balance: currentBalance + delta * direction };
+          return { ...acc, balance: currentBalance + delta * direction, updated_at: nowIso };
         } else {
           const delta = isIncome ? expense.amount : -expense.amount;
-          return { ...acc, balance: currentBalance + delta * direction };
+          return { ...acc, balance: currentBalance + delta * direction, updated_at: nowIso };
         }
       }
       return acc;
@@ -46,6 +47,36 @@ export function applyExpenseToAccounts(
   }
 
   return accounts;
+}
+
+function queueAccountUpdates(
+  previousAccounts: Account[],
+  newAccounts: Account[],
+  session: any,
+  addPendingMutation: (m: any) => void
+) {
+  newAccounts.forEach((newAcc) => {
+    const prev = previousAccounts.find((p) => p.id === newAcc.id);
+    if (prev && prev.balance !== newAcc.balance) {
+      addPendingMutation({
+        type: 'UPDATE_ACCOUNT',
+        payload: {
+          id: newAcc.id,
+          user_id: session?.user?.id || '',
+          name: newAcc.name,
+          type: newAcc.type,
+          balance: newAcc.balance,
+          currency: newAcc.currency,
+          color: newAcc.color,
+          icon: newAcc.icon,
+          credit_limit: newAcc.credit_limit,
+          statement_day: newAcc.statement_day,
+          due_day: newAcc.due_day,
+          updated_at: newAcc.updated_at || new Date().toISOString(),
+        },
+      });
+    }
+  });
 }
 
 export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice> = (set, get) => ({
@@ -58,6 +89,7 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     
     // Gamification (Streak logic)
     const today = format(new Date(), 'yyyy-MM-dd');
+    const prevAccounts = get().accounts || [];
     
     set((state) => {
       const updatedExpenses = [...state.expenses, newExpense];
@@ -72,7 +104,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       };
     });
     
-    const { session, addPendingMutation, syncPendingMutations } = get();
+    const { session, addPendingMutation, syncPendingMutations, accounts: newAccounts } = get();
+    queueAccountUpdates(prevAccounts, newAccounts || [], session, addPendingMutation);
+
     if (session) {
       queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
          return old ? [...old, newExpense] : [newExpense];
@@ -100,6 +134,7 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
   },
   
   updateExpense: (id, updatedFields) => {
+    const prevAccounts = get().accounts || [];
     set((state) => {
       const oldExpense = state.expenses.find(e => e.id === id);
       if (!oldExpense) return state;
@@ -117,7 +152,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       };
     });
     
-    const { session, expenses, addPendingMutation, syncPendingMutations } = get();
+    const { session, expenses, addPendingMutation, syncPendingMutations, accounts: newAccounts } = get();
+    queueAccountUpdates(prevAccounts, newAccounts || [], session, addPendingMutation);
+
     const expense = expenses.find(e => e.id === id);
     if (expense) {
       if (session) {
@@ -152,6 +189,7 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
 
     if (!expenseToDelete) return;
 
+    const prevAccounts = get().accounts || [];
     const newRecentlyDeleted: DeletedExpense[] = [
       { expense: expenseToDelete, deletedAt: new Date().toISOString() },
       ...recentlyDeleted.filter(d => d.expense.id !== id).slice(0, 49)
@@ -168,6 +206,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       };
     });
     
+    const { accounts: newAccounts } = get();
+    queueAccountUpdates(prevAccounts, newAccounts || [], session, addPendingMutation);
+
     if (session) {
       queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
          return old ? old.filter((e: any) => e.id !== id) : [];
@@ -194,6 +235,7 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
     const itemToRestore = recentlyDeleted.find(d => d.expense.id === id);
     if (!itemToRestore) return;
 
+    const prevAccounts = get().accounts || [];
     const restoredExpense = itemToRestore.expense;
     const updatedRecentlyDeleted = recentlyDeleted.filter(d => d.expense.id !== id);
     const updatedExpenses = [...expenses, restoredExpense];
@@ -207,6 +249,9 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
         settings: { ...state.settings, currentStreak: calculateStreak(updatedExpenses) }
       };
     });
+
+    const { accounts: newAccounts } = get();
+    queueAccountUpdates(prevAccounts, newAccounts || [], session, addPendingMutation);
 
     if (session) {
       queryClient.setQueryData(['expenses', session.user.id], (old: any) => {
