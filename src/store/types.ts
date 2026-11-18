@@ -13,6 +13,7 @@ export interface Expense {
   recurring_source_id?: string | null;
   account_id?: string | null;
   transfer_account_id?: string | null;
+  trip_id?: string | null;
 }
 
 export interface DeletedExpense {
@@ -52,6 +53,7 @@ export interface Debt {
   due_date?: string | null;
   expense_id?: string | null;
   upi_id?: string | null;
+  trip_id?: string | null;
 }
 
 export interface SplitParticipant {
@@ -87,6 +89,21 @@ export interface Account {
   updated_at?: string;
 }
 
+export interface Trip {
+  id: string;
+  name: string;
+  destination?: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  budget: number;
+  currency?: string;
+  coverEmoji: string;
+  notes?: string;
+  status: 'active' | 'upcoming' | 'completed';
+  created_at?: string;
+  updated_at?: string;
+}
+
 export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE' 
   | 'INSERT_BILL' | 'UPDATE_BILL' | 'DELETE_BILL' 
   | 'UPSERT_BUDGET' | 'DELETE_BUDGET'
@@ -94,7 +111,8 @@ export type MutationType = 'INSERT_EXPENSE' | 'UPDATE_EXPENSE' | 'DELETE_EXPENSE
   | 'INSERT_DEBT' | 'UPDATE_DEBT' | 'DELETE_DEBT'
   | 'INSERT_SUBSCRIPTION' | 'UPDATE_SUBSCRIPTION' | 'DELETE_SUBSCRIPTION'
   | 'UPDATE_SETTINGS'
-  | 'INSERT_ACCOUNT' | 'UPDATE_ACCOUNT' | 'DELETE_ACCOUNT';
+  | 'INSERT_ACCOUNT' | 'UPDATE_ACCOUNT' | 'DELETE_ACCOUNT'
+  | 'INSERT_TRIP' | 'UPDATE_TRIP' | 'DELETE_TRIP';
 
 export interface PendingMutation {
   id: string;
@@ -244,6 +262,15 @@ export interface SyncSlice {
   eraseAllData: () => Promise<void>;
 }
 
+export interface TripSlice {
+  trips: Trip[];
+  activeTripId: string | null;
+  addTrip: (trip: Omit<Trip, 'id' | 'created_at' | 'updated_at'>) => Promise<string>;
+  updateTrip: (id: string, trip: Partial<Trip>) => void;
+  deleteTrip: (id: string) => void;
+  setActiveTrip: (id: string | null) => void;
+}
+
 export type ExpenseState = ExpenseSlice &
   BillSlice &
   BudgetSlice &
@@ -251,5 +278,6 @@ export type ExpenseState = ExpenseSlice &
   SubscriptionSlice &
   WishlistSlice &
   AccountSlice &
+  TripSlice &
   SettingsSlice &
   SyncSlice;

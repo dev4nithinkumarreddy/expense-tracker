@@ -15,7 +15,8 @@ import {
   type Subscription, 
   type WishlistItem, 
   type Debt,
-  type Account
+  type Account,
+  type Trip
 } from '../types';
 
 // Standard UUID identifiers for legacy cloud accounts (preserved for backward compatibility)
@@ -266,14 +267,19 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               res.error.code === '23503' ||
               res.error.code === '22P02' ||
               res.error.code === 'PGRST204' ||
+              res.error.code === 'PGRST205' ||
+              res.error.code === '42703' ||
               res.error.message?.includes('account_id') ||
               res.error.message?.includes('transfer_account_id') ||
+              res.error.message?.includes('trip_id') ||
+              res.error.message?.includes('schema cache') ||
               res.error.message?.includes('uuid')
             )) {
               console.warn("Retrying expense upsert without account foreign keys:", res.error);
               const fallbackPayload = { ...payload };
               delete (fallbackPayload as any).account_id;
               delete (fallbackPayload as any).transfer_account_id;
+              delete (fallbackPayload as any).trip_id;
               res = await supabase.from('expenses').upsert(fallbackPayload);
             }
             error = res.error;
@@ -293,14 +299,19 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               res.error.code === '23503' ||
               res.error.code === '22P02' ||
               res.error.code === 'PGRST204' ||
+              res.error.code === 'PGRST205' ||
+              res.error.code === '42703' ||
               res.error.message?.includes('account_id') ||
               res.error.message?.includes('transfer_account_id') ||
+              res.error.message?.includes('trip_id') ||
+              res.error.message?.includes('schema cache') ||
               res.error.message?.includes('uuid')
             )) {
               console.warn("Retrying expense update without account foreign keys:", res.error);
               const fallbackPayload = { ...payload };
               delete (fallbackPayload as any).account_id;
               delete (fallbackPayload as any).transfer_account_id;
+              delete (fallbackPayload as any).trip_id;
               res = await supabase.from('expenses').update(fallbackPayload).eq('id', mut.payload.id);
             }
             error = res.error;
@@ -361,15 +372,20 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             let res = await supabase.from('debts').upsert(payload);
             if (res.error && (
               res.error.code === 'PGRST204' ||
+              res.error.code === 'PGRST205' ||
+              res.error.code === '42703' ||
               res.error.message?.includes('expense_id') ||
               res.error.message?.includes('due_date') ||
-              res.error.message?.includes('upi_id')
+              res.error.message?.includes('upi_id') ||
+              res.error.message?.includes('trip_id') ||
+              res.error.message?.includes('schema cache')
             )) {
               console.warn("Retrying debt upsert without extended columns:", res.error);
               const fallbackPayload = { ...payload };
               delete (fallbackPayload as any).expense_id;
               delete (fallbackPayload as any).due_date;
               delete (fallbackPayload as any).upi_id;
+              delete (fallbackPayload as any).trip_id;
               res = await supabase.from('debts').upsert(fallbackPayload);
             }
             error = res.error;
@@ -381,15 +397,20 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             let res = await supabase.from('debts').update(payload).eq('id', mut.payload.id);
             if (res.error && (
               res.error.code === 'PGRST204' ||
+              res.error.code === 'PGRST205' ||
+              res.error.code === '42703' ||
               res.error.message?.includes('expense_id') ||
               res.error.message?.includes('due_date') ||
-              res.error.message?.includes('upi_id')
+              res.error.message?.includes('upi_id') ||
+              res.error.message?.includes('trip_id') ||
+              res.error.message?.includes('schema cache')
             )) {
               console.warn("Retrying debt update without extended columns:", res.error);
               const fallbackPayload = { ...payload };
               delete (fallbackPayload as any).expense_id;
               delete (fallbackPayload as any).due_date;
               delete (fallbackPayload as any).upi_id;
+              delete (fallbackPayload as any).trip_id;
               res = await supabase.from('debts').update(fallbackPayload).eq('id', mut.payload.id);
             }
             error = res.error;
@@ -442,6 +463,59 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             const cloudId = toCloudAccountId(mut.payload.id, session.user.id) || mut.payload.id;
             const res = await (supabase.from('accounts' as any).delete().eq('id', cloudId) as any);
             error = res.error;
+          } else if (mut.type === 'INSERT_TRIP') {
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await (supabase.from('trips' as any).upsert(payload) as any);
+            if (res.error && (
+              res.error.code === '42P01' ||
+              res.error.code === 'PGRST205' ||
+              res.error.code === 'PGRST204' ||
+              res.error.message?.includes('schema cache') ||
+              res.error.message?.includes('does not exist') ||
+              res.error.message?.includes('Could not find the table')
+            )) {
+              console.warn("Trips table not created on Supabase yet; skipping remote sync:", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
+          } else if (mut.type === 'UPDATE_TRIP') {
+            const payload = {
+              ...mut.payload,
+              user_id: mut.payload.user_id || session.user.id
+            };
+            const res = await (supabase.from('trips' as any).update(payload).eq('id', mut.payload.id) as any);
+            if (res.error && (
+              res.error.code === '42P01' ||
+              res.error.code === 'PGRST205' ||
+              res.error.code === 'PGRST204' ||
+              res.error.message?.includes('schema cache') ||
+              res.error.message?.includes('does not exist') ||
+              res.error.message?.includes('Could not find the table')
+            )) {
+              console.warn("Trips table not created on Supabase yet; skipping remote sync:", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
+          } else if (mut.type === 'DELETE_TRIP') {
+            const res = await (supabase.from('trips' as any).delete().eq('id', mut.payload.id) as any);
+            if (res.error && (
+              res.error.code === '42P01' ||
+              res.error.code === 'PGRST205' ||
+              res.error.code === 'PGRST204' ||
+              res.error.message?.includes('schema cache') ||
+              res.error.message?.includes('does not exist') ||
+              res.error.message?.includes('Could not find the table')
+            )) {
+              console.warn("Trips table not created on Supabase yet; skipping remote sync:", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
           }
 
           // Duplicate key errors mean the row is already in the database
@@ -464,8 +538,10 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           } else {
             console.error("Mutation failed:", error, mut);
             // Drop client-level syntax/constraint errors so the queue is never blocked.
-            // Also drop account mutations that violate RLS (alien IDs from older clients) to unblock sync.
-            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100'].includes(error.code) ||
+            // Also drop account mutations that violate RLS (alien IDs from older clients) or missing table errors to unblock sync.
+            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100', 'PGRST205'].includes(error.code) ||
+              error.message?.includes('schema cache') ||
+              error.message?.includes('Could not find the table') ||
               (error.message?.includes('violates row-level security policy') && mut.type.includes('ACCOUNT'));
             if (isNonRecoverable) {
               console.warn(`Dropping unrecoverable mutation (${mut.type}) to unblock sync queue:`, error);
@@ -531,7 +607,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           .filter((m) => (pruneNow - m.createdAt!) < TWENTY_FOUR_HOURS_MS)
       }));
 
-      const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes, accountsRes] = await Promise.all([
+      const [expensesRes, billsRes, settingsRes, budgetsRes, wishlistRes, debtsRes, subsRes, accountsRes, tripsRes] = await Promise.all([
         supabase.from('expenses').select('*').eq('user_id', session.user.id),
         supabase.from('bills').select('*').eq('user_id', session.user.id),
         supabase.from('user_settings').select('*').eq('user_id', session.user.id).maybeSingle(),
@@ -539,7 +615,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         supabase.from('wishlist').select('*').eq('user_id', session.user.id),
         supabase.from('debts').select('*').eq('user_id', session.user.id),
         supabase.from('subscriptions').select('*').eq('user_id', session.user.id),
-        Promise.resolve(supabase.from('accounts' as any).select('*').eq('user_id', session.user.id)).catch(() => ({ data: null, error: null })) as any
+        Promise.resolve(supabase.from('accounts' as any).select('*').eq('user_id', session.user.id)).catch(() => ({ data: null, error: null })) as any,
+        Promise.resolve(supabase.from('trips' as any).select('*').eq('user_id', session.user.id)).catch(() => ({ data: null, error: null })) as any
       ]);
 
       // =====================================================================
@@ -713,6 +790,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           recurring_source_id: e.recurring_source_id || null,
           account_id: fromCloudAccountId(e.account_id, session.user.id) || undefined,
           transfer_account_id: fromCloudAccountId(e.transfer_account_id, session.user.id) || undefined,
+          trip_id: e.trip_id || undefined,
           updated_at: e.updated_at || e.created_at || e.date,
         }));
 
@@ -754,6 +832,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           recurring_source_id: e.recurring_source_id || null,
           account_id: toCloudAccountId(e.account_id, session.user.id, userHasLegacyCloudId),
           transfer_account_id: toCloudAccountId(e.transfer_account_id, session.user.id, userHasLegacyCloudId),
+          trip_id: e.trip_id || null,
         }));
 
         const { success: expSuccess, failed: expFailed } = await chunkedUpsert('expenses', uploadPayloads);
@@ -1287,6 +1366,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           notes: d.notes || undefined,
           expense_id: d.expense_id || undefined,
           upi_id: d.upi_id || undefined,
+          trip_id: d.trip_id || undefined,
           created_at: d.created_at,
           updated_at: d.updated_at || d.created_at || d.date,
         }));
@@ -1327,6 +1407,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           notes: d.notes || null,
           expense_id: d.expense_id || null,
           upi_id: d.upi_id || null,
+          trip_id: d.trip_id || null,
         }));
 
         const { success: debtSuccess, failed: debtFailed } = await chunkedUpsert('debts', uploadPayloads);
@@ -1364,7 +1445,91 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         console.log(`[Sync] debts: uploaded ${debtSuccess.length}, downloaded ${cloudOnly.length}, conflicts ${debtConflicts}, remapped ${remappedDebtsCount}`);
       }
 
-      // --- 8. SETTINGS (Preserved for Phase 2) ---
+      // --- 8. TRIPS MERGE & SEED ---
+      if (tripsRes && !tripsRes.error && Array.isArray(tripsRes.data)) {
+        const localTrips = get().trips || [];
+        const cloudMapped: Trip[] = tripsRes.data.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          destination: t.destination || undefined,
+          startDate: t.start_date,
+          endDate: t.end_date,
+          budget: Number(t.budget) || 0,
+          currency: t.currency || '₹',
+          coverEmoji: t.cover_emoji || '🏖️',
+          notes: t.notes || undefined,
+          status: t.status || 'upcoming',
+          created_at: t.created_at || new Date().toISOString(),
+          updated_at: t.updated_at || t.created_at
+        }));
+
+        const cloudMap = new Map(cloudMapped.map(t => [t.id, t]));
+        const localMap = new Map(localTrips.map(t => [t.id, t]));
+
+        const localOnly = localTrips.filter(t => !cloudMap.has(t.id));
+        const cloudOnly = cloudMapped.filter(t => !localMap.has(t.id));
+
+        const inBothLocal = localTrips.filter(t => cloudMap.has(t.id));
+        const localWins: Trip[] = [];
+        const cloudWins: Trip[] = [];
+
+        for (const localTrip of inBothLocal) {
+          const cloudTrip = cloudMap.get(localTrip.id)!;
+          const localTs = getRecordTimestamp(localTrip);
+          const cloudTs = getRecordTimestamp(cloudTrip);
+          if (localTs > cloudTs) {
+            localWins.push(localTrip);
+          } else {
+            cloudWins.push(cloudTrip);
+          }
+        }
+
+        const tripsToUpload = [...localOnly, ...localWins];
+        const uploadPayloads = tripsToUpload.map(t => ({
+          id: t.id,
+          user_id: session.user.id,
+          name: t.name,
+          destination: t.destination || null,
+          start_date: t.startDate,
+          end_date: t.endDate,
+          budget: t.budget,
+          currency: t.currency || '₹',
+          cover_emoji: t.coverEmoji || '🏖️',
+          notes: t.notes || null,
+          status: t.status,
+          created_at: t.created_at || new Date().toISOString(),
+          updated_at: t.updated_at || new Date().toISOString()
+        }));
+
+        if (uploadPayloads.length > 0) {
+          await chunkedUpsert('trips', uploadPayloads);
+        }
+
+        const mergedTripMap = new Map<string, Trip>();
+        cloudOnly.forEach(t => mergedTripMap.set(t.id, t));
+        cloudWins.forEach(t => mergedTripMap.set(t.id, t));
+        localOnly.forEach(t => mergedTripMap.set(t.id, t));
+        localWins.forEach(t => mergedTripMap.set(t.id, t));
+
+        let finalTrips = Array.from(mergedTripMap.values());
+        const { pendingMutations } = get();
+        pendingMutations.forEach(mut => {
+          if (mut.type === 'INSERT_TRIP') {
+            if (!finalTrips.some(t => t.id === mut.payload.id)) {
+              finalTrips.push(mut.payload as Trip);
+            }
+          } else if (mut.type === 'UPDATE_TRIP') {
+            finalTrips = finalTrips.map(t => t.id === mut.payload.id ? { ...t, ...mut.payload } : t);
+          } else if (mut.type === 'DELETE_TRIP') {
+            finalTrips = finalTrips.filter(t => t.id !== mut.payload.id);
+          }
+        });
+
+        set({ trips: finalTrips });
+        console.log(`[Sync] trips: uploaded ${uploadPayloads.length}, downloaded ${cloudOnly.length}`);
+      }
+
+      // --- 9. SETTINGS (Preserved for Phase 2) ---
       const ONE_HOUR_MS = 60 * 60 * 1000;
       const now = Date.now();
       const { pendingMutations: allMuts } = get();

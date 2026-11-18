@@ -10,6 +10,7 @@ import { createWishlistSlice } from './slices/wishlistSlice';
 import { createAccountSlice } from './slices/accountSlice';
 import { createSettingsSlice } from './slices/settingsSlice';
 import { createSyncSlice } from './slices/syncSlice';
+import { createTripSlice } from './slices/tripSlice';
 
 export type {
   Expense,
@@ -19,6 +20,7 @@ export type {
   Debt,
   Subscription,
   Account,
+  Trip,
   MutationType,
   PendingMutation,
   Bill,
@@ -42,6 +44,7 @@ export const useExpenseStore = create<ExpenseState>()(
       ...createAccountSlice(...a),
       ...createSettingsSlice(...a),
       ...createSyncSlice(...a),
+      ...createTripSlice(...a),
     }),
     {
       name: 'expense-tracker-storage',

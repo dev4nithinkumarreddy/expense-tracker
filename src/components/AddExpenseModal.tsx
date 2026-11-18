@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExpenseStore, type Expense } from "../store/useExpenseStore";
-import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, ClipboardPaste, Users, Mic, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Loader2, Camera, Calendar, Repeat, FileText, ShoppingBag, ClipboardPaste, Users, Mic, ChevronDown, ChevronUp, Compass } from "lucide-react";
 import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import TuneOutlined from "@mui/icons-material/TuneOutlined";
 import CategoryIcon from "./ui/CategoryIcon";
@@ -15,6 +15,7 @@ import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { parseBankSMS } from "../lib/smsParser";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { isIncomeCategory } from "../lib/categoryStyles";
+import { isTripActiveOnDate } from "../lib/tripCalculations";
 import { SplitBillModal } from "./split/SplitBillModal";
 
 const INCOME_CATEGORIES = ['Income', 'Salary', 'Freelance', 'Investments', 'Bonus', 'Other'];
@@ -22,13 +23,15 @@ const INCOME_CATEGORIES = ['Income', 'Salary', 'Freelance', 'Investments', 'Bonu
 export function AddExpenseModal({ 
   isOpen, 
   onClose,
-  expenseToEdit
+  expenseToEdit,
+  defaultTripId
 }: { 
   isOpen: boolean; 
   onClose: () => void;
   expenseToEdit?: Expense | null;
+  defaultTripId?: string | null;
 }) {
-  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan, addDebt, accounts = [], transferFunds } = useExpenseStore();
+  const { settings, addExpense, updateExpense, shouldTriggerScan, setShouldTriggerScan, addDebt, accounts = [], transferFunds, trips = [], activeTripId } = useExpenseStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [transactionType, setTransactionType] = useState<'expense' | 'income' | 'transfer'>('expense');
@@ -39,6 +42,21 @@ export function AddExpenseModal({
   const [notes, setNotes] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(() => accounts[0]?.id);
   const [transferToAccountId, setTransferToAccountId] = useState<string | undefined>(() => accounts.find(a => a.id !== accounts[0]?.id)?.id || accounts[1]?.id);
+
+  const activeTrip = useMemo(() => {
+    if (defaultTripId) {
+      const found = trips.find(t => t.id === defaultTripId);
+      if (found) return found;
+    }
+    if (activeTripId) {
+      const found = trips.find(t => t.id === activeTripId && t.status !== 'completed');
+      if (found) return found;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    return trips.find(t => isTripActiveOnDate(t, todayStr)) || null;
+  }, [trips, defaultTripId, activeTripId]);
+
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(() => defaultTripId || activeTrip?.id || null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -85,10 +103,12 @@ export function AddExpenseModal({
         setRecurrence(expenseToEdit.recurrence || 'none');
         setSelectedAccountId(expenseToEdit.account_id || accounts[0]?.id);
         setTransferToAccountId(expenseToEdit.transfer_account_id || accounts.find(a => a.id !== (expenseToEdit.account_id || accounts[0]?.id))?.id);
+        setSelectedTripId(expenseToEdit.trip_id || null);
         setShowMoreOptions(Boolean(
           expenseToEdit.notes ||
           (expenseToEdit.recurrence && expenseToEdit.recurrence !== 'none') ||
           expenseToEdit.receipt_url ||
+          expenseToEdit.trip_id ||
           (expenseToEdit.account_id && expenseToEdit.account_id !== accounts[0]?.id)
         ));
       } else {
@@ -112,6 +132,8 @@ export function AddExpenseModal({
         setRecurrence('none');
         setSelectedAccountId(accounts[0]?.id);
         setTransferToAccountId(accounts.find(a => a.id !== accounts[0]?.id)?.id || accounts[1]?.id);
+        const initialTripId = defaultTripId || activeTrip?.id || null;
+        setSelectedTripId(initialTripId);
         setIsSplitting(false);
         setSplitFriends("");
         setShowMoreOptions(false);
@@ -120,7 +142,7 @@ export function AddExpenseModal({
 
     prevIsOpenRef.current = isOpen;
     prevExpenseToEditIdRef.current = expenseToEdit?.id;
-  }, [isOpen, expenseToEdit, accounts, settings.categories]);
+  }, [isOpen, expenseToEdit, accounts, settings.categories, defaultTripId, activeTripId, trips, activeTrip]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -349,6 +371,7 @@ export function AddExpenseModal({
         recurrence,
         next_occurrence: recurrence !== 'none' ? calculateNextOccurrence(new Date(isoDate), recurrence).toISOString() : null,
         account_id: effectiveAccountId,
+        trip_id: selectedTripId || null,
       };
 
       if (isSplitting && splitFriends.trim()) {
@@ -381,6 +404,7 @@ export function AddExpenseModal({
               date: isoDate,
               notes: `Share of ${description} (${formatCurrency(parsedAmount, settings.currency)} total)`,
               expense_id: expenseId,
+              trip_id: selectedTripId || null,
             });
           });
 
@@ -1016,6 +1040,46 @@ export function AddExpenseModal({
                 </div>
               )}
 
+              {/* Trip / Vacation Indicator Card (When Trips Exist) */}
+              {trips.length > 0 && transactionType === 'expense' && (
+                <div className="flex items-center justify-between p-3 px-3.5 rounded-2xl bg-secondary/35 dark:bg-card/40 border border-border/40 backdrop-blur-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Compass className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Trip / Vacation</p>
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {selectedTripId ? (
+                          <span className="text-primary flex items-center gap-1">
+                            <span>{trips.find(t => t.id === selectedTripId)?.coverEmoji || '🏖️'}</span>
+                            <span>{trips.find(t => t.id === selectedTripId)?.name}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground font-normal">Regular Expense</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <select
+                    value={selectedTripId || ''}
+                    onChange={(e) => {
+                      vibrate(8);
+                      setSelectedTripId(e.target.value || null);
+                    }}
+                    className="text-xs bg-background/90 border border-border/60 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary font-semibold text-foreground max-w-[190px] cursor-pointer"
+                  >
+                    <option value="">None (Regular Spend)</option>
+                    {trips.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.coverEmoji || '🏖️'} {t.name} {t.id === activeTrip?.id ? '🟢 (Active)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* 3. Progressive Disclosure: More Options Accordion (Expense & Income) */}
               {transactionType !== 'transfer' && (
                 <div className="space-y-3">
@@ -1099,6 +1163,7 @@ export function AddExpenseModal({
                             />
                           </div>
                         </div>
+
                       </div>
 
                       {/* Bill Splitter Section (Expense Only) */}

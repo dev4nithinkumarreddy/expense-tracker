@@ -26,12 +26,13 @@ type QuickFilter = 'all' | 'this_cycle' | 'this_week' | 'receipt' | 'high_spend'
 type TxTypeFilter = 'all' | 'expense' | 'income' | 'transfer';
 
 export default function Expenses() {
-  const { expenses, recentlyDeleted = [], settings, fetchCloudData, accounts = [] } = useExpenseStore();
+  const { expenses, recentlyDeleted = [], settings, fetchCloudData, accounts = [], trips = [] } = useExpenseStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [isRecentlyDeletedOpen, setIsRecentlyDeletedOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [txTypeFilter, setTxTypeFilter] = useState<TxTypeFilter>('all');
   const [dateFilter, setDateFilter] = useState<string>("this_month");
   const [minAmount, setMinAmount] = useState("");
@@ -46,12 +47,13 @@ export default function Expenses() {
     let count = 0;
     if (selectedCategory) count++;
     if (selectedAccountId) count++;
+    if (selectedTripId) count++;
     if (txTypeFilter !== 'all') count++;
     if (minAmount || maxAmount) count++;
     if (quickFilter !== 'all') count++;
     if (dateFilter !== 'this_month') count++;
     return count;
-  }, [selectedCategory, selectedAccountId, txTypeFilter, minAmount, maxAmount, quickFilter, dateFilter]);
+  }, [selectedCategory, selectedAccountId, selectedTripId, txTypeFilter, minAmount, maxAmount, quickFilter, dateFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
@@ -98,6 +100,7 @@ export default function Expenses() {
 
       const matchesCategory = selectedCategory ? e.category === selectedCategory : true;
       const matchesAccount = selectedAccountId ? e.account_id === selectedAccountId : true;
+      const matchesTrip = selectedTripId ? e.trip_id === selectedTripId : true;
       
       let matchesType = true;
       if (txTypeFilter === 'expense') {
@@ -147,7 +150,7 @@ export default function Expenses() {
         );
       }
 
-      return matchesSearch && matchesCategory && matchesAccount && matchesType && matchesDate && matchesMin && matchesMax && matchesQuick;
+      return matchesSearch && matchesCategory && matchesAccount && matchesTrip && matchesType && matchesDate && matchesMin && matchesMax && matchesQuick;
     })
     .sort((a, b) => {
       const timeDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -451,6 +454,56 @@ export default function Expenses() {
               </div>
             )}
 
+            {/* Row: Trip Filter (if trips exist) */}
+            {trips && trips.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
+                  Trip / Vacation
+                </span>
+                <div className="flex lg:flex-wrap gap-1.5 overflow-x-auto lg:overflow-visible pb-0.5 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      vibrate(8);
+                      setSelectedTripId(null);
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-semibold transition-all border shrink-0 cursor-pointer",
+                      selectedTripId === null
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                        : "bg-card/70 hover:bg-secondary text-muted-foreground hover:text-foreground border-border/50"
+                    )}
+                  >
+                    All Trips
+                  </button>
+                  {trips.map((trip) => {
+                    const count = expenses.filter((e) => e.trip_id === trip.id).length;
+                    const isSelected = selectedTripId === trip.id;
+                    return (
+                      <button
+                        key={trip.id}
+                        type="button"
+                        onClick={() => {
+                          vibrate(8);
+                          setSelectedTripId(isSelected ? null : trip.id);
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 rounded-full text-xs font-medium transition-all border shrink-0 flex items-center gap-1.5 cursor-pointer",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                            : "bg-card/70 hover:bg-secondary text-muted-foreground hover:text-foreground border-border/50"
+                        )}
+                      >
+                        <span>{trip.coverEmoji || '🏖️'}</span>
+                        <span>{trip.name}</span>
+                        <span className="text-[10px] opacity-70">({count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Row 4: Category Filter Pills */}
             <div className="space-y-1.5">
               <span className="hidden lg:block text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-0.5">
@@ -581,7 +634,7 @@ export default function Expenses() {
                   {selectedCategory ? ` • ${selectedCategory}` : ''}
                 </span>
 
-                {(searchTerm || selectedCategory || selectedAccountId || txTypeFilter !== 'all' || minAmount || maxAmount || quickFilter !== 'all' || dateFilter !== 'this_month') && (
+                {(searchTerm || selectedCategory || selectedAccountId || selectedTripId || txTypeFilter !== 'all' || minAmount || maxAmount || quickFilter !== 'all' || dateFilter !== 'this_month') && (
                   <button
                     type="button"
                     onClick={() => {
@@ -589,6 +642,7 @@ export default function Expenses() {
                       setSearchTerm("");
                       setSelectedCategory(null);
                       setSelectedAccountId(null);
+                      setSelectedTripId(null);
                       setTxTypeFilter('all');
                       setDateFilter("this_month");
                       setMinAmount("");

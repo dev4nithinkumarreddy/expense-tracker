@@ -47,7 +47,27 @@ describe('useExpenseStore', () => {
     expect(newState.pendingMutations[0].type).toBe('INSERT_EXPENSE');
   });
 
-  it('should update an expense', () => {
+  it('should add an expense with trip_id and preserve it in mutation payload', () => {
+    useExpenseStore.setState({ session: null });
+    const store = useExpenseStore.getState();
+    store.addExpense({
+      amount: 250,
+      description: 'Train ticket',
+      category: 'Travel',
+      date: new Date().toISOString(),
+      trip_id: 'trip-123'
+    });
+
+    const newState = useExpenseStore.getState();
+    expect(newState.expenses[0].trip_id).toBe('trip-123');
+
+    const mut = newState.pendingMutations.find(m => m.type === 'INSERT_EXPENSE');
+    expect(mut).toBeDefined();
+    expect(mut?.payload.trip_id).toBe('trip-123');
+  });
+
+  it('should update an expense trip_id and include it in UPDATE_EXPENSE payload', () => {
+    useExpenseStore.setState({ session: null });
     const store = useExpenseStore.getState();
     store.addExpense({
       amount: 100,
@@ -56,11 +76,15 @@ describe('useExpenseStore', () => {
       date: new Date().toISOString()
     });
 
-    const addedExpense = useExpenseStore.getState().expenses[0];
-    useExpenseStore.getState().updateExpense(addedExpense.id, { amount: 150 });
+    const expId = useExpenseStore.getState().expenses[0].id;
+    store.updateExpense(expId, { trip_id: 'trip-456' });
 
     const newState = useExpenseStore.getState();
-    expect(newState.expenses[0].amount).toBe(150);
+    expect(newState.expenses[0].trip_id).toBe('trip-456');
+
+    const mut = newState.pendingMutations.find(m => m.type === 'UPDATE_EXPENSE');
+    expect(mut).toBeDefined();
+    expect(mut?.payload.trip_id).toBe('trip-456');
   });
 
   it('should auto-generate recurring expenses on month rollover', () => {

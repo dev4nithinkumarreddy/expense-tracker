@@ -6,7 +6,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { isThisMonth, isToday, isThisWeek, parseISO, format, subDays, isSameDay, startOfWeek, addDays } from "date-fns";
 import { cn } from "../lib/utils";
 import { formatCurrency } from "../lib/formatCurrency";
-import { Eye, EyeOff, Plus, X, Settings as SettingsIcon, ReceiptText, ShieldCheck, AlertTriangle, Zap, BarChart3, Target, CalendarClock, Sliders, Mic } from "lucide-react";
+import { Eye, EyeOff, Plus, X, Settings as SettingsIcon, ReceiptText, ShieldCheck, Zap, BarChart3, Target, CalendarClock, Sliders, Mic } from "lucide-react";
 import AutoAwesomeOutlined from '@mui/icons-material/AutoAwesomeOutlined';
 import WhatshotOutlined from '@mui/icons-material/WhatshotOutlined';
 import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined';
@@ -19,7 +19,6 @@ import { calculateStreak } from "../lib/streak";
 import { calculateCashflowSummary, isSubscriptionPaidThisMonth } from "../lib/cashflow";
 import { parseNLPExpense } from "../lib/nlpExpenseParser";
 import { useVoiceInput } from "../hooks/useVoiceInput";
-import { detectAnomalies } from "../lib/anomalyDetector";
 import { SafeToSpendCard } from "../components/dashboard/SafeToSpendCard";
 import { AccountsSummaryBar } from "../components/accounts/AccountsSummaryBar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,7 +40,10 @@ import { SwipeableExpenseItem } from "../components/SwipeableExpenseItem";
 import { AddExpenseModal } from "../components/AddExpenseModal";
 import { CategoryIcon } from "../components/ui/CategoryIcon";
 import { isDateInCycle } from "../lib/cycleDate";
-import type { Expense } from "../store/types";
+import { isTripActiveOnDate } from "../lib/tripCalculations";
+import type { Expense, Trip } from "../store/types";
+import { ActiveTripBanner } from "../components/trips/ActiveTripBanner";
+import { TripDetailModal } from "../components/trips/TripDetailModal";
 
 const DashboardSkeleton = () => (
   <div className="space-y-6 animate-pulse mt-2">
@@ -67,19 +69,29 @@ const DashboardSkeleton = () => (
 );
 
 export default function Dashboard() {
-  const { settings, addExpense, deleteExpense, updateSettings, session, subscriptions, fetchCloudData } = useExpenseStore();
+  const { settings, addExpense, deleteExpense, updateSettings, session, subscriptions, fetchCloudData, trips = [], activeTripId } = useExpenseStore();
   const { expenses, bills, budgets, isLoading } = useDashboardData();
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
   const [incomeSource, setIncomeSource] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [dismissedAlertId, setDismissedAlertId] = useState<string | null>(null);
-  const [dismissedAnomalyId, setDismissedAnomalyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [dashboardSmartInput, setDashboardSmartInput] = useState("");
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [selectedCategoryForDrilldown, setSelectedCategoryForDrilldown] = useState<string | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
+  const [selectedTripForDetails, setSelectedTripForDetails] = useState<Trip | null>(null);
+  const [tripForNewExpense, setTripForNewExpense] = useState<Trip | null>(null);
+
+  const activeTrip = useMemo(() => {
+    if (activeTripId) {
+      const found = trips.find((t) => t.id === activeTripId && t.status !== 'completed');
+      if (found) return found;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    return trips.find((t) => isTripActiveOnDate(t, todayStr)) || null;
+  }, [trips, activeTripId]);
 
   const voice = useVoiceInput({
     onResult: (text) => {
@@ -123,9 +135,11 @@ export default function Dashboard() {
       date: parsed.date ? new Date(`${parsed.date}T12:00:00.000Z`).toISOString() : new Date().toISOString(),
       notes: parsed.tags.length > 0 ? parsed.tags.join(' ') : undefined,
       account_id: defaultAccount || undefined,
+      trip_id: activeTrip?.id || undefined,
     });
     setDashboardSmartInput('');
-    toast.success(`Logged ${parsed.description} (${formatCurrency(parsed.amount, settings.currency)})`, {
+    const tripTag = activeTrip ? ` • ${activeTrip.coverEmoji || '🏖️'} ${activeTrip.name}` : '';
+    toast.success(`Logged ${parsed.description} (${formatCurrency(parsed.amount, settings.currency)})${tripTag}`, {
       action: {
         label: 'Undo',
         onClick: () => {
@@ -185,11 +199,6 @@ export default function Dashboard() {
     }
     return null;
   }, [subscriptions, dismissedAlertId, expenses]);
-
-  const activeAnomaly = useMemo(() => {
-    const list = detectAnomalies(expenses, subscriptions, bills);
-    return list.find((a) => a.id !== dismissedAnomalyId) || null;
-  }, [expenses, subscriptions, bills, dismissedAnomalyId]);
 
   // Must stay above the early return so this hook is called unconditionally
   const cashflow = useMemo(() => {
@@ -573,48 +582,19 @@ export default function Dashboard() {
           )}
         </AnimatePresence>
 
-        {/* Spending Anomaly Alert Pill */}
-        <AnimatePresence>
-          {activeAnomaly && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 400, damping: 28 }}
-              className="flex items-center justify-between gap-3 p-3 px-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 backdrop-blur-md shadow-xs"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-foreground truncate">
-                    {activeAnomaly.title}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {activeAnomaly.description}
-                  </p>
-                </div>
-              </div>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground rounded-full shrink-0 cursor-pointer"
-                onClick={() => {
-                  vibrate(10);
-                  setDismissedAnomalyId(activeAnomaly.id);
-                }}
-                aria-label="Dismiss anomaly alert"
-              >
-                <X className="w-3.5 h-3.5" />
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Cloud Sync Nudge for Guest Mode users */}
         <CloudBackupNudge onSignInClick={() => updateSettings({ isGuestMode: false })} />
+
+        {/* Active Trip Mode Banner */}
+        <ActiveTripBanner
+          onOpenTripDetails={(trip) => setSelectedTripForDetails(trip)}
+          onAddTripExpense={(trip) => {
+            setTripForNewExpense(trip);
+            setExpenseToEdit(null);
+            setIsExpenseModalOpen(true);
+          }}
+        />
 
         {/* Main 12-Column Desktop Bento Grid (Preserves exact mobile stack order via contents + order-*) */}
         <div className="flex flex-col gap-5 sm:gap-6 lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
@@ -846,8 +826,10 @@ export default function Dashboard() {
                           category: qa.category,
                           date: new Date().toISOString(),
                           account_id: defaultAccount || undefined,
+                          trip_id: activeTrip?.id || undefined,
                         });
-                        toast.success(`Logged ${qa.description} (${formatCurrency(qa.amount, settings.currency)})`, {
+                        const tripTag = activeTrip ? ` • ${activeTrip.coverEmoji || '🏖️'} ${activeTrip.name}` : '';
+                        toast.success(`Logged ${qa.description} (${formatCurrency(qa.amount, settings.currency)})${tripTag}`, {
                           action: {
                             label: "Undo",
                             onClick: () => {
@@ -1212,14 +1194,32 @@ export default function Dashboard() {
           />
         )}
 
-        {/* Edit Expense Modal triggered from swipe/tap */}
+        {/* Edit Expense Modal triggered from swipe/tap or trip quick-add */}
         <AddExpenseModal
           isOpen={isExpenseModalOpen}
           onClose={() => {
             setIsExpenseModalOpen(false);
             setExpenseToEdit(null);
+            setTripForNewExpense(null);
           }}
           expenseToEdit={expenseToEdit}
+          defaultTripId={tripForNewExpense?.id}
+        />
+
+        {/* Trip Detail Modal */}
+        <TripDetailModal
+          isOpen={Boolean(selectedTripForDetails)}
+          trip={selectedTripForDetails}
+          onClose={() => setSelectedTripForDetails(null)}
+          onEditTrip={(_trip) => {
+            // Can be expanded to edit from dashboard
+          }}
+          onAddExpense={(trip) => {
+            setSelectedTripForDetails(null);
+            setTripForNewExpense(trip);
+            setExpenseToEdit(null);
+            setIsExpenseModalOpen(true);
+          }}
         />
       </div>
     </PullToRefresh>

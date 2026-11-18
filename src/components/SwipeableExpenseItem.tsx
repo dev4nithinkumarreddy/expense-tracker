@@ -18,9 +18,11 @@ interface SwipeableExpenseItemProps {
 }
 
 export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt }: SwipeableExpenseItemProps) {
-  const { settings, addExpense, deleteExpense } = useExpenseStore();
+  const { settings, addExpense, deleteExpense, trips = [] } = useExpenseStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const hasHapticFired = useRef(false);
+
+  const trip = expense.trip_id ? trips.find(t => t.id === expense.trip_id) : null;
 
   const handleLogAgain = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -193,8 +195,14 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
                 )
               )}
             </div>
-            <div className="flex items-center gap-1.5 mt-1">
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <CategoryBadge category={expense.category} size="xs" />
+              {trip && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0 flex items-center gap-1">
+                  <span>{trip.coverEmoji || '🏖️'}</span>
+                  <span className="truncate max-w-[100px]">{trip.name}</span>
+                </span>
+              )}
               {expense.notes && (
                 <span className="text-xs text-muted-foreground truncate">
                   • {expense.notes}

@@ -124,7 +124,8 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
       recurrence: newExpense.recurrence || 'none',
       next_occurrence: newExpense.next_occurrence || null,
       account_id: newExpense.account_id || null,
-      transfer_account_id: newExpense.transfer_account_id || null
+      transfer_account_id: newExpense.transfer_account_id || null,
+      trip_id: newExpense.trip_id || null
     };
     addPendingMutation({ type: 'INSERT_EXPENSE', payload });
     if (session) {
@@ -174,7 +175,8 @@ export const createExpenseSlice: StateCreator<ExpenseState, [], [], ExpenseSlice
         recurrence: expense.recurrence,
         next_occurrence: expense.next_occurrence,
         account_id: expense.account_id || null,
-        transfer_account_id: expense.transfer_account_id || null
+        transfer_account_id: expense.transfer_account_id || null,
+        trip_id: expense.trip_id || null
       };
       addPendingMutation({ type: 'UPDATE_EXPENSE', payload });
       if (session) {

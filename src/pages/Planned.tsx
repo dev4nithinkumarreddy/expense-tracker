@@ -21,11 +21,16 @@ import { calculateCashflowSummary, getBillDueStatus, getSubscriptionDueStatus, i
 import { SplitBillModal } from "../components/split/SplitBillModal";
 import { SplitShareSheet } from "../components/split/SplitShareSheet";
 import { detectUnplannedSubscriptions, type DetectedRecurringCandidate } from "../lib/subscriptionDetector";
+import { TripsTab } from "../components/trips/TripsTab";
+import { AddExpenseModal } from "../components/AddExpenseModal";
+import type { Trip } from "../store/types";
 
 export default function Planned() {
-  const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou">("bills");
+  const [activeTab, setActiveTab] = useState<"bills" | "subs" | "wishlist" | "iou" | "trips">("bills");
   const [dismissedCandidateIds, setDismissedCandidateIds] = useState<string[]>([]);
-  const { settings, expenses, bills = [], subscriptions = [], wishlistItems = [], debts = [] } = useExpenseStore();
+  const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
+  const [selectedTripForExpense, setSelectedTripForExpense] = useState<Trip | null>(null);
+  const { settings, expenses, bills = [], subscriptions = [], wishlistItems = [], debts = [], trips = [] } = useExpenseStore();
 
   const detectedCandidates = useMemo(() => {
     return detectUnplannedSubscriptions(expenses, bills, subscriptions)
@@ -87,7 +92,8 @@ export default function Planned() {
                 { label: `Bills (${bills.length})`, value: "bills" },
                 { label: `Subs (${subscriptions.length})`, value: "subs" },
                 { label: `Wishlist (${wishlistItems.filter(i => !i.is_purchased).length})`, value: "wishlist" },
-                { label: `IOUs (${debts.filter(d => d.status === "pending").length})`, value: "iou" }
+                { label: `IOUs (${debts.filter(d => d.status === "pending").length})`, value: "iou" },
+                { label: `Trips (${trips.length})`, value: "trips" }
               ]}
               value={activeTab}
               onChange={(val) => setActiveTab(val as any)}
@@ -155,6 +161,23 @@ export default function Planned() {
       )}
       {activeTab === "wishlist" && <WishlistTab />}
       {activeTab === "iou" && <IOUTab />}
+      {activeTab === "trips" && (
+        <TripsTab
+          onAddTripExpense={(trip) => {
+            setSelectedTripForExpense(trip);
+            setIsAddExpenseModalOpen(true);
+          }}
+        />
+      )}
+
+      <AddExpenseModal
+        isOpen={isAddExpenseModalOpen}
+        onClose={() => {
+          setIsAddExpenseModalOpen(false);
+          setSelectedTripForExpense(null);
+        }}
+        defaultTripId={selectedTripForExpense?.id}
+      />
     </div>
   );
 }
