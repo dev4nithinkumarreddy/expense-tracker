@@ -19,12 +19,15 @@ import { formatCurrency } from "./lib/formatCurrency";
 
 import { SecurityLockOverlay } from "./components/ui/SecurityLockOverlay";
 import { NotificationPrompt } from "./components/notifications/NotificationPrompt";
+import { localSyncClientId } from "./store/slices/syncSlice";
 
 const PayLandingPage = lazy(() => import("./pages/PayLandingPage"));
 
-// Module-scoped in-flight lock for sequential sync passes
+// Module-scoped in-flight lock for sequential sync passes & debounce
 let isSyncPassInProgress = false;
 let syncPassQueued = false;
+let lastSyncCompletedAt = 0;
+let realtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const runSequentialSync = async () => {
   if (isSyncPassInProgress) {
@@ -39,12 +42,27 @@ const runSequentialSync = async () => {
   } catch (err) {
     console.error("[Sync] Sequential sync failed:", err);
   } finally {
+    lastSyncCompletedAt = Date.now();
     isSyncPassInProgress = false;
     if (syncPassQueued) {
       syncPassQueued = false;
       runSequentialSync();
     }
   }
+};
+
+const scheduleDebouncedSync = () => {
+  // If a sync pass completed within the last 1500ms, ignore immediate echoes
+  if (Date.now() - lastSyncCompletedAt < 1500) {
+    return;
+  }
+  if (realtimeDebounceTimer) {
+    clearTimeout(realtimeDebounceTimer);
+  }
+  realtimeDebounceTimer = setTimeout(() => {
+    realtimeDebounceTimer = null;
+    runSequentialSync();
+  }, 1200);
 };
 
 export default function App() {
@@ -108,12 +126,15 @@ export default function App() {
     
     let channel = supabase.channel(channelName);
 
-    // 1. Instant peer-to-peer broadcast from other devices
-    channel = channel.on('broadcast', { event: 'data_changed' }, () => {
-      runSequentialSync();
+    // 1. Instant peer-to-peer broadcast from other devices (filtered by client ID)
+    channel = channel.on('broadcast', { event: 'data_changed' }, (payload: any) => {
+      if (payload?.payload?.senderId === localSyncClientId) {
+        return; // Ignore own echo
+      }
+      scheduleDebouncedSync();
     });
 
-    // 2. Realtime Postgres DB changes per table
+    // 2. Realtime Postgres DB changes per table (debounced)
     tables.forEach((table) => {
       channel = channel.on(
         'postgres_changes',
@@ -124,7 +145,7 @@ export default function App() {
           filter: `user_id=eq.${session.user.id}`
         },
         () => {
-          runSequentialSync();
+          scheduleDebouncedSync();
         }
       );
     });

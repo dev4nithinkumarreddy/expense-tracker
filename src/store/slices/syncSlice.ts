@@ -72,6 +72,32 @@ export function getRecordTimestamp(record: any): number {
   return isNaN(parsed) ? 0 : parsed;
 }
 
+export function isNonRecoverableSyncError(error: any): boolean {
+  if (!error) return false;
+  const nonRecoverableCodes = ['22P02', '23502', '42703', '42P01', '42501', 'PGRST100', 'PGRST204', 'PGRST205'];
+  if (error.code && nonRecoverableCodes.includes(error.code)) {
+    // 42501 with 'JWT expired' is recoverable once auth refreshes
+    if (error.code === '42501' && error.message?.includes('JWT expired')) {
+      return false;
+    }
+    return true;
+  }
+  const msg = error.message || '';
+  if (
+    msg.includes('schema cache') ||
+    msg.includes('Could not find the table') ||
+    msg.includes('does not exist') ||
+    msg.includes('violates row-level security policy')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export const localSyncClientId = typeof crypto !== 'undefined' && crypto.randomUUID
+  ? crypto.randomUUID()
+  : Math.random().toString(36).slice(2);
+
 export async function chunkedUpsert<T extends Record<string, any>>(
   table: string,
   records: T[],
@@ -88,24 +114,60 @@ export async function chunkedUpsert<T extends Record<string, any>>(
     if (!error) {
       success.push(...chunk);
     } else {
+      if ((table === 'accounts' || table === 'trips') && isNonRecoverableSyncError(error)) {
+        console.warn(`[Sync] Table ${table} not available or RLS blocked on Supabase; skipping upsert:`, error.message);
+        return { success: [], failed: [] };
+      }
+
       console.warn(`[Sync] Chunk upsert to ${table} failed, trying individually:`, error);
       for (const item of chunk) {
         let itemRes = await supabase.from(table as any).upsert(item as any);
-        if (
-          itemRes.error &&
-          table === 'expenses' &&
-          (itemRes.error.code === '23503' || itemRes.error.message?.includes('account_id') || itemRes.error.message?.includes('transfer_account_id'))
-        ) {
+        if (itemRes.error && table === 'expenses') {
           const fallback = { ...item };
-          delete (fallback as any).account_id;
-          delete (fallback as any).transfer_account_id;
-          itemRes = await supabase.from(table as any).upsert(fallback as any);
+          let retried = false;
+          if (
+            itemRes.error.code === '42703' ||
+            itemRes.error.code === 'PGRST204' ||
+            itemRes.error.code === '23503' ||
+            itemRes.error.message?.includes('trip_id') ||
+            itemRes.error.message?.includes('schema cache')
+          ) {
+            delete (fallback as any).trip_id;
+            retried = true;
+          }
+          if (
+            itemRes.error.code === '23503' ||
+            itemRes.error.message?.includes('account_id') ||
+            itemRes.error.message?.includes('transfer_account_id')
+          ) {
+            delete (fallback as any).account_id;
+            delete (fallback as any).transfer_account_id;
+            retried = true;
+          }
+          if (retried) {
+            itemRes = await supabase.from(table as any).upsert(fallback as any);
+          }
+        } else if (itemRes.error && table === 'debts') {
+          if (
+            itemRes.error.code === '42703' ||
+            itemRes.error.code === 'PGRST204' ||
+            itemRes.error.code === '23503' ||
+            itemRes.error.message?.includes('trip_id') ||
+            itemRes.error.message?.includes('schema cache')
+          ) {
+            const fallback = { ...item };
+            delete (fallback as any).trip_id;
+            itemRes = await supabase.from(table as any).upsert(fallback as any);
+          }
         }
 
         if (!itemRes.error) {
           success.push(item);
         } else {
-          failed.push({ record: item, error: itemRes.error });
+          const isIgnorable = (table === 'accounts' || table === 'trips') && isNonRecoverableSyncError(itemRes.error);
+          if (!isIgnorable) {
+            failed.push({ record: item, error: itemRes.error });
+          }
         }
       }
     }
@@ -129,6 +191,25 @@ let syncRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let consecutiveSyncFailures = 0;
 const BASE_BACKOFF_MS = 2000;
 const MAX_BACKOFF_MS = 30000;
+
+let syncWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startSyncWatchdog(set: any) {
+  if (syncWatchdogTimer) clearTimeout(syncWatchdogTimer);
+  syncWatchdogTimer = setTimeout(() => {
+    syncWatchdogTimer = null;
+    isSyncingLock = false;
+    set({ isSyncing: false });
+    console.warn('[Sync Watchdog] Force reset isSyncing to false after 12s safety timeout.');
+  }, 12000);
+}
+
+function clearSyncWatchdog() {
+  if (syncWatchdogTimer) {
+    clearTimeout(syncWatchdogTimer);
+    syncWatchdogTimer = null;
+  }
+}
 
 function scheduleSyncRetry(syncFn: () => void) {
   if (syncRetryTimer) return;
@@ -180,12 +261,28 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     if (isSyncingLock) return;
     isSyncingLock = true;
     set({ isSyncing: true });
+    startSyncWatchdog(set);
 
     try {
       if (syncRetryTimer) {
         clearTimeout(syncRetryTimer);
         syncRetryTimer = null;
       }
+
+      // Deduplicate pending mutations (keep latest mutation for each type:payload.id)
+      set((state) => {
+        const seen = new Set<string>();
+        const deduped: typeof state.pendingMutations = [];
+        for (let i = state.pendingMutations.length - 1; i >= 0; i--) {
+          const m = state.pendingMutations[i];
+          const key = `${m.type}:${m.payload?.id || m.id}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            deduped.unshift(m);
+          }
+        }
+        return { pendingMutations: deduped };
+      });
 
       let syncedAny = false;
 
@@ -449,7 +546,12 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               user_id: mut.payload.user_id || session.user.id
             };
             const res = await (supabase.from('accounts' as any).upsert(payload) as any);
-            error = res.error;
+            if (res.error && isNonRecoverableSyncError(res.error)) {
+              console.warn("Accounts table missing or RLS blocked on Supabase; skipping remote sync:", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
           } else if (mut.type === 'UPDATE_ACCOUNT') {
             const cloudId = toCloudAccountId(mut.payload.id, session.user.id) || mut.payload.id;
             const payload = {
@@ -458,26 +560,29 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               user_id: mut.payload.user_id || session.user.id
             };
             const res = await (supabase.from('accounts' as any).update(payload).eq('id', cloudId) as any);
-            error = res.error;
+            if (res.error && isNonRecoverableSyncError(res.error)) {
+              console.warn("Accounts table missing or RLS blocked on Supabase; skipping remote sync:", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
           } else if (mut.type === 'DELETE_ACCOUNT') {
             const cloudId = toCloudAccountId(mut.payload.id, session.user.id) || mut.payload.id;
             const res = await (supabase.from('accounts' as any).delete().eq('id', cloudId) as any);
-            error = res.error;
+            if (res.error && isNonRecoverableSyncError(res.error)) {
+              console.warn("Accounts table missing or RLS blocked on Supabase; skipping remote sync:", res.error);
+              error = null;
+            } else {
+              error = res.error;
+            }
           } else if (mut.type === 'INSERT_TRIP') {
             const payload = {
               ...mut.payload,
               user_id: mut.payload.user_id || session.user.id
             };
             const res = await (supabase.from('trips' as any).upsert(payload) as any);
-            if (res.error && (
-              res.error.code === '42P01' ||
-              res.error.code === 'PGRST205' ||
-              res.error.code === 'PGRST204' ||
-              res.error.message?.includes('schema cache') ||
-              res.error.message?.includes('does not exist') ||
-              res.error.message?.includes('Could not find the table')
-            )) {
-              console.warn("Trips table not created on Supabase yet; skipping remote sync:", res.error);
+            if (res.error && isNonRecoverableSyncError(res.error)) {
+              console.warn("Trips table not created or RLS blocked on Supabase; skipping remote sync:", res.error);
               error = null;
             } else {
               error = res.error;
@@ -488,30 +593,16 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               user_id: mut.payload.user_id || session.user.id
             };
             const res = await (supabase.from('trips' as any).update(payload).eq('id', mut.payload.id) as any);
-            if (res.error && (
-              res.error.code === '42P01' ||
-              res.error.code === 'PGRST205' ||
-              res.error.code === 'PGRST204' ||
-              res.error.message?.includes('schema cache') ||
-              res.error.message?.includes('does not exist') ||
-              res.error.message?.includes('Could not find the table')
-            )) {
-              console.warn("Trips table not created on Supabase yet; skipping remote sync:", res.error);
+            if (res.error && isNonRecoverableSyncError(res.error)) {
+              console.warn("Trips table not created or RLS blocked on Supabase; skipping remote sync:", res.error);
               error = null;
             } else {
               error = res.error;
             }
           } else if (mut.type === 'DELETE_TRIP') {
             const res = await (supabase.from('trips' as any).delete().eq('id', mut.payload.id) as any);
-            if (res.error && (
-              res.error.code === '42P01' ||
-              res.error.code === 'PGRST205' ||
-              res.error.code === 'PGRST204' ||
-              res.error.message?.includes('schema cache') ||
-              res.error.message?.includes('does not exist') ||
-              res.error.message?.includes('Could not find the table')
-            )) {
-              console.warn("Trips table not created on Supabase yet; skipping remote sync:", res.error);
+            if (res.error && isNonRecoverableSyncError(res.error)) {
+              console.warn("Trips table not created or RLS blocked on Supabase; skipping remote sync:", res.error);
               error = null;
             } else {
               error = res.error;
@@ -537,12 +628,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
             }
           } else {
             console.error("Mutation failed:", error, mut);
-            // Drop client-level syntax/constraint errors so the queue is never blocked.
-            // Also drop account mutations that violate RLS (alien IDs from older clients) or missing table errors to unblock sync.
-            const isNonRecoverable = ['22P02', '23502', '42703', 'PGRST100', 'PGRST205'].includes(error.code) ||
-              error.message?.includes('schema cache') ||
-              error.message?.includes('Could not find the table') ||
-              (error.message?.includes('violates row-level security policy') && mut.type.includes('ACCOUNT'));
+            // Drop client-level syntax/constraint errors or non-recoverable missing table/RLS errors
+            const isNonRecoverable = isNonRecoverableSyncError(error);
             if (isNonRecoverable) {
               console.warn(`Dropping unrecoverable mutation (${mut.type}) to unblock sync queue:`, error);
               removePendingMutation(mut.id);
@@ -577,7 +664,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
               syncChannel.send({
                 type: 'broadcast',
                 event: 'data_changed',
-                payload: { timestamp: Date.now() }
+                payload: { timestamp: Date.now(), senderId: localSyncClientId }
               });
             }
           });
@@ -586,6 +673,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         }
       }
     } finally {
+      clearSyncWatchdog();
       isSyncingLock = false;
       set({ isSyncing: false });
     }
@@ -596,7 +684,24 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
     if (!session) return;
     
     set({ isSyncing: true });
+    startSyncWatchdog(set);
+
     try {
+      // Deduplicate pending mutations (keep latest mutation for each type:payload.id)
+      set((state) => {
+        const seen = new Set<string>();
+        const deduped: typeof state.pendingMutations = [];
+        for (let i = state.pendingMutations.length - 1; i >= 0; i--) {
+          const m = state.pendingMutations[i];
+          const key = `${m.type}:${m.payload?.id || m.id}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            deduped.unshift(m);
+          }
+        }
+        return { pendingMutations: deduped };
+      });
+
       // Prune zombie pending mutations older than 24 hours.
       // If createdAt is missing on a mutation, do not prune it; assign Date.now() and keep it.
       const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -707,8 +812,12 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         const { success: accSuccess, failed: accFailed } = await chunkedUpsert('accounts', uploadPayloads);
 
         accFailed.forEach(({ record, error }) => {
+          if (isNonRecoverableSyncError(error)) {
+            console.warn('[Sync] Account upload failed with non-recoverable error, skipping queue:', record.id, error);
+            return;
+          }
           console.error('[Sync] Account upload failed, re-queuing:', record.id, error);
-          if (!error?.message?.includes('violates row-level security policy')) {
+          if (!get().pendingMutations.some(m => m.payload?.id === record.id)) {
             get().addPendingMutation({
               type: 'INSERT_ACCOUNT',
               payload: record,
@@ -838,11 +947,17 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         const { success: expSuccess, failed: expFailed } = await chunkedUpsert('expenses', uploadPayloads);
 
         expFailed.forEach(({ record, error }) => {
+          if (isNonRecoverableSyncError(error)) {
+            console.warn('[Sync] Expense upload failed with non-recoverable error, skipping queue:', record.id, error);
+            return;
+          }
           console.error('[Sync] Expense upload failed, re-queuing:', record.id, error);
-          get().addPendingMutation({
-            type: 'INSERT_EXPENSE',
-            payload: record,
-          });
+          if (!get().pendingMutations.some(m => m.payload?.id === record.id)) {
+            get().addPendingMutation({
+              type: 'INSERT_EXPENSE',
+              payload: record,
+            });
+          }
         });
 
         const mergedExpenseMap = new Map<string, Expense>();
@@ -954,11 +1069,17 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         const { success: billSuccess, failed: billFailed } = await chunkedUpsert('bills', uploadPayloads);
 
         billFailed.forEach(({ record, error }) => {
+          if (isNonRecoverableSyncError(error)) {
+            console.warn('[Sync] Bill upload failed with non-recoverable error, skipping queue:', record.id, error);
+            return;
+          }
           console.error('[Sync] Bill upload failed, re-queuing:', record.id, error);
-          get().addPendingMutation({
-            type: 'INSERT_BILL',
-            payload: record,
-          });
+          if (!get().pendingMutations.some(m => m.payload?.id === record.id)) {
+            get().addPendingMutation({
+              type: 'INSERT_BILL',
+              payload: record,
+            });
+          }
         });
 
         const mergedBillMap = new Map<string, Bill>();
@@ -1074,11 +1195,17 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         const { success: budgetSuccess, failed: budgetFailed } = await chunkedUpsert('budgets', uploadPayloads);
 
         budgetFailed.forEach(({ record, error }) => {
+          if (isNonRecoverableSyncError(error)) {
+            console.warn('[Sync] Budget upload failed with non-recoverable error, skipping queue:', record.id, error);
+            return;
+          }
           console.error('[Sync] Budget upload failed, re-queuing:', record.id, error);
-          get().addPendingMutation({
-            type: 'UPSERT_BUDGET',
-            payload: record,
-          });
+          if (!get().pendingMutations.some(m => m.payload?.id === record.id)) {
+            get().addPendingMutation({
+              type: 'UPSERT_BUDGET',
+              payload: record,
+            });
+          }
         });
 
         const mergedBudgetMap = new Map<string, Budget>();
@@ -1191,11 +1318,17 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         const { success: subSuccess, failed: subFailed } = await chunkedUpsert('subscriptions', uploadPayloads);
 
         subFailed.forEach(({ record, error }) => {
+          if (isNonRecoverableSyncError(error)) {
+            console.warn('[Sync] Subscription upload failed with non-recoverable error, skipping queue:', record.id, error);
+            return;
+          }
           console.error('[Sync] Subscription upload failed, re-queuing:', record.id, error);
-          get().addPendingMutation({
-            type: 'INSERT_SUBSCRIPTION',
-            payload: record,
-          });
+          if (!get().pendingMutations.some(m => m.payload?.id === record.id)) {
+            get().addPendingMutation({
+              type: 'INSERT_SUBSCRIPTION',
+              payload: record,
+            });
+          }
         });
 
         const mergedSubMap = new Map<string, Subscription>();
@@ -1296,11 +1429,17 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         const { success: wishSuccess, failed: wishFailed } = await chunkedUpsert('wishlist', uploadPayloads);
 
         wishFailed.forEach(({ record, error }) => {
+          if (isNonRecoverableSyncError(error)) {
+            console.warn('[Sync] Wishlist upload failed with non-recoverable error, skipping queue:', record.id, error);
+            return;
+          }
           console.error('[Sync] Wishlist upload failed, re-queuing:', record.id, error);
-          get().addPendingMutation({
-            type: 'INSERT_WISHLIST_ITEM',
-            payload: record,
-          });
+          if (!get().pendingMutations.some(m => m.payload?.id === record.id)) {
+            get().addPendingMutation({
+              type: 'INSERT_WISHLIST_ITEM',
+              payload: record,
+            });
+          }
         });
 
         const mergedWishlistMap = new Map<string, WishlistItem>();
@@ -1413,11 +1552,17 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         const { success: debtSuccess, failed: debtFailed } = await chunkedUpsert('debts', uploadPayloads);
 
         debtFailed.forEach(({ record, error }) => {
+          if (isNonRecoverableSyncError(error)) {
+            console.warn('[Sync] Debt upload failed with non-recoverable error, skipping queue:', record.id, error);
+            return;
+          }
           console.error('[Sync] Debt upload failed, re-queuing:', record.id, error);
-          get().addPendingMutation({
-            type: 'INSERT_DEBT',
-            payload: record,
-          });
+          if (!get().pendingMutations.some(m => m.payload?.id === record.id)) {
+            get().addPendingMutation({
+              type: 'INSERT_DEBT',
+              payload: record,
+            });
+          }
         });
 
         const mergedDebtMap = new Map<string, Debt>();
@@ -1695,6 +1840,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       console.error("Failed to fetch cloud data:", error);
       set({ lastSyncError: error?.message || 'Failed to fetch cloud data' });
     } finally {
+      clearSyncWatchdog();
       set({ isSyncing: false });
     }
   },
