@@ -54,18 +54,18 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
   const x = useMotionValue(0);
 
   // Smooth continuous opacity and scale for action indicators without React re-renders
-  const editOpacity = useTransform(x, [20, 80], [0, 1]);
-  const editScale = useTransform(x, [20, 80], [0.85, 1.05]);
-  const deleteOpacity = useTransform(x, [-25, -110], [0, 1]);
-  const deleteScale = useTransform(x, [-25, -110], [0.85, 1.1]);
+  const editOpacity = useTransform(x, [15, 75], [0, 1]);
+  const editScale = useTransform(x, [15, 75], [0.85, 1.05]);
+  const deleteOpacity = useTransform(x, [-15, -75], [0, 1]);
+  const deleteScale = useTransform(x, [-15, -75], [0.85, 1.05]);
 
   const handleDrag = () => {
     const currentX = x.get();
     // Fire tactile haptic when crossing the deliberate action commit detents
-    if ((currentX <= -120 || currentX >= 80) && !hasHapticFired.current) {
+    if ((currentX <= -75 || currentX >= 75) && !hasHapticFired.current) {
       vibrate(15);
       hasHapticFired.current = true;
-    } else if (Math.abs(currentX) < 40) {
+    } else if (Math.abs(currentX) < 30) {
       hasHapticFired.current = false;
     }
   };
@@ -73,17 +73,25 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
   const handleDragEnd = (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     hasHapticFired.current = false;
     const { offset, velocity } = info;
+    const currentX = x.get();
 
     // Directional scroll lock: verify gesture is primarily horizontal and not vertical scroll drift
-    const isHorizontalGesture = Math.abs(offset.x) > Math.abs(offset.y) * 1.5 && Math.abs(offset.y) < 32;
+    const isHorizontalGesture = Math.abs(offset.x) > Math.abs(offset.y) * 0.7 || Math.abs(currentX) > 40;
 
     // Calibrated Left Swipe = Delete
-    // Requires deliberate physical pull past 120px, OR a strong flick past 85px with velocity <= -500px/s.
-    // Anything smaller (e.g. casual scroll or small drag) safely springs back to center.
-    const isDeliberateDelete = isHorizontalGesture && (offset.x <= -120 || (offset.x <= -85 && velocity.x <= -500));
+    // Requires deliberate physical pull past -75px, OR a quick flick past -35px with velocity <= -250px/s.
+    const isDeliberateDelete = isHorizontalGesture && (
+      currentX <= -75 ||
+      offset.x <= -75 ||
+      ((currentX <= -35 || offset.x <= -35) && velocity.x <= -250)
+    );
 
-    // Right swipe = Edit (requires offset >= 80px or strong flick past 60px)
-    const isDeliberateEdit = isHorizontalGesture && (offset.x >= 80 || (offset.x >= 60 && velocity.x >= 500));
+    // Right swipe = Edit (requires offset >= 75px or quick flick past 35px)
+    const isDeliberateEdit = isHorizontalGesture && (
+      currentX >= 75 ||
+      offset.x >= 75 ||
+      ((currentX >= 35 || offset.x >= 35) && velocity.x >= 250)
+    );
 
     if (isDeliberateDelete) {
       setIsDeleting(true);
@@ -108,40 +116,59 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
   }
 
   return (
-    <motion.div
-      whileTap={{ scale: 0.985 }}
-      transition={{ type: "spring", stiffness: 400, damping: 28 }}
-      className="relative overflow-hidden rounded-2xl border border-border/70 shadow-sm bg-card select-none"
-    >
+    <div className="relative overflow-hidden rounded-2xl border border-border/70 shadow-sm bg-card select-none">
       {/* Background Actions */}
       <div className="absolute inset-0 flex items-center justify-between px-5 font-medium">
-        <motion.div 
-          style={{ opacity: editOpacity, scale: editScale }} 
-          className="flex items-center gap-2 text-primary font-semibold text-sm"
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            vibrate(20);
+            onEdit(expense);
+          }}
+          className="flex items-center gap-2 text-primary font-semibold text-sm cursor-pointer"
+          aria-label={`Edit ${expense.description}`}
         >
-          <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
-            <Pencil className="w-4 h-4 text-primary" />
-          </div>
-          <span>Edit</span>
-        </motion.div>
+          <motion.div 
+            style={{ opacity: editOpacity, scale: editScale }} 
+            className="flex items-center gap-2"
+          >
+            <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
+              <Pencil className="w-4 h-4 text-primary" />
+            </div>
+            <span>Edit</span>
+          </motion.div>
+        </button>
 
-        <motion.div 
-          style={{ opacity: deleteOpacity, scale: deleteScale }} 
-          className="flex items-center gap-2 text-destructive font-semibold text-sm"
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsDeleting(true);
+            vibrate(25);
+            if (settings.soundEnabled) playDeleteSound();
+            setTimeout(() => deleteExpense(expense.id), 250);
+          }}
+          className="flex items-center gap-2 text-destructive font-semibold text-sm cursor-pointer"
+          aria-label={`Delete ${expense.description}`}
         >
-          <span>Delete</span>
-          <div className="w-8 h-8 rounded-full bg-destructive/15 flex items-center justify-center">
-            <Trash2 className="w-4 h-4 text-destructive" />
-          </div>
-        </motion.div>
+          <motion.div 
+            style={{ opacity: deleteOpacity, scale: deleteScale }} 
+            className="flex items-center gap-2"
+          >
+            <span>Delete</span>
+            <div className="w-8 h-8 rounded-full bg-destructive/15 flex items-center justify-center">
+              <Trash2 className="w-4 h-4 text-destructive" />
+            </div>
+          </motion.div>
+        </button>
       </div>
 
       {/* Foreground Draggable Item */}
       <motion.div
         drag="x"
-        dragDirectionLock
-        dragConstraints={{ left: -160, right: 100 }}
-        dragElastic={0.55} // Apple rubberband resistance constant c=0.55
+        dragConstraints={{ left: -140, right: 100 }}
+        dragElastic={0.4}
         dragTransition={{ bounceStiffness: 400, bounceDamping: 35 }}
         style={{ x }}
         onDrag={handleDrag}
@@ -257,7 +284,7 @@ export function SwipeableExpenseItem({ expense, isIncome, onEdit, onViewReceipt 
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }
 

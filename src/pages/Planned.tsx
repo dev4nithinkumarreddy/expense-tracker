@@ -207,16 +207,20 @@ function SwipeablePayRow({
         </motion.div>
       </div>
 
-      {/* Draggable Foreground with Vertical Scroll Lock Protection */}
+      {/* Draggable Foreground */}
       <motion.div
         drag="x"
-        dragDirectionLock
         dragConstraints={{ left: 0, right: 90 }}
         dragElastic={0.4}
         style={{ x }}
         onDragEnd={(_e, info) => {
-          const isIntentionalSwipe = (info.offset.x > 75 && Math.abs(info.offset.y) < 24) || 
-                                     (info.velocity.x > 320 && Math.abs(info.offset.y) < 18);
+          const currentX = x.get();
+          const isHorizontal = Math.abs(info.offset.x) > Math.abs(info.offset.y) * 0.7 || currentX > 40;
+          const isIntentionalSwipe = isHorizontal && (
+            currentX > 65 ||
+            info.offset.x > 65 ||
+            (info.offset.x > 30 && info.velocity.x > 250)
+          );
           if (isIntentionalSwipe) {
             vibrate(20);
             onPay();
