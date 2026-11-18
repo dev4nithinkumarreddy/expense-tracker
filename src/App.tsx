@@ -122,7 +122,7 @@ export default function App() {
     if (!session?.user?.id) return;
 
     const channelName = `device-sync-${session.user.id}`;
-    const tables = ['expenses', 'accounts', 'bills', 'budgets', 'user_settings', 'subscriptions', 'debts', 'wishlist'];
+    const tables = ['expenses', 'accounts', 'bills', 'budgets', 'user_settings', 'subscriptions', 'debts', 'wishlist', 'trips'];
     
     let channel = supabase.channel(channelName);
 

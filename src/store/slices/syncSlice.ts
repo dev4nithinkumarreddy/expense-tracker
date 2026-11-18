@@ -1657,7 +1657,7 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
         localWins.forEach(t => mergedTripMap.set(t.id, t));
 
         let finalTrips = Array.from(mergedTripMap.values());
-        const { pendingMutations } = get();
+        const { pendingMutations, deletedTripIds = [] } = get();
         pendingMutations.forEach(mut => {
           if (mut.type === 'INSERT_TRIP') {
             if (!finalTrips.some(t => t.id === mut.payload.id)) {
@@ -1670,7 +1670,30 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           }
         });
 
-        set({ trips: finalTrips });
+        // Suppress resurrecting trips that were deleted on this device
+        const deletedTripSet = new Set([
+          ...deletedTripIds,
+          ...pendingMutations.filter(m => m.type === 'DELETE_TRIP').map(m => m.payload?.id)
+        ]);
+        finalTrips = finalTrips.filter(t => !deletedTripSet.has(t.id));
+
+        // Clean up any cloud trips that have been locally deleted
+        if (session && Array.isArray(tripsRes?.data)) {
+          const zombieCloudTrips = tripsRes.data.filter((t: any) => deletedTripSet.has(t.id));
+          if (zombieCloudTrips.length > 0) {
+            zombieCloudTrips.forEach((t: any) => {
+              Promise.resolve(supabase.from('trips' as any).delete().eq('id', t.id)).catch(() => {});
+            });
+          }
+        }
+
+        // If the active trip was deleted, clear activeTripId
+        const currentActiveTripId = get().activeTripId;
+        const nextActiveTripId = (currentActiveTripId && finalTrips.some(t => t.id === currentActiveTripId))
+          ? currentActiveTripId
+          : null;
+
+        set({ trips: finalTrips, activeTripId: nextActiveTripId });
         console.log(`[Sync] trips: uploaded ${uploadPayloads.length}, downloaded ${cloudOnly.length}`);
       }
 
@@ -1857,6 +1880,9 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       budgets: [],
       wishlistItems: [],
       debts: [],
+      trips: [],
+      activeTripId: null,
+      deletedTripIds: [],
       pendingMutations: [],
       recentlyDeleted: [],
       lastSyncSuccess: null,
@@ -2091,7 +2117,8 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
           supabase.from('wishlist').delete().eq('user_id', session.user.id),
           supabase.from('debts').delete().eq('user_id', session.user.id),
           supabase.from('user_settings').delete().eq('user_id', session.user.id),
-          (supabase.from('accounts' as any).delete().eq('user_id', session.user.id) as any).catch(() => {})
+          (supabase.from('accounts' as any).delete().eq('user_id', session.user.id) as any).catch(() => {}),
+          Promise.resolve(supabase.from('trips' as any).delete().eq('user_id', session.user.id)).catch(() => {})
         ]);
         queryClient.removeQueries();
         toast.success("All data erased successfully");
@@ -2107,6 +2134,9 @@ export const createSyncSlice: StateCreator<ExpenseState, [], [], SyncSlice> = (s
       budgets: [],
       wishlistItems: [],
       debts: [],
+      trips: [],
+      activeTripId: null,
+      deletedTripIds: [],
       pendingMutations: [],
       recentlyDeleted: [],
       lastSyncSuccess: null,

@@ -265,6 +265,7 @@ export interface SyncSlice {
 export interface TripSlice {
   trips: Trip[];
   activeTripId: string | null;
+  deletedTripIds?: string[];
   addTrip: (trip: Omit<Trip, 'id' | 'created_at' | 'updated_at'>) => Promise<string>;
   updateTrip: (id: string, trip: Partial<Trip>) => void;
   deleteTrip: (id: string) => void;

@@ -1,9 +1,11 @@
 import type { StateCreator } from 'zustand';
 import type { ExpenseState, TripSlice, Trip } from '../types';
+import { supabase } from '../../lib/supabase';
 
 export const createTripSlice: StateCreator<ExpenseState, [], [], TripSlice> = (set, get) => ({
   trips: [],
   activeTripId: null,
+  deletedTripIds: [],
 
   addTrip: async (tripData) => {
     const id = crypto.randomUUID();
@@ -89,12 +91,16 @@ export const createTripSlice: StateCreator<ExpenseState, [], [], TripSlice> = (s
     set((state) => ({
       trips: state.trips.filter((t) => t.id !== id),
       activeTripId: state.activeTripId === id ? null : state.activeTripId,
+      deletedTripIds: [...(state.deletedTripIds || []), id],
       // Unlink expenses and debts without deleting the underlying financial records
       expenses: state.expenses.map((e) => (e.trip_id === id ? { ...e, trip_id: null } : e)),
       debts: state.debts.map((d) => (d.trip_id === id ? { ...d, trip_id: null } : d))
     }));
 
     const { session, addPendingMutation, syncPendingMutations } = get();
+    if (session) {
+      Promise.resolve(supabase.from('trips' as any).delete().eq('id', id)).catch(() => {});
+    }
     if (addPendingMutation) {
       addPendingMutation({
         type: 'DELETE_TRIP',
